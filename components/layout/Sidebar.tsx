@@ -40,7 +40,7 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 bg-gradient-to-b from-[#043d22] to-[#065c36] text-white flex flex-col h-screen fixed top-0 left-0 z-20 border-r border-white/5 select-none">
+    <aside className="w-64 bg-gradient-to-b from-[#075731] to-[#08683d] text-white flex flex-col h-screen fixed top-0 left-0 z-20 border-r border-white/5 select-none">
       {/* Brand */}
       <div className="p-5 border-b border-[#1E8C45] flex items-center gap-3">
         <div className="bg-white/10 p-2 rounded-xl border border-white/20 flex items-center justify-center">
@@ -67,7 +67,7 @@ export default function Sidebar() {
               href={item.href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative ${
                 isActive
-                  ? 'bg-[#1E8C45] text-white shadow-md'
+                  ? 'bg-white/10 text-white shadow-sm backdrop-blur-sm'
                   : 'text-white/80 hover:bg-white/5 hover:text-white'
               }`}
             >
