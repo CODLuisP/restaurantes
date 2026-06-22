@@ -22,16 +22,16 @@ import {
 
 const menuItems = [
   { href: '/dashboard',     label: 'Dashboard',       icon: LayoutDashboard },
-  { href: '/pos',           label: 'Punto de Venta',  icon: ShoppingBag,    badge: 'Tablet' },
-  { href: '/pedidos',       label: 'Pedidos',          icon: ClipboardList,  badge: '12' },
-  { href: '/mesas',         label: 'Mesas',            icon: Grid,           badge: 'Plano' },
-  { href: '/cocina',        label: 'Cocina',           icon: ChefHat,        badge: 'Pantalla' },
+  { href: '/pos',           label: 'Punto de Venta',  icon: ShoppingBag },
+  { href: '/pedidos',       label: 'Pedidos',          icon: ClipboardList },
+  { href: '/mesas',         label: 'Mesas',            icon: Grid },
+  { href: '/cocina',        label: 'Cocina',           icon: ChefHat },
   { href: '/productos',     label: 'Productos',        icon: UtensilsCrossed },
   { href: '/categorias',    label: 'Categorías',       icon: Tags },
-  { href: '/inventario',    label: 'Inventario',       icon: Archive,        badge: '3 Alertas' },
+  { href: '/inventario',    label: 'Inventario',       icon: Archive },
   { href: '/clientes',      label: 'Clientes',         icon: Users },
   { href: '/delivery',      label: 'Delivery',         icon: Truck },
-  { href: '/caja',          label: 'Caja',             icon: Coins,          badge: 'S/. Abierta' },
+  { href: '/caja',          label: 'Caja',             icon: Coins },
   { href: '/reportes',      label: 'Reportes',         icon: TrendingUp },
   { href: '/configuracion', label: 'Configuración',    icon: Settings },
 ];
