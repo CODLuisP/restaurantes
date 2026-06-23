@@ -32,7 +32,7 @@ export default function MesasPage() {
             <div
               key={table.id}
               onClick={() => cycleTableStatus(table.id)}
-              className={`bg-slate-200 p-5 rounded-2xl border border-slate-300 shadow-xs hover:shadow-md cursor-pointer transition-all duration-200 group relative border-t-4 ${
+              className={`card-lg p-5 hover:shadow-md cursor-pointer transition-all duration-200 group relative border-t-4 ${
                 isDisponible ? 'border-t-emerald-500' : isOcupada ? 'border-t-rose-500' : 'border-t-amber-500'
               }`}
             >
@@ -48,7 +48,7 @@ export default function MesasPage() {
                 <h4 className="text-lg font-bold text-slate-800 tracking-tight">{table.name}</h4>
                 <p className="text-[10px] text-slate-500 mt-0.5">Capacidad: {table.capacidad} personas</p>
               </div>
-              <div className="pt-3 border-t border-slate-300 flex justify-between items-center text-xs">
+              <div className="pt-3 border-t border-slate-200 flex justify-between items-center text-xs">
                 <span className="text-slate-500">Total Consumido:</span>
                 <span className="font-mono font-bold text-slate-800">S/. {table.cuenta.toFixed(2)}</span>
               </div>
@@ -60,16 +60,16 @@ export default function MesasPage() {
         })}
       </div>
 
-      <div className="bg-emerald-500/10 border border-[#007542]/10 p-4 rounded-xl flex items-center justify-between">
+      <div className="bg-emerald-500/10 border border-brand/10 p-4 rounded-xl flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <AlertCircle className="h-5 w-5 text-[#007542]" />
+          <AlertCircle className="h-5 w-5 text-brand" />
           <p className="text-xs text-gray-700">
             <strong>Tip operativo:</strong> Puedes hacer clic en cualquier mesa para cambiar su estado comercial secuencialmente.
           </p>
         </div>
         <button
           onClick={() => { setTables(MOCK_TABLES); triggerToast('Distribución de mesas restablecida.', 'info'); }}
-          className="text-xs font-bold text-[#007542] hover:underline"
+          className="text-xs font-bold text-brand hover:underline"
         >
           Restablecer Todo
         </button>

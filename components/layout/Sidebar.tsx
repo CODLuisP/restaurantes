@@ -18,9 +18,17 @@ import {
   Settings,
   Boxes,
   Store,
+  type LucideIcon,
 } from 'lucide-react';
 
-const menuItems = [
+type MenuItem = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  badge?: string | number;
+};
+
+const menuItems: MenuItem[] = [
   { href: '/dashboard',     label: 'Dashboard',       icon: LayoutDashboard },
   { href: '/pos',           label: 'Punto de Venta',  icon: ShoppingBag },
   { href: '/pedidos',       label: 'Pedidos',          icon: ClipboardList },
@@ -40,11 +48,11 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 bg-gradient-to-b from-[#094127] to-[#08683d] text-white flex flex-col h-screen fixed top-0 left-0 z-20 border-r border-white/5 select-none">
+    <aside className="w-64 bg-gradient-to-b from-brand-dark to-brand-medium text-white flex flex-col h-screen fixed top-0 left-0 z-20 border-r border-white/5 select-none">
       {/* Brand */}
-      <div className="p-5 border-b border-[#1E8C45] flex items-center gap-3">
+      <div className="p-5 border-b border-brand-hover flex items-center gap-3">
         <div className="bg-white/10 p-2 rounded-xl border border-white/20 flex items-center justify-center">
-          <Store className="h-6 w-6 text-[#58BB43] stroke-[2]" />
+          <Store className="h-6 w-6 text-brand-accent stroke-[2]" />
         </div>
         <div>
           <h1 className="font-sans font-bold text-lg tracking-tight leading-none text-white">RestoPro</h1>
@@ -72,18 +80,18 @@ export default function Sidebar() {
               }`}
             >
               {isActive && (
-                <div className="absolute left-0 top-3 bottom-3 w-1 bg-[#58BB43] rounded-r-full" />
+                <div className="absolute left-0 top-3 bottom-3 w-1 bg-brand-accent rounded-r-full" />
               )}
               <Icon
                 className={`h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-105 ${
-                  isActive ? 'text-[#58BB43]' : 'text-white/60'
+                  isActive ? 'text-brand-accent' : 'text-white/60'
                 }`}
               />
               <span className="flex-grow text-left">{item.label}</span>
-              {'badge' in item && item.badge && (
+              {item.badge && (
                 <span
                   className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono ${
-                    isActive ? 'bg-white/15 text-white' : 'bg-black/20 text-[#58BB43] font-medium'
+                    isActive ? 'bg-white/15 text-white' : 'bg-black/20 text-brand-accent font-medium'
                   }`}
                 >
                   {item.badge}
@@ -94,7 +102,7 @@ export default function Sidebar() {
         })}
 
         {/* Playground */}
-        <div className="border-t border-[#1E8C45]/40 my-4 pt-4">
+        <div className="border-t border-brand-hover/40 my-4 pt-4">
           <div className="text-[10px] uppercase font-mono tracking-wider text-white/40 px-3 mb-2">
             PLAYGROUND
           </div>
@@ -102,20 +110,20 @@ export default function Sidebar() {
             href="/ui-components"
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative ${
               pathname === '/ui-components'
-                ? 'bg-[#1E8C45] text-white shadow-md'
+                ? 'bg-brand-hover text-white shadow-md'
                 : 'text-white/80 hover:bg-white/5 hover:text-white'
             }`}
           >
             {pathname === '/ui-components' && (
-              <div className="absolute left-0 top-3 bottom-3 w-1 bg-[#58BB43] rounded-r-full" />
+              <div className="absolute left-0 top-3 bottom-3 w-1 bg-brand-accent rounded-r-full" />
             )}
             <Boxes
               className={`h-4 w-4 shrink-0 ${
-                pathname === '/ui-components' ? 'text-[#58BB43]' : 'text-white/60'
+                pathname === '/ui-components' ? 'text-brand-accent' : 'text-white/60'
               }`}
             />
             <span className="flex-grow text-left">Componentes UI</span>
-            <span className="text-[9px] bg-[#58BB43] text-[#007542] px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
+            <span className="text-[9px] bg-brand-accent text-brand px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
               Nuevo
             </span>
           </Link>
@@ -123,7 +131,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-[#1E8C45] bg-[#005e34]/30">
+      <div className="p-4 border-t border-brand-hover bg-brand-deeper/30">
         <div className="flex items-center gap-2">
           <div className="flex flex-col w-1 h-8 rounded-full overflow-hidden">
             <div className="bg-[#D91B5C] h-1/3" />

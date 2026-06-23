@@ -37,7 +37,7 @@ export default function Header() {
   const sectionName = SECTION_NAMES[pathname] ?? pathname.slice(1);
 
   return (
-    <header className="sticky top-0 right-0 z-10 w-full h-16 bg-[#F3F5F4] border-b border-slate-300/80 px-6 flex items-center justify-between transition-colors duration-300">
+    <header className="sticky top-0 right-0 z-10 w-full h-16 bg-surface-header border-b border-border-card px-6 flex items-center justify-between transition-colors duration-300">
       {/* Breadcrumb */}
       <div className="flex items-center gap-3">
         <span className="text-xs bg-slate-200 text-slate-600 font-mono px-2 py-1 rounded">RESTOPRO</span>
@@ -57,7 +57,7 @@ export default function Header() {
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           placeholder={`Buscar en ${sectionName}...`}
-          className="w-full pl-9 pr-8 py-1.5 rounded-full text-xs bg-white text-slate-700 border border-slate-300 focus:outline-none focus:ring-1 focus:ring-[#007542] focus:border-[#007542] transition-all font-sans"
+          className="w-full pl-9 pr-8 py-1.5 rounded-full text-xs bg-white text-slate-700 border border-slate-300 focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-all font-sans"
         />
         <div className="absolute right-3.5 top-2.5 hidden lg:flex items-center gap-0.5 text-[9px] font-mono text-slate-400 border border-slate-200 bg-white px-1 rounded shadow-xs leading-none">
           <Command className="h-2 w-2" />
@@ -82,7 +82,7 @@ export default function Header() {
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-300 rounded-xl shadow-lg py-2 z-50">
+            <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-lg py-2 z-50">
               <div className="px-4 py-2 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <span className="text-xs font-semibold text-slate-800">Notificaciones del Sistema</span>
                 <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-bold">3 de Hoy</span>
@@ -105,7 +105,7 @@ export default function Header() {
               <div className="px-4 py-2 border-t border-slate-100 text-center">
                 <button
                   onClick={() => { setShowNotifications(false); triggerToast('Notificaciones marcadas como leídas', 'success'); }}
-                  className="text-[11px] text-[#007542] hover:underline font-medium"
+                  className="text-[11px] text-brand hover:underline font-medium"
                 >
                   Marcar todas como leídas
                 </button>
@@ -125,13 +125,13 @@ export default function Header() {
             </div>
             <div className="text-left hidden lg:block select-none leading-none">
               <p className="text-xs font-semibold text-slate-800">Admin Luis Castrejón</p>
-              <p className="text-[9px] text-[#007542] font-mono mt-0.5 tracking-wider">ADMINISTRADOR</p>
+              <p className="text-[9px] text-brand font-mono mt-0.5 tracking-wider">ADMINISTRADOR</p>
             </div>
             <ChevronDown className="h-3 w-3 text-slate-400" />
           </button>
 
           {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-300 rounded-xl shadow-lg py-1.5 z-50">
+            <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-50">
               <div className="px-4 py-2 border-b border-slate-100">
                 <p className="text-xs text-slate-400">Usuario conectado</p>
                 <p className="text-xs font-bold text-slate-800 truncate">lcastrejonc18_2@unc.edu.pe</p>

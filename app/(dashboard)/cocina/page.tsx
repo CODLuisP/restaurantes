@@ -14,12 +14,12 @@ export default function CocinaPage() {
 
   return (
     <div className="space-y-6 animate-section">
-      <div className="flex items-center justify-between pb-3 border-b border-gray-200">
+      <div className="flex items-center justify-between pb-3 border-b border-slate-200">
         <div>
           <h3 className="text-xl font-bold text-gray-900">Kitchen Display System (KDS)</h3>
           <p className="text-xs text-gray-500">Kanban de preparación gastronómica en tiempo real para chefs.</p>
         </div>
-        <span className="text-xs bg-[#007542]/10 text-[#007542] px-3 py-1.5 rounded-full font-bold">
+        <span className="text-xs bg-brand/10 text-brand px-3 py-1.5 rounded-full font-bold">
           Sincronizado con Comandero POS
         </span>
       </div>
@@ -29,7 +29,7 @@ export default function CocinaPage() {
           const orders = kitchenOrders.filter(o => o.status === col.status);
           return (
             <div key={col.status} className="bg-slate-50 p-4 rounded-2xl flex flex-col space-y-4">
-              <div className="flex justify-between items-center border-b border-gray-200 pb-2">
+              <div className="flex justify-between items-center border-b border-slate-200 pb-2">
                 <span className="text-xs font-bold text-gray-600 uppercase tracking-wider flex items-center gap-2">
                   <span className={`h-2 w-2 rounded-full ${col.dot}`} /> {col.label}
                 </span>
@@ -43,7 +43,7 @@ export default function CocinaPage() {
                   <div className="p-8 text-center text-xs text-gray-400 italic">{col.empty}</div>
                 ) : (
                   orders.map(order => (
-                    <div key={order.id} className={`bg-slate-200 p-4 rounded-xl border border-slate-300 shadow-xs flex flex-col space-y-3 ${col.status === 'listo' ? 'opacity-80' : ''}`}>
+                    <div key={order.id} className={`card p-4 flex flex-col space-y-3 ${col.status === 'listo' ? 'opacity-80' : ''}`}>
                       <div className="flex justify-between items-center text-[11px] text-slate-500">
                         <span className="font-mono font-bold text-slate-800">{order.id} - {order.table}</span>
                         {col.status === 'pendiente' && (
@@ -70,7 +70,7 @@ export default function CocinaPage() {
                         ))}
                       </div>
 
-                      <div className="pt-2 border-t border-slate-300">
+                      <div className="pt-2 border-t border-slate-200">
                         {col.status === 'pendiente' && (
                           <button
                             onClick={() => changeKitchenStatus(order.id, 'preparando')}
@@ -89,7 +89,7 @@ export default function CocinaPage() {
                         )}
                         {col.status === 'listo' && (
                           <div className="flex justify-end">
-                            <span className="text-[9px] bg-slate-300 text-slate-600 px-2 py-0.5 rounded-full font-bold uppercase">
+                            <span className="text-[9px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-bold uppercase">
                               Finalizado en {order.elapsed} min
                             </span>
                           </div>

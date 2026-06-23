@@ -1,0 +1,216 @@
+/* ═══════════════════════════════════════════════════════════════
+   RestoPro — Design Tokens
+   Cambiar un valor aquí actualiza todos los componentes que lo
+   usan. No toques colores hardcodeados en los archivos TSX/TSX.
+   ═══════════════════════════════════════════════════════════════ */
+
+@theme {
+
+  /* ── Paleta de marca ─────────────────────────────────────────
+     Verde corporativo RestoPro Perú.
+     Cambia aquí para rebrandear toda la app.                   */
+  --color-brand:        #007542;
+  --color-brand-hover:  #1E8C45;
+  --color-brand-accent: #58BB43;
+  --color-brand-subtle: #3AA346;
+  --color-brand-dark:   #094127;
+  --color-brand-medium: #08683d;
+  --color-brand-deeper: #005e34;
+
+  /* ── Superficies (fondos) ────────────────────────────────────
+     Cambiar --color-surface-card actualiza TODAS las cards.    */
+  --color-surface-page:   #F0F2F1;
+  --color-surface-header: #F3F5F4;
+  --color-surface-card:   #ffffff;
+  --color-surface-input:  #f1f5f9;
+  --color-surface-muted:  #f8fafc;
+
+  /* ── Bordes ─────────────────────────────────────────────────
+     Cambiar --color-border-card actualiza bordes de cards.     */
+  --color-border-card:   rgb(203 213 225 / 0.8);
+  --color-border-strong: rgb(203 213 225);
+  --color-border-subtle: rgb(226 232 240);
+
+  /* ── Texto ──────────────────────────────────────────────────  */
+  --color-text-primary:     #1e293b;
+  --color-text-secondary:   #475569;
+  --color-text-muted:       #94a3b8;
+  --color-text-placeholder: #64748b;
+
+  /* ── Status ─────────────────────────────────────────────────  */
+  --color-status-success:      #10b981;
+  --color-status-success-bg:   #ecfdf5;
+  --color-status-success-text: #065f46;
+  --color-status-warning:      #f59e0b;
+  --color-status-warning-bg:   #fffbeb;
+  --color-status-warning-text: #b45309;
+  --color-status-danger:       #f43f5e;
+  --color-status-danger-bg:    #fff1f2;
+  --color-status-danger-text:  #be123c;
+  --color-status-info:         #0ea5e9;
+  --color-status-info-bg:      #f0f9ff;
+  --color-status-info-text:    #0369a1;
+
+  /* ── Radios de borde ────────────────────────────────────────
+     Cambiar --radius-md actualiza todos los bordes de cards.  */
+  --radius-sm:   0.5rem;
+  --radius-md:   0.75rem;
+  --radius-lg:   1rem;
+  --radius-full: 9999px;
+
+  /* ── Sombras ─────────────────────────────────────────────── */
+  --shadow-card:       0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-card-hover: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+  --shadow-dropdown:   0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+
+  /* ── Layout ─────────────────────────────────────────────── */
+  --spacing-sidebar: 16rem;
+  --spacing-header:  4rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Clases semánticas de componentes
+   Usan los tokens de arriba — cambiar el token cambia la clase.
+   ═══════════════════════════════════════════════════════════════ */
+
+@layer components {
+
+  /* ── Cards ──────────────────────────────────────────────────
+     .card      → rounded-xl  (12px)
+     .card-lg   → rounded-2xl (16px)
+     Usa .card p-4, .card-lg p-6, etc.                         */
+  .card {
+    background-color: var(--color-surface-card);
+    border: 1px solid var(--color-border-card);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+  }
+
+  .card-lg {
+    background-color: var(--color-surface-card);
+    border: 1px solid var(--color-border-card);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* ── Botones ────────────────────────────────────────────────
+     .btn-primary  → verde corporativo con hover
+     .btn-secondary → gris neutro
+     .btn-ghost    → outline verde, sin relleno
+     .btn-danger   → rojo suave                                */
+  .btn-primary {
+    background-color: var(--color-brand);
+    color: #ffffff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .btn-primary:hover {
+    background-color: var(--color-brand-hover);
+    box-shadow: var(--shadow-card-hover);
+  }
+
+  .btn-secondary {
+    background-color: var(--color-surface-input);
+    color: #334155;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-card);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: background-color 0.15s ease;
+  }
+  .btn-secondary:hover {
+    background-color: var(--color-border-strong);
+  }
+
+  .btn-ghost {
+    color: var(--color-brand);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    padding: 0.25rem 0.625rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgb(0 117 66 / 0.2);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    transition: background-color 0.15s ease;
+  }
+  .btn-ghost:hover {
+    background-color: var(--color-status-success-bg);
+  }
+
+  .btn-danger {
+    background-color: var(--color-status-danger-bg);
+    color: var(--color-status-danger-text);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: background-color 0.15s ease;
+  }
+  .btn-danger:hover {
+    background-color: #fecdd3;
+  }
+
+  /* ── Inputs ─────────────────────────────────────────────────
+     Sin padding propio — añade px-3 py-2 según el contexto.
+     Aplica siempre width (w-full) por separado.               */
+  .input {
+    background-color: var(--color-surface-input);
+    color: var(--color-text-primary);
+    font-size: 0.75rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-strong);
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .input:focus {
+    border-color: var(--color-brand);
+    box-shadow: 0 0 0 1px var(--color-brand);
+  }
+
+  /* ── Badges de status ───────────────────────────────────────
+     Úsalos con .badge .badge-success, etc.                    */
+  .badge {
+    font-size: 0.625rem;
+    font-weight: 700;
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-full);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .badge-success {
+    background-color: #d1fae5;
+    color: var(--color-status-success-text);
+  }
+  .badge-warning {
+    background-color: #fef3c7;
+    color: var(--color-status-warning-text);
+  }
+  .badge-danger {
+    background-color: var(--color-status-danger-bg);
+    color: var(--color-status-danger-text);
+  }
+  .badge-brand {
+    background-color: rgb(0 117 66 / 0.1);
+    color: var(--color-brand);
+  }
+  .badge-info {
+    background-color: var(--color-status-info-bg);
+    color: var(--color-status-info-text);
+  }
+}

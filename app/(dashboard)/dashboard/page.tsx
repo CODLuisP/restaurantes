@@ -18,7 +18,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-lg">
           <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 pulse-active" />
-          <span className="text-[10px] font-semibold text-[#007542] font-mono">POS EN SINCRO: ONLINE</span>
+          <span className="text-[10px] font-semibold text-brand font-mono">POS EN SINCRO: ONLINE</span>
         </div>
       </div>
 
@@ -33,7 +33,7 @@ export default function DashboardPage() {
         ].map((kpi, i) => {
           const Icon = kpi.icon;
           return (
-            <div key={i} className="bg-slate-200 border border-slate-300/80 px-4 py-3 rounded-xl shadow-xs hover:shadow-md transition-all group duration-300">
+            <div key={i} className="card px-4 py-3 hover:shadow-md transition-all group duration-300">
               <div className="flex items-center justify-between text-slate-500">
                 <span className="text-[10px] font-bold tracking-wider uppercase">{kpi.label}</span>
                 <Icon className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" style={{ color: kpi.color }} />
@@ -48,16 +48,16 @@ export default function DashboardPage() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Revenue chart */}
-        <div className="bg-slate-200 border border-slate-300/80 p-4 rounded-xl shadow-xs lg:col-span-8 space-y-3">
-          <div className="flex justify-between items-center pb-2 border-b border-slate-300">
+        <div className="card p-4 lg:col-span-8 space-y-3">
+          <div className="flex justify-between items-center pb-2 border-b border-slate-200">
             <div>
               <h4 className="text-xs font-semibold text-slate-800">Curva de Ingresos Diarios (S/.)</h4>
               <p className="text-[10px] text-slate-500 mt-0.5">Dinámica semanal de ventas corporativas del local</p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="h-2 w-2 bg-[#007542] rounded-full inline-block" />
+              <span className="h-2 w-2 bg-brand rounded-full inline-block" />
               <span className="text-[10px] text-slate-700 font-medium">Turno Día</span>
-              <span className="h-2 w-2 bg-[#58BB43] rounded-full inline-block ml-2" />
+              <span className="h-2 w-2 bg-brand-accent rounded-full inline-block ml-2" />
               <span className="text-[10px] text-slate-700 font-medium">Turno Noche</span>
             </div>
           </div>
@@ -91,7 +91,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Payment methods */}
-        <div className="bg-slate-200 border border-slate-300/80 p-4 rounded-xl shadow-xs lg:col-span-4 space-y-3">
+        <div className="card p-4 lg:col-span-4 space-y-3">
           <div>
             <h4 className="text-xs font-semibold text-slate-800">Métodos de Pago</h4>
             <p className="text-[10px] text-slate-500 mt-0.5">Preferencia de pago de clientes RestoPro</p>
@@ -99,7 +99,7 @@ export default function DashboardPage() {
           <div className="space-y-3">
             {[
               { label: 'Yape / Plin (QR Digital)', pct: 52, color: 'bg-emerald-500' },
-              { label: 'Tarjeta de Crédito/Débito', pct: 38, color: 'bg-[#007542]' },
+              { label: 'Tarjeta de Crédito/Débito', pct: 38, color: 'bg-brand' },
               { label: 'Efectivo Físico (Soles)',   pct: 10, color: 'bg-amber-500' },
             ].map(m => (
               <div key={m.label}>
@@ -107,14 +107,14 @@ export default function DashboardPage() {
                   <span>{m.label}</span>
                   <span className="font-mono">{m.pct}%</span>
                 </div>
-                <div className="h-1.5 bg-slate-300 rounded-full overflow-hidden">
+                <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
                   <div className={`h-full ${m.color} rounded-full`} style={{ width: `${m.pct}%` }} />
                 </div>
               </div>
             ))}
           </div>
-          <div className="bg-[#007542]/10 border border-[#007542]/20 p-3 rounded-lg space-y-1">
-            <p className="text-[11px] font-semibold text-[#007542] flex items-center gap-1.5">
+          <div className="bg-brand/10 border border-brand/20 p-3 rounded-lg space-y-1">
+            <p className="text-[11px] font-semibold text-brand flex items-center gap-1.5">
               <Sparkles className="h-3 w-3 shrink-0" /> Tip Comercial
             </p>
             <p className="text-[10px] text-slate-600 leading-snug">
@@ -125,7 +125,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Sales history */}
-      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs">
+      <div className="card p-4">
         <div className="flex justify-between items-center mb-3">
           <div>
             <h4 className="text-xs font-semibold text-gray-800">Ventas Recientes Registradas (POS)</h4>
@@ -133,7 +133,7 @@ export default function DashboardPage() {
           </div>
           <button
             onClick={() => triggerToast('Generador de PDF simulado ejecutado.', 'success')}
-            className="text-[11px] text-[#007542] border border-[#007542]/20 hover:bg-emerald-50 px-2.5 py-1 rounded-lg font-medium flex items-center gap-1.5 transition-colors"
+            className="btn-ghost"
           >
             <FileText className="h-3 w-3" /> Exportar (.CSV)
           </button>
@@ -164,7 +164,7 @@ export default function DashboardPage() {
                       item.paymentMethod === 'Yape / Plin'
                         ? 'bg-emerald-100 text-emerald-800'
                         : item.paymentMethod === 'Tarjeta'
-                        ? 'bg-[#007542]/10 text-[#007542]'
+                        ? 'bg-brand/10 text-brand'
                         : 'bg-amber-100 text-amber-800'
                     }`}>
                       {item.paymentMethod}

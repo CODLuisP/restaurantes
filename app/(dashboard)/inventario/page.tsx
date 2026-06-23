@@ -25,14 +25,14 @@ export default function InventarioPage() {
         </div>
         <button
           onClick={() => triggerToast('Mecanismo para registrar insumos no habilitado en maquetación.', 'info')}
-          className="bg-[#007542] hover:bg-[#1E8C45] text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all shadow-xs flex items-center gap-2"
+          className="btn-primary"
         >
           <PlusCircle className="h-4 w-4" /> Registrar Ítem
         </button>
       </div>
 
       {/* Filters */}
-      <div className="bg-slate-200 p-4 rounded-xl border border-slate-300 flex flex-col sm:flex-row gap-3 justify-between items-center">
+      <div className="card p-4 flex flex-col sm:flex-row gap-3 justify-between items-center">
         <div className="relative w-full sm:w-72">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
           <input
@@ -40,7 +40,7 @@ export default function InventarioPage() {
             placeholder="Buscar por nombre o SKU..."
             value={inventorySearch}
             onChange={e => setInventorySearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-1.5 rounded-xl text-xs bg-slate-100 text-slate-800 border border-slate-300 focus:outline-none"
+            className="input w-full pl-9 pr-4 py-1.5"
           />
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -48,7 +48,7 @@ export default function InventarioPage() {
           <select
             value={categoryFilter}
             onChange={e => setCategoryFilter(e.target.value)}
-            className="bg-slate-100 text-xs text-slate-800 px-3 py-1.5 rounded-xl border border-slate-300 focus:outline-none"
+            className="input px-3 py-1.5"
           >
             <option value="all">Todas</option>
             <option value="Entradas">Entradas</option>
@@ -61,10 +61,10 @@ export default function InventarioPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-slate-200 rounded-2xl border border-slate-300 shadow-xs overflow-hidden">
+      <div className="card-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-600">
-            <thead className="bg-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+            <thead className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
               <tr>
                 <th className="p-4">SKU / Código</th>
                 <th className="p-4">Producto</th>
@@ -74,16 +74,16 @@ export default function InventarioPage() {
                 <th className="p-4">Estado</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-300">
+            <tbody className="divide-y divide-slate-100">
               {filtered.map(p => {
                 const isLow = p.stock > 0 && p.stock <= 12;
                 const isZero = p.stock === 0;
                 return (
-                  <tr key={p.id} className="hover:bg-slate-300/30 transition-colors">
+                  <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                     <td className="p-4 font-mono font-semibold text-slate-700">{p.sku}</td>
                     <td className="p-4">
                       <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-lg overflow-hidden bg-slate-300 shrink-0">
+                        <div className="h-9 w-9 rounded-lg overflow-hidden bg-slate-200 shrink-0">
                           <img src={p.image} alt="" className="h-full w-full object-cover" />
                         </div>
                         <p className="font-bold text-slate-800">{p.name}</p>
@@ -94,15 +94,15 @@ export default function InventarioPage() {
                     <td className="p-4 text-center font-mono font-bold text-slate-800">{p.stock}</td>
                     <td className="p-4">
                       {isZero ? (
-                        <span className="bg-rose-100 text-rose-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 w-max">
+                        <span className="badge badge-danger flex items-center gap-1 w-max">
                           <AlertTriangle className="h-3.5 w-3.5" /> REABASTECER URGENTE (0)
                         </span>
                       ) : isLow ? (
-                        <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 w-max">
+                        <span className="badge badge-warning flex items-center gap-1 w-max">
                           <AlertCircle className="h-3.5 w-3.5" /> Stock Mínimo ({p.stock})
                         </span>
                       ) : (
-                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 w-max">
+                        <span className="badge badge-success flex items-center gap-1 w-max">
                           <Check className="h-3.5 w-3.5" /> Óptimo
                         </span>
                       )}
