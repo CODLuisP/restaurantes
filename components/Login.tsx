@@ -115,6 +115,11 @@ export default function Login() {
         <div className="hidden md:flex md:col-span-6 bg-brand-deeper text-white flex-col justify-between relative overflow-hidden md:min-h-screen">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/restaurant-bg.jpg" alt="" className="absolute inset-0 w-full h-full object-cover opacity-15 mix-blend-overlay pointer-events-none" />
+          {/* Semicírculos en esquinas */}
+          <div className="absolute inset-0 opacity-10 pointer-events-none">
+            <div className="absolute top-0 right-0 w-86 h-86 bg-white/35 rounded-full -translate-y-1/2 translate-x-1/2" />
+            <div className="absolute bottom-0 left-0 w-54 h-54 bg-white/40 rounded-full translate-y-1/3 -translate-x-1/3" />
+          </div>
           <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,#58BB43_2px,transparent_2px)] bg-size-[24px_24px]" />
           <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-brand opacity-40 blur-3xl pointer-events-none" />
           <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-brand-subtle opacity-30 blur-2xl pointer-events-none" />

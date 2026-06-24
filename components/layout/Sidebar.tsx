@@ -50,7 +50,7 @@ export default function Sidebar() {
   return (
     <aside className="w-64 bg-gradient-to-br from-brand-dark to-brand-medium text-white flex flex-col h-screen fixed top-0 left-0 z-20 border-r border-white/5 select-none">
       {/* Brand */}
-      <div className="p-5 border-b border-brand-hover flex items-center gap-3">
+      <div className="p-5 border-b border-[#136d33] flex items-center gap-3">
         <div className="bg-white/10 p-2 rounded-xl border border-white/20 flex items-center justify-center">
           <Store className="h-6 w-6 text-brand-accent stroke-[2]" />
         </div>
@@ -62,10 +62,7 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
-        <div className="text-[10px] uppercase font-mono tracking-wider text-white/40 px-3 mb-2">
-          MENÚ RESTAURANTE
-        </div>
-
+   
         {menuItems.map(item => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
