@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { Search, Bell, ChevronDown, Command } from 'lucide-react';
+import { Search, Bell, ChevronDown, Command, Menu } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
+import { useSidebar } from '@/context/SidebarContext';
 
 const SECTION_NAMES: Record<string, string> = {
   '/dashboard':     'Dashboard',
@@ -35,11 +36,27 @@ export default function Header() {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   const sectionName = SECTION_NAMES[pathname] ?? pathname.slice(1);
+  const { toggleOpen, isCollapsed, toggleCollapsed } = useSidebar();
 
   return (
-    <header className="sticky top-0 right-0 z-10 w-full h-16 bg-surface-header border-b border-border-card px-6 flex items-center justify-between transition-colors duration-300">
+    <header className="sticky top-0 right-0 z-10 w-full h-16 bg-surface-header border-b border-border-card px-4 md:px-6 flex items-center justify-between transition-colors duration-300">
       {/* Breadcrumb */}
       <div className="flex items-center gap-3">
+        {/* Mobile hamburger */}
+        <button
+          onClick={toggleOpen}
+          className="md:hidden p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 transition-colors"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        {/* Desktop sidebar collapse toggle */}
+        <button
+          onClick={toggleCollapsed}
+          className="hidden md:flex p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 transition-colors"
+          title={isCollapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
+        >
+          <Menu className="h-4 w-4" />
+        </button>
         <span className="text-xs bg-slate-200 text-slate-600 font-mono px-2 py-1 rounded">RESTOPRO</span>
         <span className="text-slate-300">/</span>
         <h2 className="text-md font-semibold text-slate-800 capitalize tracking-tight font-sans">

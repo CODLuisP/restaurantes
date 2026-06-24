@@ -1,11 +1,18 @@
 'use client';
 
-import { AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { AlertCircle, QrCode, X } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { useApp } from '@/context/AppContext';
 import { MOCK_TABLES } from '@/data/mockData';
+import type { Table } from '@/types';
 
 export default function MesasPage() {
   const { tables, setTables, cycleTableStatus, triggerToast } = useApp();
+  const [qrMesa, setQrMesa] = useState<Table | null>(null);
+
+  const [baseUrl, setBaseUrl] = useState('');
+  useEffect(() => { setBaseUrl(window.location.origin); }, []);
 
   return (
     <div className="space-y-6 animate-section">
@@ -31,8 +38,7 @@ export default function MesasPage() {
           return (
             <div
               key={table.id}
-              onClick={() => cycleTableStatus(table.id)}
-              className={`card-lg p-5 hover:shadow-md cursor-pointer transition-all duration-200 group relative border-t-4 ${
+              className={`card-lg p-5 hover:shadow-md transition-all duration-200 group relative border-t-4 ${
                 isDisponible ? 'border-t-emerald-500' : isOcupada ? 'border-t-rose-500' : 'border-t-amber-500'
               }`}
             >
@@ -44,17 +50,27 @@ export default function MesasPage() {
                   {table.status}
                 </span>
               </div>
-              <div className="my-4 text-center">
+
+              <button
+                onClick={() => cycleTableStatus(table.id)}
+                className="w-full my-4 text-center"
+              >
                 <h4 className="text-lg font-bold text-slate-800 tracking-tight">{table.name}</h4>
                 <p className="text-[10px] text-slate-500 mt-0.5">Capacidad: {table.capacidad} personas</p>
-              </div>
+              </button>
+
               <div className="pt-3 border-t border-slate-200 flex justify-between items-center text-xs">
                 <span className="text-slate-500">Total Consumido:</span>
                 <span className="font-mono font-bold text-slate-800">S/. {table.cuenta.toFixed(2)}</span>
               </div>
-              <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-[9px] bg-slate-800 text-white px-1 rounded">Alternar</span>
-              </div>
+
+              <button
+                onClick={e => { e.stopPropagation(); setQrMesa(table); }}
+                className="mt-3 w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-brand bg-brand/10 hover:bg-brand/20 py-1.5 rounded-lg transition-colors"
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                Ver QR
+              </button>
             </div>
           );
         })}
@@ -64,7 +80,7 @@ export default function MesasPage() {
         <div className="flex items-center gap-3">
           <AlertCircle className="h-5 w-5 text-brand" />
           <p className="text-xs text-gray-700">
-            <strong>Tip operativo:</strong> Puedes hacer clic en cualquier mesa para cambiar su estado comercial secuencialmente.
+            <strong>Tip operativo:</strong> Puedes hacer clic en el nombre de cualquier mesa para cambiar su estado, o en &quot;Ver QR&quot; para mostrar el código a los clientes.
           </p>
         </div>
         <button
@@ -74,6 +90,46 @@ export default function MesasPage() {
           Restablecer Todo
         </button>
       </div>
+
+      {/* QR Modal */}
+      {qrMesa && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden">
+            <div className="bg-[#005e34] px-5 py-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-white font-bold text-base">{qrMesa.name}</h3>
+                <p className="text-white/60 text-[11px] font-mono uppercase tracking-wider">Carta Digital</p>
+              </div>
+              <button onClick={() => setQrMesa(null)} className="p-1.5 rounded-lg text-white/70 hover:bg-white/10 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6 flex flex-col items-center gap-4">
+              <div className="p-3 bg-white rounded-xl shadow-inner border border-slate-100">
+                <QRCodeSVG
+                  value={`${baseUrl}/menu/${qrMesa.id}`}
+                  size={180}
+                  bgColor="#ffffff"
+                  fgColor="#005e34"
+                  level="M"
+                />
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-semibold text-slate-700">Escanea para ver la carta del día</p>
+                <p className="text-[10px] text-slate-400 font-mono mt-1 break-all">{baseUrl}/menu/{qrMesa.id}</p>
+              </div>
+              <a
+                href={`${baseUrl}/menu/${qrMesa.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full text-center px-4 py-2 rounded-xl text-sm font-semibold bg-brand/10 text-brand hover:bg-brand/20 transition-colors"
+              >
+                Abrir Carta del Cliente
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

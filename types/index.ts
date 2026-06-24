@@ -58,3 +58,19 @@ export interface SalesHistory {
   total: number;
   table: string;
 }
+
+export interface MenuEntry {
+  id: string;
+  name: string;
+  price: number;
+  category: string;
+  description: string;
+  available: boolean;
+  image?: string;
+}
+
+export interface CartaDelDia {
+  date: string;
+  active: boolean;
+  items: MenuEntry[];
+}
