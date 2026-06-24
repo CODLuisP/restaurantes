@@ -66,7 +66,7 @@ export default function Sidebar() {
         `}
       >
         {/* Brand */}
-        <div className="relative p-4 border-b border-[#306342] flex items-center gap-3 overflow-hidden shrink-0">
+        <div className="relative h-16 px-4 border-b border-[#306342] flex items-center gap-3 overflow-hidden shrink-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/33.png" alt="" className="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none" />
           <div className="absolute inset-0 bg-brand-dark/60 pointer-events-none" />

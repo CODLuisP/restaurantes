@@ -21,6 +21,7 @@ const SECTION_NAMES: Record<string, string> = {
   '/reportes':      'Reportes',
   '/configuracion': 'Configuración',
   '/ui-components': 'Componentes de Marca UI/UX',
+  '/carta':         'Carta del Día',
 };
 
 const NOTIFICATIONS = [
@@ -29,18 +30,18 @@ const NOTIFICATIONS = [
   { id: 3, text: 'Pedido para delivery #1402 de Carlos R. listo para despacho.', type: 'success', time: 'Hace 12 min' },
 ];
 
-export default function Header() {
+export default function TopBar() {
   const pathname = usePathname();
   const { searchQuery, setSearchQuery, triggerToast } = useApp();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-
-  const sectionName = SECTION_NAMES[pathname] ?? pathname.slice(1);
   const { toggleOpen, isCollapsed, toggleCollapsed } = useSidebar();
 
+  const sectionName = SECTION_NAMES[pathname] ?? pathname.slice(1);
+
   return (
-    <header className="sticky top-0 right-0 z-10 w-full h-16 bg-surface-header border-b border-border-card px-4 md:px-6 flex items-center justify-between transition-colors duration-300">
-      {/* Breadcrumb */}
+    <header className="sticky top-0 right-0 z-10 w-full h-16 bg-white border-b border-border-card px-4 md:px-6 flex items-center justify-between transition-colors duration-300">
+      {/* Left: toggle + breadcrumb */}
       <div className="flex items-center gap-3">
         {/* Mobile hamburger */}
         <button

@@ -2,7 +2,7 @@ import { AppProvider } from '@/context/AppContext';
 import { CartaProvider } from '@/context/CartaContext';
 import { SidebarProvider } from '@/context/SidebarContext';
 import Sidebar from '@/components/layout/Sidebar';
-import Header from '@/components/layout/Header';
+import TopBar from '@/components/layout/TopBar';
 import MainAreaClient from '@/components/layout/MainAreaClient';
 import ToastContainer from '@/components/ui/Toast';
 
@@ -11,10 +11,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <AppProvider>
       <CartaProvider>
         <SidebarProvider>
-          <div className="min-h-screen font-sans bg-[#F0F2F1] text-slate-800">
+          <div className="min-h-screen font-sans bg-brand-medium/8 text-slate-800">
             <Sidebar />
             <MainAreaClient>
-              <Header />
+              <TopBar />
               <main className="flex-1 p-6 lg:p-8">{children}</main>
             </MainAreaClient>
             <ToastContainer />
