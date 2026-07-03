@@ -1,28 +1,36 @@
 'use client';
 
 import { useState } from 'react';
-import { usePathname } from 'next/navigation';
-import { Search, Bell, ChevronDown, Command, Menu } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Search, Bell, ChevronDown, Command, Menu, LogOut } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { useSidebar } from '@/context/SidebarContext';
+import { useAuth, ROLE_LABELS } from '@/context/AuthContext';
 
 const SECTION_NAMES: Record<string, string> = {
   '/dashboard':     'Dashboard',
-  '/pos':           'Punto de Venta',
+  '/pos':           'Comandero',
+  '/cobrar':        'Cobrar / Facturación',
   '/pedidos':       'Pedidos',
   '/mesas':         'Mesas',
   '/cocina':        'Cocina',
+  '/despachar':     'Por despachar',
   '/productos':     'Productos',
   '/categorias':    'Categorías',
   '/inventario':    'Inventario',
   '/clientes':      'Clientes',
   '/delivery':      'Delivery',
   '/caja':          'Caja',
+  '/usuarios':      'Personal',
   '/reportes':      'Reportes',
   '/configuracion': 'Configuración',
   '/ui-components': 'Componentes de Marca UI/UX',
   '/carta':         'Carta del Día',
 };
+
+function initials(name: string) {
+  return name.split(' ').filter(Boolean).slice(0, 2).map(n => n[0]).join('').toUpperCase();
+}
 
 const NOTIFICATIONS = [
   { id: 1, text: 'Stock crítico: "Arroz con Mariscos" menor a 5 porciones.', type: 'danger', time: 'Hace 5 min' },
@@ -32,12 +40,15 @@ const NOTIFICATIONS = [
 
 export default function TopBar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { searchQuery, setSearchQuery, triggerToast } = useApp();
+  const { currentUser, logout } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const { toggleOpen, isCollapsed, toggleCollapsed } = useSidebar();
 
   const sectionName = SECTION_NAMES[pathname] ?? pathname.slice(1);
+  const roleLabel = currentUser ? ROLE_LABELS[currentUser.role] : '';
 
   return (
     <header className="sticky top-0 right-0 z-10 w-full h-16 bg-white border-b border-border-card px-4 md:px-6 flex items-center justify-between transition-colors duration-300">
@@ -139,11 +150,11 @@ export default function TopBar() {
             className="flex items-center gap-2 hover:bg-slate-200/60 p-1.5 rounded-xl transition-colors cursor-pointer"
           >
             <div className="h-8 w-8 rounded-lg bg-emerald-700 text-white font-bold flex items-center justify-center border border-white/20 text-xs shadow-inner">
-              LC
+              {currentUser ? initials(currentUser.name) : '--'}
             </div>
             <div className="text-left hidden lg:block select-none leading-none">
-              <p className="text-xs font-semibold text-slate-800">Admin Luis Castrejón</p>
-              <p className="text-[9px] text-brand font-mono mt-0.5 tracking-wider">ADMINISTRADOR</p>
+              <p className="text-xs font-semibold text-slate-800">{currentUser?.name ?? 'Invitado'}</p>
+              <p className="text-[9px] text-brand font-mono mt-0.5 tracking-wider uppercase">{roleLabel}</p>
             </div>
             <ChevronDown className="h-3 w-3 text-slate-400" />
           </button>
@@ -152,7 +163,8 @@ export default function TopBar() {
             <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-50">
               <div className="px-4 py-2 border-b border-slate-100">
                 <p className="text-xs text-slate-400">Usuario conectado</p>
-                <p className="text-xs font-bold text-slate-800 truncate">lcastrejonc18_2@unc.edu.pe</p>
+                <p className="text-xs font-bold text-slate-800 truncate">{currentUser?.email ?? '—'}</p>
+                <p className="text-[10px] text-brand font-medium mt-0.5">{roleLabel}</p>
               </div>
               <button
                 onClick={() => { setShowProfileMenu(false); triggerToast('Perfil no disponible en modo maqueta.', 'info'); }}
@@ -160,14 +172,13 @@ export default function TopBar() {
               >
                 Mi Perfil (RestoPro ID)
               </button>
-              <button
-                onClick={() => { setShowProfileMenu(false); triggerToast('Manual de operaciones descargado.', 'success'); }}
-                className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 transition-colors"
-              >
-                Documentación del POS
-              </button>
               <div className="border-t border-slate-100 my-1" />
-              <p className="px-4 py-1.5 text-[9px] font-mono text-slate-400">Licencia: Gold SaaS Premium</p>
+              <button
+                onClick={() => { setShowProfileMenu(false); logout(); router.replace('/'); }}
+                className="w-full text-left px-4 py-2 text-xs text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-2 font-medium"
+              >
+                <LogOut className="h-3.5 w-3.5" /> Cerrar sesión
+              </button>
             </div>
           )}
         </div>

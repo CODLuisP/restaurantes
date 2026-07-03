@@ -2,15 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { Utensils, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { CARTA_STORAGE_KEY, CARTA_CATEGORIES } from '@/context/CartaContext';
 import type { CartaDelDia, MenuEntry } from '@/types';
 
-const STORAGE_KEY = 'restopro_carta_del_dia';
-const CATEGORY_ORDER = ['Entradas', 'Fondos', 'Postres', 'Bebidas'];
+const STORAGE_KEY = CARTA_STORAGE_KEY;
+const CATEGORY_ORDER = [...CARTA_CATEGORIES];
 const CATEGORY_COLORS: Record<string, string> = {
-  Entradas: 'bg-amber-100 text-amber-700',
-  Fondos:   'bg-green-100 text-green-700',
-  Postres:  'bg-pink-100 text-pink-700',
-  Bebidas:  'bg-blue-100 text-blue-700',
+  'Entradas':        'bg-amber-100 text-amber-700',
+  'Platos de fondo': 'bg-green-100 text-green-700',
+  'Bebidas':         'bg-blue-100 text-blue-700',
+  'Postres':         'bg-pink-100 text-pink-700',
+  'Promociones':     'bg-purple-100 text-purple-700',
 };
 
 export default function MenuPublico() {

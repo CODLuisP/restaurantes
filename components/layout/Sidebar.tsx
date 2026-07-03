@@ -5,53 +5,69 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   ShoppingBag,
-  ClipboardList,
   Grid,
   ChefHat,
   UtensilsCrossed,
   Tags,
   Archive,
   Users,
-  Truck,
   Coins,
   TrendingUp,
   Settings,
   Boxes,
   Store,
   BookOpen,
-  ChevronLeft,
-  ChevronRight,
+  ShieldCheck,
+  Receipt,
+  BellRing,
   type LucideIcon,
 } from 'lucide-react';
 import { useSidebar } from '@/context/SidebarContext';
+import { useAuth } from '@/context/AuthContext';
+import { useApp } from '@/context/AppContext';
+import type { Role } from '@/types';
 
 type MenuItem = {
   href: string;
   label: string;
   icon: LucideIcon;
   badge?: string | number;
+  /** Roles con acceso. Si se omite, visible para todos. */
+  roles?: Role[];
 };
 
 const menuItems: MenuItem[] = [
   { href: '/dashboard',     label: 'Dashboard',       icon: LayoutDashboard },
-  { href: '/pos',           label: 'Punto de Venta',  icon: ShoppingBag },
-  { href: '/pedidos',       label: 'Pedidos',          icon: ClipboardList },
   { href: '/mesas',         label: 'Mesas',            icon: Grid },
-  { href: '/carta',         label: 'Carta del Día',    icon: BookOpen },
+  { href: '/pos',           label: 'Comandero',        icon: ShoppingBag,     roles: ['admin', 'mozo'] },
   { href: '/cocina',        label: 'Cocina',           icon: ChefHat },
-  { href: '/productos',     label: 'Productos',        icon: UtensilsCrossed },
-  { href: '/categorias',    label: 'Categorías',       icon: Tags },
-  { href: '/inventario',    label: 'Inventario',       icon: Archive },
-  { href: '/clientes',      label: 'Clientes',         icon: Users },
-  { href: '/delivery',      label: 'Delivery',         icon: Truck },
-  { href: '/caja',          label: 'Caja',             icon: Coins },
-  { href: '/reportes',      label: 'Reportes',         icon: TrendingUp },
-  { href: '/configuracion', label: 'Configuración',    icon: Settings },
+  { href: '/despachar',     label: 'Por despachar',    icon: BellRing,        roles: ['admin', 'mozo'] },
+  { href: '/cobrar',        label: 'Cobrar',           icon: Receipt,         roles: ['admin', 'cajero'] },
+  { href: '/caja',          label: 'Caja',             icon: Coins,           roles: ['admin', 'cajero'] },
+  { href: '/carta',         label: 'Carta del Día',    icon: BookOpen },
+  { href: '/productos',     label: 'Productos',        icon: UtensilsCrossed, roles: ['admin', 'cajero'] },
+  { href: '/categorias',    label: 'Categorías',       icon: Tags,            roles: ['admin'] },
+  { href: '/inventario',    label: 'Inventario',       icon: Archive,         roles: ['admin', 'cajero'] },
+  { href: '/clientes',      label: 'Clientes',         icon: Users,           roles: ['admin', 'cajero'] },
+  { href: '/usuarios',      label: 'Personal',         icon: ShieldCheck,     roles: ['admin'] },
+  { href: '/reportes',      label: 'Reportes',         icon: TrendingUp,      roles: ['admin', 'cajero'] },
+  { href: '/configuracion', label: 'Configuración',    icon: Settings,        roles: ['admin'] },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
   const { isOpen, closeOpen, isCollapsed, toggleCollapsed } = useSidebar();
+  const { currentUser } = useAuth();
+  const { kitchenOrders } = useApp();
+
+  /* Comandas listas por despachar (todas para admin, propias para el mozo) */
+  const readyCount = kitchenOrders.filter(
+    o => o.status === 'listo' && (currentUser?.role === 'admin' || o.waiter === currentUser?.name)
+  ).length;
+
+  const visibleItems = menuItems.filter(
+    item => !item.roles || (currentUser && item.roles.includes(currentUser.role))
+  );
 
   return (
     <>
@@ -83,9 +99,11 @@ export default function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-          {menuItems.map(item => {
+          {visibleItems.map(item => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
+            const isDispatch = item.href === '/despachar';
+            const badge = isDispatch ? (readyCount || undefined) : item.badge;
             return (
               <Link
                 key={item.href}
@@ -101,19 +119,27 @@ export default function Sidebar() {
                 {isActive && (
                   <div className="absolute left-0 top-3 bottom-3 w-1 bg-brand-accent rounded-r-full" />
                 )}
-                <Icon
-                  className={`h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-105 ${
-                    isActive ? 'text-brand-accent' : 'text-white/60'
-                  }`}
-                />
+                <span className="relative shrink-0">
+                  <Icon
+                    className={`h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                      isActive ? 'text-brand-accent' : 'text-white/60'
+                    }`}
+                  />
+                  {/* Punto rojo cuando el sidebar está colapsado */}
+                  {isDispatch && !!badge && isCollapsed && (
+                    <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-brand-dark" />
+                  )}
+                </span>
                 {!isCollapsed && (
                   <>
                     <span className="grow text-left truncate">{item.label}</span>
-                    {item.badge && (
+                    {badge && (
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono shrink-0 ${
-                        isActive ? 'bg-white/15 text-white' : 'bg-black/20 text-brand-accent font-medium'
+                        isDispatch
+                          ? 'bg-rose-500 text-white font-bold animate-pulse'
+                          : isActive ? 'bg-white/15 text-white' : 'bg-black/20 text-brand-accent font-medium'
                       }`}>
-                        {item.badge}
+                        {badge}
                       </span>
                     )}
                   </>

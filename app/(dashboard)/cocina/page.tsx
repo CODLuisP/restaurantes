@@ -45,7 +45,10 @@ export default function CocinaPage() {
                   orders.map(order => (
                     <div key={order.id} className={`card p-4 flex flex-col space-y-3 ${col.status === 'listo' ? 'opacity-80' : ''}`}>
                       <div className="flex justify-between items-center text-[11px] text-slate-500">
-                        <span className="font-mono font-bold text-slate-800">{order.id} - {order.table}</span>
+                        <span className="font-mono font-bold text-slate-800">
+                          {order.id} - {order.table}
+                          {order.waiter && <span className="ml-1 font-sans font-normal text-slate-400">· {order.waiter}</span>}
+                        </span>
                         {col.status === 'pendiente' && (
                           <span className="text-rose-500 font-bold flex items-center gap-1">
                             <Clock className="h-3 w-3" /> Hace {order.elapsed} min

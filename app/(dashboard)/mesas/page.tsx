@@ -1,18 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { AlertCircle, QrCode, X } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import { useRouter } from 'next/navigation';
+import { AlertCircle, Utensils, Receipt, CalendarClock, Unlock } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
+import { useAuth } from '@/context/AuthContext';
 import { MOCK_TABLES } from '@/data/mockData';
-import type { Table } from '@/types';
 
 export default function MesasPage() {
-  const { tables, setTables, cycleTableStatus, triggerToast } = useApp();
-  const [qrMesa, setQrMesa] = useState<Table | null>(null);
+  const { tables, setTables, setTableStatus, triggerToast } = useApp();
+  const { currentUser } = useAuth();
+  const router = useRouter();
 
-  const [baseUrl, setBaseUrl] = useState('');
-  useEffect(() => { setBaseUrl(window.location.origin); }, []);
+  const canTakeOrder = currentUser?.role === 'admin' || currentUser?.role === 'mozo';
+  const canCharge    = currentUser?.role === 'admin' || currentUser?.role === 'cajero';
 
   return (
     <div className="space-y-6 animate-section">
@@ -20,7 +20,9 @@ export default function MesasPage() {
         <div>
           <h3 className="text-xl font-bold text-slate-800">Distribución del Salón de Comensales</h3>
           <p className="text-xs text-slate-500">
-            Plano visual interactivo en Lima. Haz clic en las mesas para simular y alternar estados.
+            {canTakeOrder
+              ? 'Elige una mesa libre para tomar el pedido; el consumo se acumula hasta el cobro.'
+              : 'Selecciona una mesa ocupada para cobrar el consumo del comensal.'}
           </p>
         </div>
         <div className="flex gap-3 text-xs">
@@ -30,7 +32,7 @@ export default function MesasPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
         {tables.map(table => {
           const isOcupada = table.status === 'ocupada';
           const isReservada = table.status === 'reservada';
@@ -38,39 +40,75 @@ export default function MesasPage() {
           return (
             <div
               key={table.id}
-              className={`card-lg p-5 hover:shadow-md transition-all duration-200 group relative border-t-4 ${
+              className={`card-lg p-5 hover:shadow-md transition-all duration-200 relative border-t-4 flex flex-col ${
                 isDisponible ? 'border-t-emerald-500' : isOcupada ? 'border-t-rose-500' : 'border-t-amber-500'
               }`}
             >
               <div className="flex justify-between items-start">
                 <span className="text-xs font-bold text-slate-500 font-mono">CODE: {table.id.toUpperCase()}</span>
                 <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                  isDisponible ? 'bg-emerald-100 text-emerald-850' : isOcupada ? 'bg-rose-100 text-rose-850' : 'bg-amber-100 text-amber-850'
+                  isDisponible ? 'bg-emerald-100 text-emerald-800' : isOcupada ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'
                 }`}>
                   {table.status}
                 </span>
               </div>
 
-              <button
-                onClick={() => cycleTableStatus(table.id)}
-                className="w-full my-4 text-center"
-              >
+              <div className="my-4 text-center">
                 <h4 className="text-lg font-bold text-slate-800 tracking-tight">{table.name}</h4>
                 <p className="text-[10px] text-slate-500 mt-0.5">Capacidad: {table.capacidad} personas</p>
-              </button>
+                {isOcupada && table.waiter && (
+                  <p className="text-[10px] text-brand mt-1 font-medium">Atiende: {table.waiter}</p>
+                )}
+              </div>
 
               <div className="pt-3 border-t border-slate-200 flex justify-between items-center text-xs">
-                <span className="text-slate-500">Total Consumido:</span>
+                <span className="text-slate-500">Consumido:</span>
                 <span className="font-mono font-bold text-slate-800">S/. {table.cuenta.toFixed(2)}</span>
               </div>
 
-              <button
-                onClick={e => { e.stopPropagation(); setQrMesa(table); }}
-                className="mt-3 w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-brand bg-brand/10 hover:bg-brand/20 py-1.5 rounded-lg transition-colors"
-              >
-                <QrCode className="w-3.5 h-3.5" />
-                Ver QR
-              </button>
+              {/* Acciones según rol y estado */}
+              <div className="mt-3 space-y-2">
+                {canTakeOrder && (isDisponible || isReservada) && (
+                  <button
+                    onClick={() => router.push(`/pos?mesa=${encodeURIComponent(table.name)}`)}
+                    className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold text-white bg-brand hover:bg-brand-hover py-1.5 rounded-lg transition-colors"
+                  >
+                    <Utensils className="w-3.5 h-3.5" /> Tomar pedido
+                  </button>
+                )}
+                {canTakeOrder && isOcupada && (
+                  <button
+                    onClick={() => router.push(`/pos?mesa=${encodeURIComponent(table.name)}`)}
+                    className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold text-brand bg-brand/10 hover:bg-brand/20 py-1.5 rounded-lg transition-colors"
+                  >
+                    <Utensils className="w-3.5 h-3.5" /> Agregar a comanda
+                  </button>
+                )}
+                {canCharge && isOcupada && (
+                  <button
+                    onClick={() => router.push(`/cobrar?mesa=${encodeURIComponent(table.name)}`)}
+                    className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold text-white bg-sky-700 hover:bg-sky-800 py-1.5 rounded-lg transition-colors"
+                  >
+                    <Receipt className="w-3.5 h-3.5" /> Cobrar
+                  </button>
+                )}
+                {isDisponible && (
+                  <button
+                    onClick={() => setTableStatus(table.id, 'reservada')}
+                    className="w-full flex items-center justify-center gap-1.5 text-[11px] font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 py-1.5 rounded-lg transition-colors"
+                  >
+                    <CalendarClock className="w-3.5 h-3.5" /> Reservar
+                  </button>
+                )}
+                {isReservada && (
+                  <button
+                    onClick={() => setTableStatus(table.id, 'disponible')}
+                    className="w-full flex items-center justify-center gap-1.5 text-[11px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 py-1.5 rounded-lg transition-colors"
+                  >
+                    <Unlock className="w-3.5 h-3.5" /> Liberar
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
@@ -80,56 +118,16 @@ export default function MesasPage() {
         <div className="flex items-center gap-3">
           <AlertCircle className="h-5 w-5 text-brand" />
           <p className="text-xs text-gray-700">
-            <strong>Tip operativo:</strong> Puedes hacer clic en el nombre de cualquier mesa para cambiar su estado, o en &quot;Ver QR&quot; para mostrar el código a los clientes.
+            <strong>Flujo:</strong> el mozo toma el pedido en una mesa → la comanda llega a Cocina → el cajero cobra desde &quot;Cobrar&quot; y libera la mesa.
           </p>
         </div>
         <button
           onClick={() => { setTables(MOCK_TABLES); triggerToast('Distribución de mesas restablecida.', 'info'); }}
-          className="text-xs font-bold text-brand hover:underline"
+          className="text-xs font-bold text-brand hover:underline shrink-0"
         >
           Restablecer Todo
         </button>
       </div>
-
-      {/* QR Modal */}
-      {qrMesa && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden">
-            <div className="bg-[#005e34] px-5 py-4 flex items-center justify-between">
-              <div>
-                <h3 className="text-white font-bold text-base">{qrMesa.name}</h3>
-                <p className="text-white/60 text-[11px] font-mono uppercase tracking-wider">Carta Digital</p>
-              </div>
-              <button onClick={() => setQrMesa(null)} className="p-1.5 rounded-lg text-white/70 hover:bg-white/10 transition-colors">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-6 flex flex-col items-center gap-4">
-              <div className="p-3 bg-white rounded-xl shadow-inner border border-slate-100">
-                <QRCodeSVG
-                  value={`${baseUrl}/menu/${qrMesa.id}`}
-                  size={180}
-                  bgColor="#ffffff"
-                  fgColor="#005e34"
-                  level="M"
-                />
-              </div>
-              <div className="text-center">
-                <p className="text-xs font-semibold text-slate-700">Escanea para ver la carta del día</p>
-                <p className="text-[10px] text-slate-400 font-mono mt-1 break-all">{baseUrl}/menu/{qrMesa.id}</p>
-              </div>
-              <a
-                href={`${baseUrl}/menu/${qrMesa.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full text-center px-4 py-2 rounded-xl text-sm font-semibold bg-brand/10 text-brand hover:bg-brand/20 transition-colors"
-              >
-                Abrir Carta del Cliente
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

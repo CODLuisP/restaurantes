@@ -1,5 +1,6 @@
-import StubPage from '@/components/ui/StubPage';
+import { redirect } from 'next/navigation';
 
+/* Delivery se unificó dentro de "Pedidos" (para llevar + delivery). */
 export default function DeliveryPage() {
-  return <StubPage section="delivery" />;
+  redirect('/pedidos');
 }

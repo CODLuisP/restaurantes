@@ -61,7 +61,7 @@ export default function DashboardPage() {
               <span className="text-[10px] text-slate-700 font-medium">Turno Noche</span>
             </div>
           </div>
-          <div className="h-48 relative flex items-end pt-4 bg-slate-100/60 rounded-lg p-3">
+          <div className="h-48 relative flex items-end pt-4 rounded-lg p-3">
             <div className="absolute inset-x-0 top-0 h-full flex flex-col justify-between pointer-events-none opacity-40">
               <div className="border-b border-slate-350 w-full text-[9px] font-mono text-slate-505">S/. 1200</div>
               <div className="border-b border-slate-350 w-full text-[9px] font-mono text-slate-550">S/. 800</div>
@@ -145,6 +145,7 @@ export default function DashboardPage() {
                 <th className="p-3">Código</th>
                 <th className="p-3">Hora en Lima</th>
                 <th className="p-3">Mesa Destino</th>
+                <th className="p-3">Comprobante</th>
                 <th className="p-3">Nº Items</th>
                 <th className="p-3">Método de Pago</th>
                 <th className="p-3 text-right">Monto Total</th>
@@ -157,6 +158,15 @@ export default function DashboardPage() {
                   <td className="p-3 text-gray-500">{item.time}</td>
                   <td className="p-3">
                     <span className="bg-gray-100 px-2 py-0.5 rounded font-medium">{item.table}</span>
+                  </td>
+                  <td className="p-3">
+                    {item.comprobante ? (
+                      <span className="font-mono text-[11px] text-slate-600">
+                        {item.docType === 'Factura' ? '🧾' : '🧾'} {item.comprobante}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
                   </td>
                   <td className="p-3 font-mono">{item.itemsCount}</td>
                   <td className="p-3">

@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAuth } from '@/context/AuthContext';
 import {
   User, Lock, Eye, EyeOff, Loader2, AlertCircle,
   Utensils, Layers, ChefHat, Smartphone,
-  CheckCircle2, LogOut, Clock, MapPin,
-  CreditCard, Grid, TrendingUp, Delete,
+  Clock, MapPin, CreditCard, TrendingUp, Delete,
 } from 'lucide-react';
 
 interface RolePreset {
@@ -24,6 +24,7 @@ interface RolePreset {
 
 export default function Login() {
   const router = useRouter();
+  const { loginByEmail, loginByPin } = useAuth();
 
   const [loginMethod, setLoginMethod] = useState<'email' | 'pin'>('email');
   const [email, setEmail]             = useState('');
@@ -31,10 +32,8 @@ export default function Login() {
   const [pin, setPin]                 = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading]     = useState(false);
-  const [isSuccess, setIsSuccess]     = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [rememberMe, setRememberMe]   = useState(true);
-  const [selectedRole, setSelectedRole] = useState<RolePreset | null>(null);
   const [time, setTime]               = useState('');
 
   const roles: RolePreset[] = [
@@ -73,33 +72,23 @@ export default function Login() {
     setIsLoading(true);
     setTimeout(() => {
       setIsLoading(false);
-      if (loginMethod === 'email') {
-        const match = roles.find(r => r.email.toLowerCase() === email.toLowerCase());
-        setSelectedRole(match ?? {
-          id: 'custom',
-          name: email.split('@')[0].replace('.', ' ').toUpperCase(),
-          role: 'Personal Autorizado',
-          email,
-          pin: '9999',
-          description: 'Acceso a terminal operacional de restaurant.',
-          accent: '#007542',
-          station: 'Estación de Servicios',
-          pendingTasks: 0,
-        });
-        setIsSuccess(true);
-      } else {
-        const match = roles.find(r => r.pin === pin);
-        if (match) { setSelectedRole(match); setIsSuccess(true); }
-        else        { setErrorMessage('PIN de acceso incorrecto. Verifique sus credenciales con administración.'); setPin(''); }
-      }
-    }, 1200);
-  };
 
-  const handleLogout = () => {
-    setIsSuccess(false);
-    setPin('');
-    setPassword('');
-    setErrorMessage(null);
+      /* Autenticación real contra el padrón de personal (AuthContext) */
+      const authUser = loginMethod === 'email' ? loginByEmail(email) : loginByPin(pin);
+
+      if (!authUser) {
+        if (loginMethod === 'email') {
+          setErrorMessage('Correo no registrado o usuario inactivo. Verifique sus credenciales con administración.');
+        } else {
+          setErrorMessage('PIN de acceso incorrecto o usuario inactivo. Verifique sus credenciales con administración.');
+          setPin('');
+        }
+        return;
+      }
+
+      /* Autenticado: ingreso directo al sistema */
+      router.push('/dashboard');
+    }, 1200);
   };
 
   return (
@@ -114,12 +103,13 @@ export default function Login() {
         {/* ── Panel izquierdo — oculto en mobile ──────── */}
         <div className="hidden md:flex md:col-span-6 bg-brand-deeper text-white flex-col justify-between relative overflow-hidden md:min-h-screen">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/restaurant-bg.jpg" alt="" className="absolute inset-0 w-full h-full object-cover opacity-15 mix-blend-overlay pointer-events-none" />
+          <img src="/fondologin.jpg" alt="" className="absolute inset-0 w-full h-full object-cover opacity-20 mix-blend-overlay pointer-events-none" />
           {/* Semicírculos en esquinas */}
           <div className="absolute inset-0 opacity-10 pointer-events-none">
             <div className="absolute top-0 right-0 w-86 h-86 bg-white/35 rounded-full -translate-y-1/2 translate-x-1/2" />
             <div className="absolute bottom-0 left-0 w-54 h-54 bg-white/40 rounded-full translate-y-1/3 -translate-x-1/3" />
           </div>
+          
           <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,#58BB43_2px,transparent_2px)] bg-size-[24px_24px]" />
           <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-brand opacity-40 blur-3xl pointer-events-none" />
           <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-brand-subtle opacity-30 blur-2xl pointer-events-none" />
@@ -137,7 +127,7 @@ export default function Login() {
               <h1 className="text-2xl lg:text-3xl font-bold tracking-tight leading-none mb-3">
                 Gestión gastronómica inteligente.
               </h1>
-              <p className="text-sm font-light text-emerald-100/80 leading-relaxed">
+              <p className="text-sm font-light text-gray-100 leading-relaxed">
                 Optimice mesas, comandas, facturación electrónica SUNAT y existencias de cocina en tiempo real.
               </p>
             </div>
@@ -165,12 +155,12 @@ export default function Login() {
                   { Icon: ChefHat,    title: 'Control de Insumos & Recetas', desc: 'Sustracción automatizada de insumos según comanda enviada para evitar quiebres de cocina.' },
                   { Icon: TrendingUp, title: 'Métricas & Reportes de Venta', desc: 'Análisis pormenorizado de platos más rentables, mermas registradas e ingresos por turno de mozos.' },
                 ].map(({ Icon, title, desc }) => (
-                  <div key={title} className="p-2.5 bg-white/5 rounded-lg border border-white/10 flex flex-col gap-1.5">
+                  <div key={title} className="p-2.5 bg-[#386641]/65 rounded-lg border border-white/10 flex flex-col gap-1.5">
                     <div className="flex items-center gap-1.5">
                       <Icon className="w-3.5 h-3.5 text-brand-accent shrink-0" />
                       <span className="text-[12px] font-semibold text-gray-100 leading-tight">{title}</span>
                     </div>
-                    <p className="text-[10px] text-emerald-50 opacity-65 leading-snug">{desc}</p>
+                    <p className="text-[10px] text-gray-100  leading-snug">{desc}</p>
                   </div>
                 ))}
               </div>
@@ -201,16 +191,15 @@ export default function Login() {
 
             <AnimatePresence mode="wait">
 
-              {!isSuccess ? (
-                <motion.div
-                  key="form-container"
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -12 }}
-                  transition={{ duration: 0.3 }}
-                >
+              <motion.div
+                key="form-container"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.3 }}
+              >
                   <div className="mb-6">
-                    <span className="text-xs font-bold text-brand bg-brand/10 px-2.5 py-0.5 rounded-full uppercase tracking-wider inline-block mb-2">
+                    <span className="text-xs font-bold text-brand  py-0.5 rounded-full uppercase tracking-wider inline-block mb-2">
                       Acceso Autorizado
                     </span>
                     <h2 className="text-2xl font-medium text-gray-900 tracking-tight">
@@ -224,7 +213,7 @@ export default function Login() {
                   <div className="grid grid-cols-2 bg-gray-100 p-1 rounded-lg mb-6">
                     <button type="button" onClick={() => { setLoginMethod('email'); setErrorMessage(null); }}
                       className={`py-1.5 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-2 ${loginMethod === 'email' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}>
-                      <User className="w-3.5 h-3.5" /> Email Institucional
+                      <User className="w-3.5 h-3.5" /> Credenciales 
                     </button>
                     <button type="button" onClick={() => { setLoginMethod('pin'); setErrorMessage(null); }}
                       className={`py-1.5 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-2 ${loginMethod === 'pin' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}>
@@ -310,7 +299,7 @@ export default function Login() {
                       <div className="flex items-center justify-between pt-0.5">
                         <label className="flex items-center gap-2 select-none cursor-pointer">
                           <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)}
-                            className="rounded border-gray-300 text-brand focus:ring-brand w-4 h-4" />
+                            className="rounded border-gray-300 text-[#003566] accent-[#003566] focus:ring-[#003566] w-4 h-4" />
                           <span className="text-xs text-gray-500 font-normal">Siguiente turno recordado</span>
                         </label>
                         <span className="text-[10px] text-gray-400 font-medium">Estación de trabajo segura</span>
@@ -324,73 +313,32 @@ export default function Login() {
                         : 'Comenzar Turno de Trabajo'}
                     </button>
                   </form>
-                </motion.div>
 
-              ) : (
-                <motion.div key="success-container" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="text-center py-4">
-                  <div className="w-16 h-16 rounded-full bg-brand/10 text-brand flex items-center justify-center mx-auto mb-4 border-2 border-brand-accent/20">
-                    <CheckCircle2 className="w-9 h-9" />
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-900 leading-tight">Sesión Iniciada con Éxito</h3>
-                  <p className="text-xs text-gray-500 mt-1.5 max-w-sm mx-auto">
-                    Bienvenido al sistema gastronómico. Su turno operativo de hoy ha sido registrado ante la SUNAT.
-                  </p>
-
-                  <div className="my-6 bg-gray-50 p-5 rounded-xl border border-gray-100 text-left max-w-md mx-auto space-y-4">
-                    <div className="flex items-center gap-3 pb-3 border-b border-gray-200">
-                      <div className="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center font-bold text-sm tracking-widest shadow-inner">
-                        {selectedRole?.name.split(' ').map(n => n[0]).join('') ?? 'EM'}
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-900">{selectedRole?.name ?? 'Inquilino'}</h4>
-                        <p className="text-xs text-gray-500">{selectedRole?.role ?? 'Personal de Turno'}</p>
-                      </div>
+                  {/* Cuentas de prueba — clic para autocompletar */}
+                  <div className="mt-6 pt-4 border-t border-gray-100">
+                    <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-2">
+                      Cuentas de demostración
+                    </p>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {roles.filter(r => ['admin', 'mozo', 'cajero'].includes(r.id)).map(r => (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onClick={() => {
+                            setLoginMethod('email');
+                            setEmail(r.email);
+                            setPassword(r.pin);
+                            setErrorMessage(null);
+                          }}
+                          className="text-left px-2 py-1.5 rounded-lg border border-gray-200 hover:border-brand hover:bg-brand/5 transition-colors"
+                        >
+                          <span className="block text-[10px] font-bold text-gray-700 capitalize">{r.id}</span>
+                          <span className="block text-[9px] text-gray-400 font-mono truncate">PIN {r.pin}</span>
+                        </button>
+                      ))}
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-xs">
-                      <div className="bg-white p-2.5 rounded border border-gray-100">
-                        <span className="text-[10px] uppercase font-bold text-gray-400 block tracking-wide">Estación Actual</span>
-                        <span className="font-semibold text-gray-800">{selectedRole?.station ?? 'Estación de Trabajo'}</span>
-                      </div>
-                      <div className="bg-white p-2.5 rounded border border-gray-100">
-                        <span className="text-[10px] uppercase font-bold text-gray-400 block tracking-wide">Tareas Prioritarias</span>
-                        <span className="font-semibold text-brand-deeper flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-ping" />
-                          {selectedRole?.pendingTasks ?? 0} Incidentes / Tareas
-                        </span>
-                      </div>
-                      <div className="bg-white p-2.5 rounded border border-gray-100">
-                        <span className="text-[10px] uppercase font-bold text-gray-400 block tracking-wide">Venta Promedio Sede</span>
-                        <span className="font-semibold text-brand-subtle">S/. 12,450.00</span>
-                      </div>
-                      <div className="bg-white p-2.5 rounded border border-gray-100">
-                        <span className="text-[10px] uppercase font-bold text-gray-400 block tracking-wide">Estado Enlace SUNAT</span>
-                        <span className="font-semibold text-green-700 flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Sincronizado
-                        </span>
-                      </div>
-                    </div>
-                    <div className="pt-2">
-                      <span className="text-[10px] uppercase font-bold text-gray-400 block tracking-wider mb-2">Características en su cuenta:</span>
-                      <div className="grid grid-cols-3 gap-1.5 text-[10px]">
-                        <div className="px-2 py-1 bg-brand/5 text-brand rounded font-medium border border-brand/10 text-center">Mesas & Salones</div>
-                        <div className="px-2 py-1 bg-brand-hover/5 text-brand-hover rounded font-medium border border-brand-hover/10 text-center">Comandas & Kitchen</div>
-                        <div className="px-2 py-1 bg-brand-subtle/5 text-brand-subtle rounded font-medium border border-brand-subtle/10 text-center">Factura SUNAT</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 max-w-xs mx-auto">
-                    <button onClick={() => router.push('/dashboard')}
-                      className="w-full bg-brand hover:bg-brand-hover text-white py-2 px-4 rounded-lg font-medium text-xs transition-all flex items-center justify-center gap-2 cursor-pointer shadow">
-                      <Grid className="w-3.5 h-3.5" /> Abrir Cockpit de Servicios
-                    </button>
-                    <button onClick={handleLogout}
-                      className="w-full bg-white hover:bg-gray-50 border border-gray-200 text-gray-600 py-1.5 px-4 rounded-lg font-medium text-xs transition-all flex items-center justify-center gap-2 cursor-pointer">
-                      <LogOut className="w-3.5 h-3.5" /> Cerrar Sesión Corriente
-                    </button>
                   </div>
                 </motion.div>
-              )}
 
             </AnimatePresence>
           </div>

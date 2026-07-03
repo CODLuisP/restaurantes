@@ -1,4 +1,11 @@
-import type { Product, Table, Customer, KitchenOrder } from '@/types';
+import type { Product, Table, Customer, KitchenOrder, User, ActiveOrder } from '@/types';
+
+export const MOCK_USERS: User[] = [
+  { id: 'u1', name: 'Carlos Cabrera', role: 'admin',  email: 'carlos.cabrera@restopro.pe', pin: '1092', station: 'Mesa de Control Central',     active: true },
+  { id: 'u2', name: 'Miguel Prado',   role: 'cajero', email: 'miguel.prado@restopro.pe',   pin: '4480', station: 'Módulo de Caja Principal',    active: true },
+  { id: 'u3', name: 'Lucía Mendoza',  role: 'mozo',   email: 'lucia.mendoza@restopro.pe',  pin: '2540', station: 'Terraza Principal y Salón A', active: true },
+  { id: 'u4', name: 'Elena Quispe',   role: 'mozo',   email: 'elena.quispe@restopro.pe',   pin: '0887', station: 'Salón B & Barra',            active: true },
+];
 
 export const MOCK_PRODUCTS: Product[] = [
   {
@@ -137,14 +144,43 @@ export const MOCK_PRODUCTS: Product[] = [
 
 export const MOCK_TABLES: Table[] = [
   { id: 't1', name: 'Mesa 1', capacidad: 2, status: 'disponible', cuenta: 0 },
-  { id: 't2', name: 'Mesa 2', capacidad: 4, status: 'ocupada', cuenta: 124.50 },
+  {
+    id: 't2', name: 'Mesa 2', capacidad: 4, status: 'ocupada', cuenta: 123.00, waiter: 'Lucía Mendoza',
+    items: [
+      { product: MOCK_PRODUCTS[3], quantity: 2 }, // Lomo Saltado
+      { product: MOCK_PRODUCTS[7], quantity: 1 }, // Chicha Morada
+      { product: MOCK_PRODUCTS[8], quantity: 2 }, // Inka Kola
+    ],
+  },
   { id: 't3', name: 'Mesa 3', capacidad: 4, status: 'disponible', cuenta: 0 },
-  { id: 't4', name: 'Mesa 4', capacidad: 6, status: 'ocupada', cuenta: 289.00 },
+  {
+    id: 't4', name: 'Mesa 4', capacidad: 6, status: 'ocupada', cuenta: 285.00, waiter: 'Lucía Mendoza',
+    items: [
+      { product: MOCK_PRODUCTS[0], quantity: 2 }, // Ceviche
+      { product: MOCK_PRODUCTS[5], quantity: 2 }, // Arroz con Mariscos
+      { product: MOCK_PRODUCTS[4], quantity: 2 }, // Ají de Gallina
+      { product: MOCK_PRODUCTS[7], quantity: 3 }, // Chicha Morada
+    ],
+  },
   { id: 't5', name: 'Mesa 5', capacidad: 2, status: 'reservada', cuenta: 0 },
-  { id: 't6', name: 'Mesa 6', capacidad: 8, status: 'ocupada', cuenta: 412.00 },
+  {
+    id: 't6', name: 'Mesa 6', capacidad: 8, status: 'ocupada', cuenta: 407.00, waiter: 'Elena Quispe',
+    items: [
+      { product: MOCK_PRODUCTS[11], quantity: 3 }, // Súper Combo Marino
+      { product: MOCK_PRODUCTS[0], quantity: 2 },  // Ceviche
+      { product: MOCK_PRODUCTS[9], quantity: 4 },  // Suspiro
+      { product: MOCK_PRODUCTS[8], quantity: 4 },  // Inka Kola
+    ],
+  },
   { id: 't7', name: 'Mesa 7 (Terraza)', capacidad: 4, status: 'disponible', cuenta: 0 },
   { id: 't8', name: 'Mesa 8 (Terraza)', capacidad: 4, status: 'reservada', cuenta: 0 },
-  { id: 't9', name: 'Mesa 9 (Terraza)', capacidad: 2, status: 'ocupada', cuenta: 54.00 },
+  {
+    id: 't9', name: 'Mesa 9 (Terraza)', capacidad: 2, status: 'ocupada', cuenta: 52.50, waiter: 'Elena Quispe',
+    items: [
+      { product: MOCK_PRODUCTS[1], quantity: 1 }, // Causa
+      { product: MOCK_PRODUCTS[2], quantity: 1 }, // Anticuchos
+    ],
+  },
   { id: 't10', name: 'Mesa 10 (SVR)', capacidad: 12, status: 'disponible', cuenta: 0 },
 ];
 
@@ -167,6 +203,7 @@ export const INITIAL_KITCHEN_ORDERS: KitchenOrder[] = [
     status: 'pendiente',
     time: '14:20',
     elapsed: 8,
+    waiter: 'Lucía Mendoza',
   },
   {
     id: 'ko102',
@@ -179,6 +216,7 @@ export const INITIAL_KITCHEN_ORDERS: KitchenOrder[] = [
     status: 'preparando',
     time: '14:12',
     elapsed: 16,
+    waiter: 'Lucía Mendoza',
   },
   {
     id: 'ko103',
@@ -191,6 +229,7 @@ export const INITIAL_KITCHEN_ORDERS: KitchenOrder[] = [
     status: 'listo',
     time: '13:58',
     elapsed: 30,
+    waiter: 'Elena Quispe',
   },
 ];
 
@@ -199,4 +238,37 @@ export const INITIAL_SALES_HISTORY = [
   { id: 'S-702', time: '12:15', itemsCount: 4, paymentMethod: 'Tarjeta' as const, total: 184.00, table: 'Mesa 4' },
   { id: 'S-703', time: '13:10', itemsCount: 2, paymentMethod: 'Efectivo' as const, total: 54.00, table: 'Mesa 3' },
   { id: 'S-704', time: '13:40', itemsCount: 5, paymentMethod: 'Tarjeta' as const, total: 295.00, table: 'Mesa 6' },
+];
+
+/* Pedidos activos para llevar / delivery (pendientes de cobro) */
+export const INITIAL_ACTIVE_ORDERS: ActiveOrder[] = [
+  {
+    id: 'PL-201',
+    type: 'llevar',
+    customer: 'Renzo Castagneto',
+    phone: '921 441 552',
+    items: [
+      { product: MOCK_PRODUCTS[3], quantity: 1 }, // Lomo Saltado 45.00
+      { product: MOCK_PRODUCTS[8], quantity: 2 }, // Inka Kola 7.50
+    ],
+    total: 60.00,
+    itemsCount: 3,
+    waiter: 'Lucía Mendoza',
+    createdAt: '13:20',
+  },
+  {
+    id: 'DL-305',
+    type: 'delivery',
+    customer: 'Gisella Valenzuela',
+    phone: '954 665 332',
+    address: 'Av. Larco 345, Dpto 502 — Miraflores',
+    items: [
+      { product: MOCK_PRODUCTS[4], quantity: 2 }, // Ají de Gallina 34.00
+      { product: MOCK_PRODUCTS[7], quantity: 1 }, // Chicha Morada 18.00
+    ],
+    total: 86.00,
+    itemsCount: 3,
+    waiter: 'Elena Quispe',
+    createdAt: '13:45',
+  },
 ];
