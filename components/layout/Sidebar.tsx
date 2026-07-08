@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -20,6 +21,7 @@ import {
   ShieldCheck,
   Receipt,
   BellRing,
+  ChevronDown,
   type LucideIcon,
 } from 'lucide-react';
 import { useSidebar } from '@/context/SidebarContext';
@@ -51,7 +53,24 @@ const menuItems: MenuItem[] = [
   { href: '/clientes',      label: 'Clientes',         icon: Users,           roles: ['admin', 'cajero'] },
   { href: '/usuarios',      label: 'Personal',         icon: ShieldCheck,     roles: ['admin'] },
   { href: '/reportes',      label: 'Reportes',         icon: TrendingUp,      roles: ['admin', 'cajero'] },
-  { href: '/configuracion', label: 'Configuración',    icon: Settings,        roles: ['admin'] },
+];
+
+type ConfigSubItem = {
+  href: string;
+  label: string;
+  badge?: 'PRO' | 'NEW';
+};
+
+const configSubItems: ConfigSubItem[] = [
+  { href: '/configuracion/negocio',              label: 'Información del negocio' },
+  { href: '/configuracion/campos-personalizados', label: 'Campos personalizados', badge: 'PRO' },
+  { href: '/configuracion/metodos-pago',         label: 'Métodos de pago' },
+  { href: '/configuracion/metodos-entrega',      label: 'Métodos de entrega' },
+  { href: '/configuracion/zonas-entrega',        label: 'Zonas de entrega' },
+  { href: '/configuracion/tickets',              label: 'Tickets', badge: 'NEW' },
+  { href: '/configuracion/tracking',             label: 'Tracking' },
+  { href: '/configuracion/dominio',              label: 'Dominio personalizado', badge: 'PRO' },
+  { href: '/configuracion/plan',                 label: 'Mi plan' },
 ];
 
 export default function Sidebar() {
@@ -59,6 +78,9 @@ export default function Sidebar() {
   const { isOpen, closeOpen, isCollapsed, toggleCollapsed } = useSidebar();
   const { currentUser } = useAuth();
   const { kitchenOrders } = useApp();
+  const isConfigRoute = pathname.startsWith('/configuracion');
+  const [isConfigOpen, setIsConfigOpen] = useState(isConfigRoute);
+  const canSeeConfig = currentUser?.role === 'admin';
 
   /* Comandas listas por despachar (todas para admin, propias para el mozo) */
   const readyCount = kitchenOrders.filter(
@@ -147,6 +169,73 @@ export default function Sidebar() {
               </Link>
             );
           })}
+
+          {/* Configuración (acordeón) */}
+          {canSeeConfig && (
+            <div>
+              <button
+                type="button"
+                onClick={() => (isCollapsed ? toggleCollapsed() : setIsConfigOpen(v => !v))}
+                title={isCollapsed ? 'Configuración' : undefined}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative ${
+                  isConfigRoute
+                    ? 'bg-white/10 text-white shadow-sm backdrop-blur-sm'
+                    : 'text-white/80 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                {isConfigRoute && (
+                  <div className="absolute left-0 top-3 bottom-3 w-1 bg-brand-accent rounded-r-full" />
+                )}
+                <Settings
+                  className={`h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                    isConfigRoute ? 'text-brand-accent' : 'text-white/60'
+                  }`}
+                />
+                {!isCollapsed && (
+                  <>
+                    <span className="grow text-left truncate">Configuración</span>
+                    <ChevronDown
+                      className={`h-3.5 w-3.5 shrink-0 text-white/50 transition-transform duration-200 ${
+                        isConfigOpen ? 'rotate-180' : ''
+                      }`}
+                    />
+                  </>
+                )}
+              </button>
+
+              {!isCollapsed && isConfigOpen && (
+                <div className="mt-1 ml-4 pl-3 border-l border-white/10 space-y-0.5">
+                  {configSubItems.map(sub => {
+                    const isSubActive = pathname === sub.href;
+                    return (
+                      <Link
+                        key={sub.href}
+                        href={sub.href}
+                        onClick={closeOpen}
+                        className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                          isSubActive
+                            ? 'bg-white/10 text-white'
+                            : 'text-white/70 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        <span className="truncate">{sub.label}</span>
+                        {sub.badge === 'PRO' && (
+                          <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-brand-accent/20 text-brand-accent">
+                            PRO
+                          </span>
+                        )}
+                        {sub.badge === 'NEW' && (
+                          <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
+                            NEW
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Playground */}
           <div className={`border-t border-brand-hover/40 my-3 pt-3 ${isCollapsed ? 'mx-0' : ''}`}>

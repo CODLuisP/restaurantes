@@ -1,7 +1,14 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { DollarSign, TrendingUp, ShoppingCart, Utensils, Users, FileText, Sparkles } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
+
+/* Recharts es pesado y solo corre en cliente — se carga aparte del bundle inicial. */
+const RevenueChart = dynamic(() => import('@/components/dashboard/RevenueChart'), {
+  ssr: false,
+  loading: () => <div className="h-44 animate-pulse bg-slate-100 rounded-lg" />,
+});
 
 export default function DashboardPage() {
   const { kpiStats, salesHistory, triggerToast } = useApp();
@@ -49,45 +56,11 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Revenue chart */}
         <div className="card p-4 lg:col-span-8 space-y-3">
-          <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-            <div>
-              <h4 className="text-xs font-semibold text-slate-800">Curva de Ingresos Diarios (S/.)</h4>
-              <p className="text-[10px] text-slate-500 mt-0.5">Dinámica semanal de ventas corporativas del local</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 bg-brand rounded-full inline-block" />
-              <span className="text-[10px] text-slate-700 font-medium">Turno Día</span>
-              <span className="h-2 w-2 bg-brand-accent rounded-full inline-block ml-2" />
-              <span className="text-[10px] text-slate-700 font-medium">Turno Noche</span>
-            </div>
+          <div className="pb-2 border-b border-slate-200">
+            <h4 className="text-xs font-semibold text-slate-800">Curva de Ingresos Diarios (S/.)</h4>
+            <p className="text-[10px] text-slate-500 mt-0.5">Ingresos cobrados hoy, acumulados por hora — turno día vs turno noche</p>
           </div>
-          <div className="h-48 relative flex items-end pt-4 rounded-lg p-3">
-            <div className="absolute inset-x-0 top-0 h-full flex flex-col justify-between pointer-events-none opacity-40">
-              <div className="border-b border-slate-350 w-full text-[9px] font-mono text-slate-505">S/. 1200</div>
-              <div className="border-b border-slate-350 w-full text-[9px] font-mono text-slate-550">S/. 800</div>
-              <div className="border-b border-slate-350 w-full text-[9px] font-mono text-slate-550">S/. 400</div>
-              <div className="w-full text-[9px] font-mono text-slate-500">S/. 0</div>
-            </div>
-            <svg viewBox="0 0 700 200" className="w-full h-full z-10 select-none overflow-visible">
-              <defs>
-                <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#007542" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#007542" stopOpacity="0.0" />
-                </linearGradient>
-              </defs>
-              <path d="M 10,180 L 10,150 Q 110,60 210,120 T 410,50 T 610,30 L 690,20 L 690,190 Z" fill="url(#chartGrad)" />
-              <path d="M 10,150 Q 110,60 210,120 T 410,50 T 610,30 L 690,20" fill="none" stroke="#007542" strokeWidth="3.5" strokeLinecap="round" />
-              <path d="M 10,170 Q 100,120 200,140 T 400,90 T 600,60 L 690,40" fill="none" stroke="#58BB43" strokeWidth="2.5" strokeDasharray="4 4" strokeLinecap="round" />
-              <circle cx="210" cy="120" r="5" fill="#007542" stroke="#FFFFFF" strokeWidth="2" />
-              <circle cx="410" cy="50"  r="5" fill="#007542" stroke="#FFFFFF" strokeWidth="2" />
-              <circle cx="610" cy="30"  r="5" fill="#007542" stroke="#FFFFFF" strokeWidth="2" />
-            </svg>
-          </div>
-          <div className="grid grid-cols-7 text-center text-[10px] font-mono text-slate-500">
-            {['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'].map(d => (
-              <span key={d}>{d}</span>
-            ))}
-          </div>
+          <RevenueChart salesHistory={salesHistory} />
         </div>
 
         {/* Payment methods */}
