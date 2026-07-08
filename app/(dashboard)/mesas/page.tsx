@@ -115,9 +115,9 @@ export default function MesasPage() {
     reservada:  'bg-amber-100 text-amber-800',
   };
   const statusBorder: Record<UnitStatus, string> = {
-    disponible: 'border-emerald-500',
-    ocupada:    'border-rose-500',
-    reservada:  'border-amber-500',
+    disponible: 'border-emerald-500 bg-emerald-50/60',
+    ocupada:    'border-rose-500 bg-rose-50/60',
+    reservada:  'border-amber-500 bg-amber-50/60',
   };
 
   return (
