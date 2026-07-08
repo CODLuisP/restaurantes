@@ -37,7 +37,7 @@ export default function PosPage() {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>(CARTA_CATEGORIES[0]);
   const [cart, setCart] = useState<OrderItem[]>([]);
-  const [selectedTable, setSelectedTable] = useState('Mesa 2');
+  const [selectedTable, setSelectedTable] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState('María Fe Mendoza');
   /* Datos para llevar / delivery */
   const [custName, setCustName]       = useState('');
@@ -49,6 +49,12 @@ export default function PosPage() {
     const mesa = new URLSearchParams(window.location.search).get('mesa');
     if (mesa) { setSelectedTable(mesa); setOrderType('mesa'); }
   }, []);
+
+  /* Si no hay mesa seleccionada (o ya no existe), cae a la primera disponible */
+  useEffect(() => {
+    if (tables.length === 0) return;
+    if (!tables.some(t => t.name === selectedTable)) setSelectedTable(tables[0].name);
+  }, [tables, selectedTable]);
 
   /* Solo los platos disponibles de la Carta del Día se pueden pedir */
   const menuProducts = carta.items.filter(i => i.available).map(entryToProduct);

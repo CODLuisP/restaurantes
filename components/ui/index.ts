@@ -9,6 +9,8 @@ export type { BadgeVariant, BadgeSize }        from './Badge';
 
 export { Input, Select }                       from './Input';
 
+export { Toggle }                              from './Toggle';
+
 export { Modal }                               from './Modal';
 export type { ModalSize }                      from './Modal';
 

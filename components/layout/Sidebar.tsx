@@ -46,7 +46,7 @@ const menuItems: MenuItem[] = [
   { href: '/despachar',     label: 'Por despachar',    icon: BellRing,        roles: ['admin', 'mozo'] },
   { href: '/cobrar',        label: 'Cobrar',           icon: Receipt,         roles: ['admin', 'cajero'] },
   { href: '/caja',          label: 'Caja',             icon: Coins,           roles: ['admin', 'cajero'] },
-  { href: '/carta',         label: 'Carta del Día',    icon: BookOpen },
+  { href: '/carta',         label: 'Menú Digital',     icon: BookOpen },
   { href: '/productos',     label: 'Productos',        icon: UtensilsCrossed, roles: ['admin', 'cajero'] },
   { href: '/categorias',    label: 'Categorías',       icon: Tags,            roles: ['admin'] },
   { href: '/inventario',    label: 'Inventario',       icon: Archive,         roles: ['admin', 'cajero'] },

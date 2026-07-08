@@ -1,4 +1,4 @@
-import type { Product, Table, Customer, KitchenOrder, User, ActiveOrder } from '@/types';
+import type { Product, Customer, KitchenOrder, User, ActiveOrder } from '@/types';
 
 export const MOCK_USERS: User[] = [
   { id: 'u1', name: 'Carlos Cabrera', role: 'admin',  email: 'carlos.cabrera@restopro.pe', pin: '1092', station: 'Mesa de Control Central',     active: true },
@@ -140,48 +140,6 @@ export const MOCK_PRODUCTS: Product[] = [
     sku: 'COM-012',
     unit: 'Combo',
   },
-];
-
-export const MOCK_TABLES: Table[] = [
-  { id: 't1', name: 'Mesa 1', capacidad: 2, status: 'disponible', cuenta: 0 },
-  {
-    id: 't2', name: 'Mesa 2', capacidad: 4, status: 'ocupada', cuenta: 123.00, waiter: 'Lucía Mendoza',
-    items: [
-      { product: MOCK_PRODUCTS[3], quantity: 2 }, // Lomo Saltado
-      { product: MOCK_PRODUCTS[7], quantity: 1 }, // Chicha Morada
-      { product: MOCK_PRODUCTS[8], quantity: 2 }, // Inka Kola
-    ],
-  },
-  { id: 't3', name: 'Mesa 3', capacidad: 4, status: 'disponible', cuenta: 0 },
-  {
-    id: 't4', name: 'Mesa 4', capacidad: 6, status: 'ocupada', cuenta: 285.00, waiter: 'Lucía Mendoza',
-    items: [
-      { product: MOCK_PRODUCTS[0], quantity: 2 }, // Ceviche
-      { product: MOCK_PRODUCTS[5], quantity: 2 }, // Arroz con Mariscos
-      { product: MOCK_PRODUCTS[4], quantity: 2 }, // Ají de Gallina
-      { product: MOCK_PRODUCTS[7], quantity: 3 }, // Chicha Morada
-    ],
-  },
-  { id: 't5', name: 'Mesa 5', capacidad: 2, status: 'reservada', cuenta: 0 },
-  {
-    id: 't6', name: 'Mesa 6', capacidad: 8, status: 'ocupada', cuenta: 407.00, waiter: 'Elena Quispe',
-    items: [
-      { product: MOCK_PRODUCTS[11], quantity: 3 }, // Súper Combo Marino
-      { product: MOCK_PRODUCTS[0], quantity: 2 },  // Ceviche
-      { product: MOCK_PRODUCTS[9], quantity: 4 },  // Suspiro
-      { product: MOCK_PRODUCTS[8], quantity: 4 },  // Inka Kola
-    ],
-  },
-  { id: 't7', name: 'Mesa 7 (Terraza)', capacidad: 4, status: 'disponible', cuenta: 0 },
-  { id: 't8', name: 'Mesa 8 (Terraza)', capacidad: 4, status: 'reservada', cuenta: 0 },
-  {
-    id: 't9', name: 'Mesa 9 (Terraza)', capacidad: 2, status: 'ocupada', cuenta: 52.50, waiter: 'Elena Quispe',
-    items: [
-      { product: MOCK_PRODUCTS[1], quantity: 1 }, // Causa
-      { product: MOCK_PRODUCTS[2], quantity: 1 }, // Anticuchos
-    ],
-  },
-  { id: 't10', name: 'Mesa 10 (SVR)', capacidad: 12, status: 'disponible', cuenta: 0 },
 ];
 
 export const MOCK_CUSTOMERS: Customer[] = [

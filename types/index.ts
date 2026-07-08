@@ -15,14 +15,25 @@ export interface OrderItem {
   quantity: number;
 }
 
+export interface Piso {
+  id: string;
+  name: string;
+}
+
 export interface Table {
   id: string;
   name: string;
+  pisoId: string;
   capacidad: number;
   status: 'disponible' | 'ocupada' | 'reservada';
   cuenta: number;
   items?: OrderItem[];
   waiter?: string;
+  /** Posición en el plano del salón (px desde la esquina sup. izq. del lienzo). */
+  x?: number;
+  y?: number;
+  /** Mesas unidas comparten el mismo groupId y se operan como una sola. */
+  groupId?: string;
 }
 
 export interface Customer {
@@ -139,6 +150,7 @@ export interface MenuEntry {
   description: string;
   available: boolean;
   image?: string;
+  featured?: boolean;
 }
 
 export interface CartaDelDia {

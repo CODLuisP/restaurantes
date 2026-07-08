@@ -1,14 +1,16 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { MOCK_PRODUCTS, MOCK_TABLES, MOCK_CUSTOMERS, INITIAL_KITCHEN_ORDERS, INITIAL_SALES_HISTORY, INITIAL_ACTIVE_ORDERS } from '@/data/mockData';
+import { MOCK_PRODUCTS, MOCK_CUSTOMERS, INITIAL_KITCHEN_ORDERS, INITIAL_SALES_HISTORY, INITIAL_ACTIVE_ORDERS } from '@/data/mockData';
 import type {
-  Product, Table, Customer, KitchenOrder, OrderItem, Toast, SalesHistory,
+  Product, Table, Piso, Customer, KitchenOrder, OrderItem, Toast, SalesHistory,
   CashSession, CashMovement, CashMovementType, PaymentMethod, DocType, ActiveOrder,
 } from '@/types';
 
 const CAJA_KEY = 'restopro.caja';
 const CAJA_HISTORY_KEY = 'restopro.caja.history';
+const PISOS_KEY = 'restopro.pisos';
+const TABLES_KEY = 'restopro.tables';
 
 /** Combina items existentes de una mesa con los nuevos, sumando cantidades. */
 function mergeItems(existing: OrderItem[] = [], incoming: OrderItem[]): OrderItem[] {
@@ -32,8 +34,23 @@ interface KpiStats {
 
 interface AppContextType {
   products: Product[];
+  pisos: Piso[];
   tables: Table[];
   setTables: React.Dispatch<React.SetStateAction<Table[]>>;
+  /** Crea un nuevo piso/salón (p. ej. "Piso 1", "Terraza"). */
+  addPiso: (name: string) => void;
+  /** Elimina un piso; solo si no tiene mesas asignadas. */
+  removePiso: (pisoId: string) => void;
+  /** Agrega una mesa a un piso, identificada por número o letra. */
+  addTable: (pisoId: string, name: string, capacidad: number) => void;
+  /** Elimina una mesa; solo si está disponible (sin consumo pendiente). */
+  removeTable: (tableId: string) => void;
+  /** Reubica una mesa en el plano del salón. */
+  moveTable: (tableId: string, x: number, y: number) => void;
+  /** Une varias mesas disponibles en un solo grupo que se opera como una mesa. */
+  mergeTables: (tableIds: string[]) => void;
+  /** Separa un grupo de mesas unidas. */
+  unmergeTable: (groupId: string) => void;
   customers: Customer[];
   kitchenOrders: KitchenOrder[];
   salesHistory: SalesHistory[];
@@ -88,7 +105,8 @@ const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [products] = useState<Product[]>(MOCK_PRODUCTS);
-  const [tables, setTables] = useState<Table[]>(MOCK_TABLES);
+  const [pisos, setPisos] = useState<Piso[]>([]);
+  const [tables, setTables] = useState<Table[]>([]);
   const [customers] = useState<Customer[]>(MOCK_CUSTOMERS);
   const [kitchenOrders, setKitchenOrders] = useState<KitchenOrder[]>(INITIAL_KITCHEN_ORDERS);
   const [salesHistory, setSalesHistory] = useState<SalesHistory[]>(INITIAL_SALES_HISTORY);
@@ -99,17 +117,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [cashSession, setCashSession] = useState<CashSession | null>(null);
   const [cajaHistory, setCajaHistory] = useState<CashSession[]>([]);
 
-  /* Hidratar caja desde localStorage (solo cliente) */
+  /* Hidratar caja y distribución de mesas desde localStorage (solo cliente) */
   useEffect(() => {
     try {
       const stored = localStorage.getItem(CAJA_KEY);
       if (stored) setCashSession(JSON.parse(stored));
       const storedHistory = localStorage.getItem(CAJA_HISTORY_KEY);
       if (storedHistory) setCajaHistory(JSON.parse(storedHistory));
+      const storedPisos = localStorage.getItem(PISOS_KEY);
+      if (storedPisos) setPisos(JSON.parse(storedPisos));
+      const storedTables = localStorage.getItem(TABLES_KEY);
+      if (storedTables) setTables(JSON.parse(storedTables));
     } catch {
       /* ignora datos corruptos */
     }
   }, []);
+
+  /* Persistir distribución de mesas (solo cliente) */
+  useEffect(() => {
+    try { localStorage.setItem(PISOS_KEY, JSON.stringify(pisos)); } catch {}
+  }, [pisos]);
+
+  useEffect(() => {
+    try { localStorage.setItem(TABLES_KEY, JSON.stringify(tables)); } catch {}
+  }, [tables]);
 
   const persistCaja = useCallback((session: CashSession | null) => {
     setCashSession(session);
@@ -284,6 +315,125 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       triggerToast(`Mesa marcada como ${status}.`, 'info');
     },
     [triggerToast]
+  );
+
+  /* ── Gestión de pisos y mesas ──────────────────────────────── */
+  const addPiso = useCallback(
+    (name: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) {
+        triggerToast('Ingrese un nombre para el salón.', 'warning');
+        return;
+      }
+      const id = `piso-${Date.now().toString(36)}`;
+      setPisos(prev => [...prev, { id, name: trimmed }]);
+      triggerToast(`Salón "${trimmed}" creado.`, 'success');
+    },
+    [triggerToast]
+  );
+
+  const removePiso = useCallback(
+    (pisoId: string) => {
+      const hasTables = tables.some(t => t.pisoId === pisoId);
+      if (hasTables) {
+        triggerToast('No se puede eliminar un salón con mesas asignadas.', 'error');
+        return;
+      }
+      setPisos(prev => prev.filter(p => p.id !== pisoId));
+    },
+    [tables, triggerToast]
+  );
+
+  const addTable = useCallback(
+    (pisoId: string, name: string, capacidad: number) => {
+      const trimmed = name.trim();
+      if (!trimmed) {
+        triggerToast('Ingrese un número o letra para identificar la mesa.', 'warning');
+        return;
+      }
+      if (tables.some(t => t.pisoId === pisoId && t.name.toLowerCase() === trimmed.toLowerCase())) {
+        triggerToast(`Ya existe una mesa "${trimmed}" en este salón.`, 'warning');
+        return;
+      }
+      const id = `mesa-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
+      /* Posición por defecto: se distribuye en cuadrícula dentro del plano. */
+      const count = tables.filter(t => t.pisoId === pisoId).length;
+      const x = 24 + (count % 5) * 150;
+      const y = 24 + Math.floor(count / 5) * 160;
+      setTables(prev => [...prev, { id, pisoId, name: trimmed, capacidad, status: 'disponible', cuenta: 0, x, y }]);
+      triggerToast(`Mesa "${trimmed}" agregada.`, 'success');
+    },
+    [tables, triggerToast]
+  );
+
+  const removeTable = useCallback(
+    (tableId: string) => {
+      const table = tables.find(t => t.id === tableId);
+      if (table && table.status !== 'disponible') {
+        triggerToast('No se puede eliminar una mesa ocupada o reservada.', 'error');
+        return;
+      }
+      setTables(prev => prev.filter(t => t.id !== tableId));
+    },
+    [tables, triggerToast]
+  );
+
+  const moveTable = useCallback((tableId: string, x: number, y: number) => {
+    setTables(prev => prev.map(t => (t.id === tableId ? { ...t, x, y } : t)));
+  }, []);
+
+  const mergeTables = useCallback(
+    (tableIds: string[]) => {
+      if (tableIds.length < 2) {
+        triggerToast('Selecciona al menos dos mesas para unir.', 'warning');
+        return;
+      }
+      const selected = tables.filter(t => tableIds.includes(t.id));
+      if (selected.some(t => t.status !== 'disponible')) {
+        triggerToast('Solo se pueden unir mesas disponibles (sin consumo).', 'error');
+        return;
+      }
+      const groupId = `grp-${Date.now().toString(36)}`;
+      /* Ordena de izq. a der. y las alinea en fila para que se vean como una sola mesa. */
+      const ordered = [...selected].sort((a, b) => (a.x ?? 0) - (b.x ?? 0));
+      const bx = ordered[0].x ?? 24;
+      const by = ordered[0].y ?? 24;
+      const rowIndex = new Map(ordered.map((t, i) => [t.id, i]));
+      setTables(prev =>
+        prev.map(t =>
+          rowIndex.has(t.id)
+            ? { ...t, groupId, x: bx + rowIndex.get(t.id)! * 74, y: by }
+            : t
+        )
+      );
+      const cap = selected.reduce((sum, t) => sum + t.capacidad, 0);
+      triggerToast(`Mesas unidas — capacidad combinada de ${cap} personas.`, 'success');
+    },
+    [tables, triggerToast]
+  );
+
+  const unmergeTable = useCallback(
+    (groupId: string) => {
+      const group = tables
+        .filter(t => t.groupId === groupId)
+        .sort((a, b) => (a.x ?? 0) - (b.x ?? 0));
+      if (group.some(t => t.status !== 'disponible')) {
+        triggerToast('Libera la mesa unida antes de separarla.', 'error');
+        return;
+      }
+      const bx = group[0]?.x ?? 24;
+      const by = group[0]?.y ?? 24;
+      const idx = new Map(group.map((t, i) => [t.id, i]));
+      setTables(prev =>
+        prev.map(t =>
+          t.groupId === groupId
+            ? { ...t, groupId: undefined, x: bx + idx.get(t.id)! * 100, y: by }
+            : t
+        )
+      );
+      triggerToast('Mesas separadas.', 'info');
+    },
+    [tables, triggerToast]
   );
 
   /* ── Pedidos para llevar / delivery ───────────────────────── */
@@ -507,8 +657,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider
       value={{
         products,
+        pisos,
         tables,
         setTables,
+        addPiso,
+        removePiso,
+        addTable,
+        removeTable,
+        moveTable,
+        mergeTables,
+        unmergeTable,
         customers,
         kitchenOrders,
         salesHistory,
