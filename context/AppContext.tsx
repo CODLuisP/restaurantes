@@ -52,6 +52,10 @@ interface AppContextType {
   /** Separa un grupo de mesas unidas. */
   unmergeTable: (groupId: string) => void;
   customers: Customer[];
+  /** Registra un nuevo cliente en el CRM. */
+  addCustomer: (data: { nombre: string; telefono: string; email: string }) => void;
+  /** Elimina un cliente del CRM. */
+  removeCustomer: (id: string) => void;
   kitchenOrders: KitchenOrder[];
   salesHistory: SalesHistory[];
   toasts: Toast[];
@@ -107,7 +111,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [products] = useState<Product[]>(MOCK_PRODUCTS);
   const [pisos, setPisos] = useState<Piso[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
-  const [customers] = useState<Customer[]>(MOCK_CUSTOMERS);
+  const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
   const [kitchenOrders, setKitchenOrders] = useState<KitchenOrder[]>(INITIAL_KITCHEN_ORDERS);
   const [salesHistory, setSalesHistory] = useState<SalesHistory[]>(INITIAL_SALES_HISTORY);
   const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>(INITIAL_ACTIVE_ORDERS);
@@ -199,6 +203,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clientesAtendidos: customers.length + 42,
     };
   }, [salesHistory, tables, kitchenOrders, customers]);
+
+  /* ── CRM: alta y baja de clientes ─────────────────────────── */
+  const addCustomer = useCallback((data: { nombre: string; telefono: string; email: string }) => {
+    const newCustomer: Customer = {
+      id: `c${Date.now().toString(36)}`,
+      nombre: data.nombre,
+      telefono: data.telefono,
+      email: data.email,
+      ultimaCompra: '—',
+      totalGastado: 0,
+      compras: 0,
+      historial: [],
+    };
+    setCustomers(prev => [newCustomer, ...prev]);
+    triggerToast(`Cliente "${data.nombre}" agregado.`, 'success');
+  }, [triggerToast]);
+
+  const removeCustomer = useCallback((id: string) => {
+    setCustomers(prev => prev.filter(c => c.id !== id));
+    triggerToast('Cliente eliminado.', 'info');
+  }, [triggerToast]);
 
   /* ── MOZO: tomar comanda y enviarla a cocina ──────────────── */
   const sendOrderToKitchen = useCallback(
@@ -686,6 +711,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         mergeTables,
         unmergeTable,
         customers,
+        addCustomer,
+        removeCustomer,
         kitchenOrders,
         salesHistory,
         toasts,

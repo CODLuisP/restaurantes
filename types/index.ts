@@ -36,6 +36,15 @@ export interface Table {
   groupId?: string;
 }
 
+export interface CustomerOrder {
+  id: string;
+  fecha: string;
+  tipo: string;
+  metodoPago: string;
+  items: number;
+  total: number;
+}
+
 export interface Customer {
   id: string;
   nombre: string;
@@ -44,6 +53,7 @@ export interface Customer {
   ultimaCompra: string;
   totalGastado: number;
   compras: number;
+  historial?: CustomerOrder[];
 }
 
 export interface KitchenOrder {

@@ -143,11 +143,60 @@ export const MOCK_PRODUCTS: Product[] = [
 ];
 
 export const MOCK_CUSTOMERS: Customer[] = [
-  { id: 'c1', nombre: 'Carlos Rodríguez', telefono: '998 741 236', email: 'carlos.rod@gmail.com', ultimaCompra: '16/06/2026', totalGastado: 1284.50, compras: 24 },
-  { id: 'c2', nombre: 'María Fe Mendoza', telefono: '987 123 456', email: 'mafe.mendoza@outlook.com', ultimaCompra: '18/06/2026', totalGastado: 890.00, compras: 15 },
-  { id: 'c3', nombre: 'Jean Pierre Alva', telefono: '945 889 771', email: 'jp_alva85@hotmail.com', ultimaCompra: '15/06/2026', totalGastado: 2310.50, compras: 42 },
-  { id: 'c4', nombre: 'Gisella Valenzuela', telefono: '954 665 332', email: 'gvalenzuela@luzdelsur.com.pe', ultimaCompra: '11/06/2026', totalGastado: 450.00, compras: 8 },
-  { id: 'c5', nombre: 'Renzo Castagneto', telefono: '921 441 552', email: 'renzo.cast@gmail.com', ultimaCompra: '18/06/2026', totalGastado: 120.00, compras: 3 },
+  {
+    id: 'c1', nombre: 'Carlos Rodríguez', telefono: '998 741 236', email: 'carlos.rod@gmail.com',
+    ultimaCompra: '16/06/2026', totalGastado: 1284.50, compras: 24,
+    historial: [
+      { id: 'h1', fecha: '16/06/2026', tipo: 'Mesa 3',       metodoPago: 'Yape / Plin', items: 4, total: 96.50 },
+      { id: 'h2', fecha: '02/06/2026', tipo: 'Mesa 7',       metodoPago: 'Tarjeta',     items: 2, total: 68.00 },
+      { id: 'h3', fecha: '19/05/2026', tipo: 'Para llevar',  metodoPago: 'Efectivo',    items: 3, total: 54.00 },
+    ],
+  },
+  {
+    id: 'c2', nombre: 'María Fe Mendoza', telefono: '987 123 456', email: 'mafe.mendoza@outlook.com',
+    ultimaCompra: '18/06/2026', totalGastado: 890.00, compras: 15,
+    historial: [
+      { id: 'h4', fecha: '18/06/2026', tipo: 'Mesa 1', metodoPago: 'Tarjeta',     items: 3, total: 82.00 },
+      { id: 'h5', fecha: '30/05/2026', tipo: 'Delivery', metodoPago: 'Yape / Plin', items: 5, total: 145.50 },
+    ],
+  },
+  {
+    id: 'c3', nombre: 'Jean Pierre Alva', telefono: '945 889 771', email: 'jp_alva85@hotmail.com',
+    ultimaCompra: '15/06/2026', totalGastado: 2310.50, compras: 42,
+    historial: [
+      { id: 'h6', fecha: '15/06/2026', tipo: 'Mesa 5', metodoPago: 'Efectivo', items: 6, total: 210.00 },
+      { id: 'h7', fecha: '01/06/2026', tipo: 'Mesa 2', metodoPago: 'Tarjeta',  items: 4, total: 128.50 },
+      { id: 'h8', fecha: '14/05/2026', tipo: 'Mesa 5', metodoPago: 'Yape / Plin', items: 2, total: 64.00 },
+    ],
+  },
+  {
+    id: 'c4', nombre: 'Gisella Valenzuela', telefono: '954 665 332', email: 'gvalenzuela@luzdelsur.com.pe',
+    ultimaCompra: '11/06/2026', totalGastado: 450.00, compras: 8,
+    historial: [
+      { id: 'h9',  fecha: '11/06/2026', tipo: 'Para llevar', metodoPago: 'Efectivo', items: 2, total: 47.00 },
+      { id: 'h10', fecha: '22/05/2026', tipo: 'Mesa 4',      metodoPago: 'Yape / Plin', items: 3, total: 76.00 },
+    ],
+  },
+  {
+    id: 'c5', nombre: 'Renzo Castagneto', telefono: '921 441 552', email: 'renzo.cast@gmail.com',
+    ultimaCompra: '18/06/2026', totalGastado: 120.00, compras: 3,
+    historial: [
+      { id: 'h11', fecha: '18/06/2026', tipo: 'Mesa 6', metodoPago: 'Tarjeta', items: 2, total: 45.00 },
+      { id: 'h12', fecha: '29/04/2026', tipo: 'Mesa 6', metodoPago: 'Efectivo', items: 1, total: 28.00 },
+    ],
+  },
+  {
+    id: 'c6', nombre: 'Fabiola Torres', telefono: '912 903 330', email: 'fabiola.torres@gmail.com',
+    ultimaCompra: '20/06/2026', totalGastado: 38.00, compras: 1,
+    historial: [
+      { id: 'h13', fecha: '20/06/2026', tipo: 'Mesa 2', metodoPago: 'Yape / Plin', items: 2, total: 38.00 },
+    ],
+  },
+  {
+    id: 'c7', nombre: 'Diego Salazar', telefono: '933 210 884', email: 'diego.salazar@gmail.com',
+    ultimaCompra: '—', totalGastado: 0, compras: 0,
+    historial: [],
+  },
 ];
 
 export const INITIAL_KITCHEN_ORDERS: KitchenOrder[] = [
