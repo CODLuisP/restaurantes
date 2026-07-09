@@ -234,7 +234,7 @@ export default function MesasPage() {
                 {pisoTables.length === 0 ? (
                   <p className="text-xs text-slate-400 italic py-4">Este salón todavía no tiene mesas.</p>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                     {units.map(unit => {
                       const isOcupada = unit.status === 'ocupada';
                       const isReservada = unit.status === 'reservada';
@@ -247,8 +247,8 @@ export default function MesasPage() {
                         <div
                           key={unit.key}
                           onClick={selectable ? () => toggleSelect(unit.members[0].id) : undefined}
-                          className={`card-lg p-5 transition-all duration-200 relative border-2 flex flex-col ${statusBorder[unit.status]} ${
-                            merged ? 'sm:col-span-2' : ''
+                          className={`card-lg p-2.5 transition-all duration-200 relative border-2 flex flex-col ${statusBorder[unit.status]} ${
+                            merged ? 'col-span-2' : ''
                           } ${
                             mergeMode
                               ? selectable
@@ -257,17 +257,17 @@ export default function MesasPage() {
                               : 'hover:shadow-md'
                           }`}
                         >
-                          <div className="flex justify-between items-start">
-                            <span className="text-[10px] font-bold text-slate-400 font-mono uppercase">
-                              {merged ? 'Mesa unida' : `Mesa ${unit.label}`}
+                          <div className="flex justify-between items-start gap-1">
+                            <span className="text-[9px] font-bold text-slate-400 font-mono uppercase truncate">
+                              {merged ? 'Unida' : `Mesa ${unit.label}`}
                             </span>
-                            <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${statusBadge[unit.status]}`}>
+                            <span className={`shrink-0 text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${statusBadge[unit.status]}`}>
                               {unit.status}
                             </span>
                           </div>
 
                           {/* Forma de mesa */}
-                          <div className="my-3 px-1">
+                          <div className="my-1">
                             <RestaurantTable
                               members={unit.members}
                               status={unit.status}
@@ -277,68 +277,68 @@ export default function MesasPage() {
                             />
                           </div>
 
-                          <div className="text-center">
-                            <p className="text-[11px] text-slate-500">Capacidad: {unit.capacidad} personas</p>
+                          <div className="text-center leading-tight">
+                            <p className="text-[10px] text-slate-500">{unit.capacidad} pers.</p>
                             {isOcupada && unit.waiter && (
-                              <p className="text-[10px] text-brand mt-0.5 font-medium">Atiende: {unit.waiter}</p>
+                              <p className="text-[9px] text-brand font-medium truncate">{unit.waiter}</p>
                             )}
                           </div>
 
-                          <div className="mt-3 pt-3 border-t border-slate-200 flex justify-between items-center text-xs">
-                            <span className="text-slate-500">Consumido:</span>
-                            <span className="font-mono font-bold text-slate-800">S/. {unit.cuenta.toFixed(2)}</span>
+                          <div className="mt-1.5 pt-1.5 border-t border-slate-200 flex justify-between items-center text-[11px]">
+                            <span className="text-slate-500">Consumo:</span>
+                            <span className="font-mono font-bold text-slate-800">S/.{unit.cuenta.toFixed(2)}</span>
                           </div>
 
                           {/* Acciones (ocultas en modo unir) */}
                           {!mergeMode && (
-                            <div className="mt-3 space-y-2">
+                            <div className="mt-1.5 space-y-1">
                               {canTakeOrder && !isOcupada && (
                                 <button
                                   onClick={() => router.push(`/pos?mesa=${encodeURIComponent(unit.primaryName)}`)}
-                                  className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold text-white bg-brand hover:bg-brand-hover py-1.5 rounded-lg transition-colors">
-                                  <Utensils className="w-3.5 h-3.5" /> Tomar pedido
+                                  className="w-full flex items-center justify-center gap-1 text-[10px] font-bold text-white bg-brand hover:bg-brand-hover py-1 rounded-lg transition-colors text-center leading-tight">
+                                  <Utensils className="w-3 h-3" /> Tomar pedido
                                 </button>
                               )}
                               {canTakeOrder && isOcupada && (
                                 <button
                                   onClick={() => router.push(`/pos?mesa=${encodeURIComponent(unit.primaryName)}`)}
-                                  className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold text-brand bg-brand/10 hover:bg-brand/20 py-1.5 rounded-lg transition-colors">
-                                  <Utensils className="w-3.5 h-3.5" /> Agregar a comanda
+                                  className="w-full flex items-center justify-center gap-1 text-[10px] font-bold text-brand bg-brand/10 hover:bg-brand/20 py-1 rounded-lg transition-colors text-center leading-tight">
+                                  <Utensils className="w-3 h-3" /> Agregar a comanda
                                 </button>
                               )}
                               {canCharge && isOcupada && (
                                 <button
                                   onClick={() => router.push(`/cobrar?mesa=${encodeURIComponent(unit.primaryName)}`)}
-                                  className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold text-white bg-sky-700 hover:bg-sky-800 py-1.5 rounded-lg transition-colors">
-                                  <Receipt className="w-3.5 h-3.5" /> Cobrar
+                                  className="w-full flex items-center justify-center gap-1 text-[10px] font-bold text-white bg-sky-700 hover:bg-sky-800 py-1 rounded-lg transition-colors text-center leading-tight">
+                                  <Receipt className="w-3 h-3" /> Cobrar
                                 </button>
                               )}
                               {isDisponible && (
                                 <button
                                   onClick={() => setUnitStatus(unit, 'reservada')}
-                                  className="w-full flex items-center justify-center gap-1.5 text-[11px] font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 py-1.5 rounded-lg transition-colors">
-                                  <CalendarClock className="w-3.5 h-3.5" /> Reservar
+                                  className="w-full flex items-center justify-center gap-1 text-[10px] font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 py-1 rounded-lg transition-colors text-center leading-tight">
+                                  <CalendarClock className="w-3 h-3" /> Reservar
                                 </button>
                               )}
                               {isReservada && (
                                 <button
                                   onClick={() => setUnitStatus(unit, 'disponible')}
-                                  className="w-full flex items-center justify-center gap-1.5 text-[11px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 py-1.5 rounded-lg transition-colors">
-                                  <Unlock className="w-3.5 h-3.5" /> Liberar
+                                  className="w-full flex items-center justify-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 py-1 rounded-lg transition-colors text-center leading-tight">
+                                  <Unlock className="w-3 h-3" /> Liberar
                                 </button>
                               )}
                               {canManage && merged && isDisponible && (
                                 <button
                                   onClick={() => unmergeTable(unit.groupId!)}
-                                  className="w-full flex items-center justify-center gap-1.5 text-[11px] font-medium text-slate-600 hover:bg-slate-100 py-1.5 rounded-lg transition-colors">
-                                  <Unlink className="w-3.5 h-3.5" /> Separar mesas
+                                  className="w-full flex items-center justify-center gap-1 text-[10px] font-medium text-slate-600 hover:bg-slate-100 py-1 rounded-lg transition-colors text-center leading-tight">
+                                  <Unlink className="w-3 h-3" /> Separar mesas
                                 </button>
                               )}
                               {canManage && !merged && isDisponible && (
                                 <button
                                   onClick={() => removeTable(unit.members[0].id)}
-                                  className="w-full flex items-center justify-center gap-1.5 text-[11px] font-medium text-rose-600 hover:bg-rose-50 py-1.5 rounded-lg transition-colors">
-                                  <Trash2 className="w-3.5 h-3.5" /> Eliminar mesa
+                                  className="w-full flex items-center justify-center gap-1 text-[10px] font-medium text-rose-600 hover:bg-rose-50 py-1 rounded-lg transition-colors text-center leading-tight">
+                                  <Trash2 className="w-3 h-3" /> Eliminar mesa
                                 </button>
                               )}
                             </div>

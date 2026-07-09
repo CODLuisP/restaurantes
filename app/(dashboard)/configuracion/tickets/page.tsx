@@ -1,5 +1,5 @@
-import StubPage from '@/components/ui/StubPage';
+import TicketEditor from '@/components/configuracion/tickets/TicketEditor';
 
 export default function TicketsPage() {
-  return <StubPage section="tickets" />;
+  return <TicketEditor />;
 }

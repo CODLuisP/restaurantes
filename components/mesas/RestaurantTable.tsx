@@ -2,13 +2,13 @@
 
 import type { Table } from '@/types';
 
-/* Geometría (coordenadas SVG) */
-const BODY_W = 96;   // ancho del tablero por mesa
-const BODY_H = 78;   // alto del tablero
-const CW = 38;       // ancho de la silla (a lo largo del borde)
-const CD = 32;       // profundidad de la silla
-const GAP = 3;       // separación silla ↔ mesa
-const PAD = CD + GAP + 4; // margen para sillas en cada lado
+/* Geometría (coordenadas SVG). SCALE reduce todo el dibujo para cards más compactas. */
+const SCALE = 0.78;
+const BODY_W = Math.round(96 * SCALE);  // ancho del tablero por mesa
+const BODY_H = Math.round(58 * SCALE);  // alto del tablero (mesa apaisada, no cuadrada)
+const CD = Math.round(28 * SCALE);      // profundidad de la silla (para offset de posición)
+const GAP = Math.round(3 * SCALE) || 2; // separación silla ↔ mesa
+const PAD = CD + GAP + Math.round(4 * SCALE); // margen para sillas en cada lado
 
 export type UnitStatus = 'disponible' | 'ocupada' | 'reservada';
 
@@ -52,7 +52,7 @@ interface RestaurantTableProps {
  *  El respaldo (curvo y más ancho) queda arriba; el asiento y los apoyabrazos hacia abajo. */
 function Chair({ cx, cy, rot, tok, k }: { cx: number; cy: number; rot: number; tok: ChairTokens; k: string }) {
   return (
-    <g transform={`translate(${cx} ${cy}) rotate(${rot})`} key={k}>
+    <g transform={`translate(${cx} ${cy}) rotate(${rot}) scale(${SCALE})`} key={k}>
       {/* Cuerpo del sillón: respaldo curvo ancho arriba, asiento hacia la mesa (tub chair) */}
       <path
         d="M -16,-7

@@ -169,7 +169,7 @@
      Sin padding propio — añade px-3 py-2 según el contexto.
      Aplica siempre width (w-full) por separado.               */
   .input {
-    background-color: var(--color-surface-input);
+    background-color: #ffffff;
     color: var(--color-text-primary);
     font-size: 0.75rem;
     border-radius: var(--radius-md);

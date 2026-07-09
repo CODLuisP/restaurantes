@@ -2,19 +2,21 @@
 
 import { useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Package, Upload, Image, DoorOpen } from 'lucide-react';
+import { Package, Upload, Image, DoorOpen, QrCode } from 'lucide-react';
 import ProductosTab from '@/components/carta/ProductosTab';
 import ImportarTab from '@/components/carta/ImportarTab';
 import BannersTab from '@/components/carta/BannersTab';
 import PaginaBienvenidaTab from '@/components/carta/PaginaBienvenidaTab';
+import QrTab from '@/components/carta/QrTab';
 
-type TabId = 'productos' | 'importar' | 'banners' | 'bienvenida';
+type TabId = 'productos' | 'importar' | 'banners' | 'bienvenida' | 'qr';
 
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: 'productos',  label: 'Productos',            icon: Package },
   { id: 'importar',   label: 'Importar',             icon: Upload },
   { id: 'banners',    label: 'Banners',               icon: Image },
   { id: 'bienvenida', label: 'Página de bienvenida',  icon: DoorOpen },
+  { id: 'qr',         label: 'QR y Link de la Carta', icon: QrCode },
 ];
 
 export default function CartaPage() {
@@ -59,6 +61,7 @@ export default function CartaPage() {
         {tab === 'importar' && <ImportarTab />}
         {tab === 'banners' && <BannersTab />}
         {tab === 'bienvenida' && <PaginaBienvenidaTab />}
+        {tab === 'qr' && <QrTab />}
       </div>
     </div>
   );

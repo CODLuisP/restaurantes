@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search, Eye, Upload, FolderPlus, Plus, Star, ChevronDown, ChevronLeft, ChevronRight,
   GripVertical, MoreVertical, Image as ImageIcon, Store, Pencil, Trash2, Check, X,
-  Download, Printer, QrCode, Utensils,
+  Utensils,
 } from 'lucide-react';
-import { QRCodeCanvas } from 'qrcode.react';
 import { useCarta, CARTA_CATEGORIES } from '@/context/CartaContext';
 import { useBanners } from '@/context/BannersContext';
 import { useSidebar } from '@/context/SidebarContext';
@@ -286,16 +285,6 @@ export default function ProductosTab({ onGoToImportar, onGoToBanners }: Producto
         ))}
       </div>
 
-      {/* ── QR único ── */}
-      <div className="mt-10">
-        <div className="flex items-center gap-2 mb-4">
-          <QrCode className="w-5 h-5 text-brand" />
-          <h4 className="text-base font-bold text-slate-800">Código QR de la Carta</h4>
-          <span className="text-xs text-slate-400 ml-1">Imprímelo y ponlo en las mesas — todos los clientes ven la misma carta.</span>
-        </div>
-        <QrSection />
-      </div>
-
       {/* ── Modal nueva categoría ── */}
       <Modal
         open={showNewCategory}
@@ -566,87 +555,6 @@ function ProductCard({
             </button>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─── QR section ─── */
-function QrSection() {
-  const [url, setUrl] = useState('/menu');
-  useEffect(() => { setUrl(`${window.location.origin}/menu`); }, []);
-  const canvasId = 'qr-canvas-carta';
-
-  const handleDownload = () => {
-    const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null;
-    if (!canvas) return;
-    const link = document.createElement('a');
-    link.download = 'QR-Menu-Digital.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-  };
-
-  const handlePrint = () => {
-    const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null;
-    if (!canvas) return;
-    const dataUrl = canvas.toDataURL('image/png');
-    const win = window.open('', '_blank', 'width=400,height=520');
-    if (!win) return;
-    win.document.write(`
-      <!DOCTYPE html><html>
-        <head><title>QR Menú Digital</title>
-        <style>
-          body{font-family:sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#fff}
-          img{width:240px;height:240px}
-          h2{font-size:20px;margin:14px 0 4px;color:#005e34;font-weight:800}
-          p{font-size:12px;color:#888;margin:0}
-          .url{font-size:9px;color:#bbb;margin-top:10px;word-break:break-all;max-width:240px;text-align:center}
-        </style></head>
-        <body>
-          <img src="${dataUrl}" alt="QR Menú" />
-          <h2>Menú Digital</h2>
-          <p>Escanea para ver el menú</p>
-          <div class="url">${url}</div>
-          <script>window.onload=function(){window.print();window.close()}<\/script>
-        </body>
-      </html>
-    `);
-    win.document.close();
-  };
-
-  return (
-    <div className="flex flex-col items-center gap-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-8 max-w-sm mx-auto">
-      <div className="p-3 bg-white rounded-2xl border border-slate-100 shadow-inner">
-        <QRCodeCanvas
-          id={canvasId}
-          value={url}
-          size={200}
-          bgColor="#ffffff"
-          fgColor="#005e34"
-          level="M"
-          includeMargin={false}
-        />
-      </div>
-      <div className="text-center">
-        <p className="text-base font-bold text-slate-800">Menú Digital</p>
-        <p className="text-xs text-slate-500 mt-1">Los clientes escanean este QR para ver el menú en su celular.</p>
-        <p className="text-[10px] text-slate-400 font-mono mt-2">{url}</p>
-      </div>
-      <div className="flex gap-3 w-full">
-        <button
-          onClick={handleDownload}
-          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-brand text-white hover:bg-brand-hover transition-colors"
-        >
-          <Download className="w-4 h-4" />
-          Descargar PNG
-        </button>
-        <button
-          onClick={handlePrint}
-          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
-        >
-          <Printer className="w-4 h-4" />
-          Imprimir
-        </button>
       </div>
     </div>
   );

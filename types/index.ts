@@ -89,6 +89,10 @@ export interface CashSession {
   openedBy: string;
   openedAt: string;
   openingAmount: number;
+  /* Continuidad entre turnos: lo que el cierre anterior contó físicamente */
+  previousClosingAmount?: number;
+  /* openingAmount - previousClosingAmount (0 si coincide, ≠0 = posible faltante/sobrante entre turnos) */
+  openingDifference?: number;
   movements: CashMovement[];
   /* Acumulado de ventas de la sesión, separado por método de pago */
   cashSales: number;

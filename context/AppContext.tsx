@@ -583,12 +583,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         triggerToast('Ya existe una caja abierta.', 'warning');
         return;
       }
+      /* Continuidad: lo que el turno anterior contó físicamente al cerrar debe
+         coincidir con el fondo de apertura de este turno. Si no coincide, el
+         dinero "desaparecido" entre un cierre y la siguiente apertura queda
+         registrado igual — así nadie puede llevarse efectivo sin que se note. */
+      const previousClosingAmount = cashSession?.status === 'cerrada' ? cashSession.countedAmount : undefined;
+      const openingDifference = previousClosingAmount !== undefined ? openingAmount - previousClosingAmount : undefined;
+
       const session: CashSession = {
         id: `CJ-${Date.now().toString(36).toUpperCase()}`,
         status: 'abierta',
         openedBy: by,
         openedAt: new Date().toISOString(),
         openingAmount,
+        previousClosingAmount,
+        openingDifference,
         movements: [],
         cashSales: 0,
         cardSales: 0,
@@ -596,7 +605,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         salesCount: 0,
       };
       persistCaja(session);
-      triggerToast(`Caja aperturada por ${by} con fondo de S/. ${openingAmount.toFixed(2)}.`, 'success');
+
+      if (openingDifference && Math.abs(openingDifference) > 0.001) {
+        triggerToast(
+          `⚠️ El cierre anterior contó S/. ${previousClosingAmount!.toFixed(2)} y estás abriendo con S/. ${openingAmount.toFixed(2)} ` +
+          `(${openingDifference > 0 ? 'sobran' : 'faltan'} S/. ${Math.abs(openingDifference).toFixed(2)} entre turnos).`,
+          'warning'
+        );
+      } else {
+        triggerToast(`Caja aperturada por ${by} con fondo de S/. ${openingAmount.toFixed(2)}.`, 'success');
+      }
     },
     [cashSession, persistCaja, triggerToast]
   );
