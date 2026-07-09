@@ -9,7 +9,7 @@ import { useAuth, ROLE_LABELS } from '@/context/AuthContext';
 
 const SECTION_NAMES: Record<string, string> = {
   '/dashboard':     'Dashboard',
-  '/pos':           'Comandero',
+  '/comandero':     'Comandero',
   '/cobrar':        'Cobrar / Facturación',
   '/pedidos':       'Pedidos',
   '/mesas':         'Mesas',

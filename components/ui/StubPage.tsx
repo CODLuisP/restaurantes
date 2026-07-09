@@ -31,7 +31,7 @@ export default function StubPage({ section }: StubPageProps) {
         </p>
       </div>
       <Link
-        href="/pos"
+        href="/comandero"
         onClick={() => triggerToast('Redirigido a Punto de Venta', 'success')}
         className="text-xs font-bold text-brand hover:underline"
       >

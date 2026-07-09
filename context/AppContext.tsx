@@ -66,6 +66,10 @@ interface AppContextType {
   kpiStats: KpiStats;
   /** Mozo: toma una comanda y la envía a cocina; acumula el consumo en la mesa. */
   sendOrderToKitchen: (tableName: string, items: OrderItem[], waiter?: string) => void;
+  /** Ajusta la cantidad de un ítem YA enviado de una mesa (edición post-envío). Si llega a 0, se quita. */
+  updateTableItemQty: (tableName: string, productId: string, delta: number) => void;
+  /** Quita por completo un ítem ya enviado de una mesa. */
+  removeTableItem: (tableName: string, productId: string) => void;
   /** Pedidos que no ocupan mesa (para llevar / delivery), pendientes de cobro. */
   activeOrders: ActiveOrder[];
   /** Crea un pedido para llevar o delivery y lo envía a cocina. */
@@ -75,6 +79,12 @@ interface AppContextType {
     items: OrderItem[],
     waiter?: string
   ) => void;
+  /** Agrega ítems adicionales a un pedido de llevar/delivery ya creado (envía una comanda extra a cocina). */
+  addItemsToActiveOrder: (orderId: string, items: OrderItem[], waiter?: string) => void;
+  /** Ajusta la cantidad de un ítem YA enviado de un pedido de llevar/delivery. Si llega a 0, se quita. */
+  updateActiveOrderItemQty: (orderId: string, productId: string, delta: number) => void;
+  /** Quita por completo un ítem ya enviado de un pedido de llevar/delivery. */
+  removeActiveOrderItem: (orderId: string, productId: string) => void;
   /** Cobra un pedido para llevar / delivery, emite comprobante y lo cierra. */
   chargeOrder: (
     orderId: string,
@@ -264,6 +274,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       triggerToast(`Comanda de ${tableName} enviada a cocina.`, 'success');
     },
     [triggerToast, cashSession]
+  );
+
+  /** Edita la comanda ya enviada de una mesa (el mozo corrige lo pedido antes de cobrar). */
+  const updateTableItemQty = useCallback(
+    (tableName: string, productId: string, delta: number) => {
+      setTables(prev =>
+        prev.map(t => {
+          if (t.name !== tableName) return t;
+          const items = (t.items ?? [])
+            .map(i => (i.product.id === productId ? { ...i, quantity: i.quantity + delta } : i))
+            .filter(i => i.quantity > 0);
+          const cuenta = items.reduce((acc, i) => acc + i.product.price * i.quantity, 0);
+          return items.length === 0
+            ? { ...t, status: 'disponible', items: [], cuenta: 0, waiter: undefined }
+            : { ...t, items, cuenta };
+        })
+      );
+    },
+    []
+  );
+
+  const removeTableItem = useCallback(
+    (tableName: string, productId: string) => {
+      setTables(prev =>
+        prev.map(t => {
+          if (t.name !== tableName) return t;
+          const items = (t.items ?? []).filter(i => i.product.id !== productId);
+          const cuenta = items.reduce((acc, i) => acc + i.product.price * i.quantity, 0);
+          return items.length === 0
+            ? { ...t, status: 'disponible', items: [], cuenta: 0, waiter: undefined }
+            : { ...t, items, cuenta };
+        })
+      );
+      triggerToast('Ítem quitado de la comanda.', 'info');
+    },
+    [triggerToast]
   );
 
   /* ── CAJERO: cobrar el consumo de la mesa y emitir comprobante ── */
@@ -513,6 +559,77 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [cashSession, triggerToast]
   );
 
+  /** Agrega ítems a un pedido de llevar/delivery ya creado (el cliente pide algo más antes de cobrar). */
+  const addItemsToActiveOrder = useCallback(
+    (orderId: string, items: OrderItem[], waiter?: string) => {
+      if (items.length === 0) {
+        triggerToast('Agregue platos antes de enviar.', 'warning');
+        return;
+      }
+      const order = activeOrders.find(o => o.id === orderId);
+      if (!order) {
+        triggerToast('El pedido ya no está disponible.', 'warning');
+        return;
+      }
+      const now = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+      const merged = mergeItems(order.items, items);
+      const total = merged.reduce((a, i) => a + i.product.price * i.quantity, 0);
+      const itemsCount = merged.reduce((a, i) => a + i.quantity, 0);
+      setActiveOrders(prev => prev.map(o => (o.id === orderId ? { ...o, items: merged, total, itemsCount } : o)));
+
+      /* Comanda adicional hacia cocina */
+      const ko: KitchenOrder = {
+        id: `ko${Math.floor(200 + Math.random() * 800)}`,
+        table: order.type === 'llevar' ? `Llevar · ${orderId} (extra)` : `Delivery · ${orderId} (extra)`,
+        items: items.map(i => ({ name: i.product.name, quantity: i.quantity })),
+        status: 'pendiente',
+        time: now,
+        elapsed: 0,
+        waiter,
+      };
+      setKitchenOrders(prev => [...prev, ko]);
+      triggerToast(`Se agregaron platos al pedido ${orderId} y se enviaron a cocina.`, 'success');
+    },
+    [activeOrders, triggerToast]
+  );
+
+  const updateActiveOrderItemQty = useCallback(
+    (orderId: string, productId: string, delta: number) => {
+      setActiveOrders(prev =>
+        prev
+          .map(o => {
+            if (o.id !== orderId) return o;
+            const items = o.items
+              .map(i => (i.product.id === productId ? { ...i, quantity: i.quantity + delta } : i))
+              .filter(i => i.quantity > 0);
+            const total = items.reduce((a, i) => a + i.product.price * i.quantity, 0);
+            const itemsCount = items.reduce((a, i) => a + i.quantity, 0);
+            return { ...o, items, total, itemsCount };
+          })
+          .filter(o => o.id !== orderId || o.items.length > 0)
+      );
+    },
+    []
+  );
+
+  const removeActiveOrderItem = useCallback(
+    (orderId: string, productId: string) => {
+      setActiveOrders(prev =>
+        prev
+          .map(o => {
+            if (o.id !== orderId) return o;
+            const items = o.items.filter(i => i.product.id !== productId);
+            const total = items.reduce((a, i) => a + i.product.price * i.quantity, 0);
+            const itemsCount = items.reduce((a, i) => a + i.quantity, 0);
+            return { ...o, items, total, itemsCount };
+          })
+          .filter(o => o.id !== orderId || o.items.length > 0)
+      );
+      triggerToast('Ítem quitado del pedido.', 'info');
+    },
+    [triggerToast]
+  );
+
   const chargeOrder = useCallback(
     (orderId: string, paymentMethod: PaymentMethod, docType: DocType, cashier?: string): SalesHistory | null => {
       if (!cashSession || cashSession.status !== 'abierta') {
@@ -722,8 +839,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setSearchQuery,
         kpiStats,
         sendOrderToKitchen,
+        updateTableItemQty,
+        removeTableItem,
         activeOrders,
         createOrder,
+        addItemsToActiveOrder,
+        updateActiveOrderItemQty,
+        removeActiveOrderItem,
         chargeOrder,
         chargeTable,
         setTableStatus,

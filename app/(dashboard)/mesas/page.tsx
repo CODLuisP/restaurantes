@@ -294,14 +294,14 @@ export default function MesasPage() {
                             <div className="mt-1.5 space-y-1">
                               {canTakeOrder && !isOcupada && (
                                 <button
-                                  onClick={() => router.push(`/pos?mesa=${encodeURIComponent(unit.primaryName)}`)}
+                                  onClick={() => router.push(`/comandero?mesa=${encodeURIComponent(unit.primaryName)}`)}
                                   className="w-full flex items-center justify-center gap-1 text-[10px] font-bold text-white bg-brand hover:bg-brand-hover py-1 rounded-lg transition-colors text-center leading-tight">
                                   <Utensils className="w-3 h-3" /> Tomar pedido
                                 </button>
                               )}
                               {canTakeOrder && isOcupada && (
                                 <button
-                                  onClick={() => router.push(`/pos?mesa=${encodeURIComponent(unit.primaryName)}`)}
+                                  onClick={() => router.push(`/comandero?mesa=${encodeURIComponent(unit.primaryName)}`)}
                                   className="w-full flex items-center justify-center gap-1 text-[10px] font-bold text-brand bg-brand/10 hover:bg-brand/20 py-1 rounded-lg transition-colors text-center leading-tight">
                                   <Utensils className="w-3 h-3" /> Agregar a comanda
                                 </button>

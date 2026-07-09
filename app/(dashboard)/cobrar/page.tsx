@@ -236,7 +236,7 @@ export default function CobrarPage() {
                   </div>
                   {selected.kind === 'mesa' && (
                     <button
-                      onClick={() => router.push(`/pos?mesa=${encodeURIComponent(selected.ref)}`)}
+                      onClick={() => router.push(`/comandero?mesa=${encodeURIComponent(selected.ref)}`)}
                       className="text-[11px] font-medium text-brand hover:underline inline-flex items-center gap-1"
                     >
                       <Pencil className="h-3 w-3" /> Agregar platos
