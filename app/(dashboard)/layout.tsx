@@ -1,6 +1,7 @@
 import { AppProvider } from '@/context/AppContext';
 import { CartaProvider } from '@/context/CartaContext';
 import { BannersProvider } from '@/context/BannersContext';
+import { BusinessProvider } from '@/context/BusinessContext';
 import { SidebarProvider } from '@/context/SidebarContext';
 import Sidebar from '@/components/layout/Sidebar';
 import TopBar from '@/components/layout/TopBar';
@@ -13,18 +14,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <AppProvider>
       <CartaProvider>
         <BannersProvider>
-          <SidebarProvider>
-            <AuthGuard>
-              <div className="min-h-screen font-sans bg-brand-medium/3 text-slate-800">
-                <Sidebar />
-                <MainAreaClient>
-                  <TopBar />
-                  <main className="flex-1 p-6 lg:p-8">{children}</main>
-                </MainAreaClient>
-                <ToastContainer />
-              </div>
-            </AuthGuard>
-          </SidebarProvider>
+          <BusinessProvider>
+            <SidebarProvider>
+              <AuthGuard>
+                <div className="min-h-screen font-sans bg-brand-medium/3 text-slate-800">
+                  <Sidebar />
+                  <MainAreaClient>
+                    <TopBar />
+                    <main className="flex-1 p-6 lg:p-8">{children}</main>
+                  </MainAreaClient>
+                  <ToastContainer />
+                </div>
+              </AuthGuard>
+            </SidebarProvider>
+          </BusinessProvider>
         </BannersProvider>
       </CartaProvider>
     </AppProvider>

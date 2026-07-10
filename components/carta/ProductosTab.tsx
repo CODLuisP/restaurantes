@@ -1,17 +1,18 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Search, Eye, Upload, FolderPlus, Plus, Star, ChevronDown, ChevronLeft, ChevronRight,
   GripVertical, MoreVertical, Image as ImageIcon, Store, Pencil, Trash2, Check, X,
-  Utensils,
+  Utensils, Camera, MapPin, FileText,
 } from 'lucide-react';
 import { useCarta, CARTA_CATEGORIES } from '@/context/CartaContext';
 import { useBanners } from '@/context/BannersContext';
+import { useBusiness } from '@/context/BusinessContext';
 import { useSidebar } from '@/context/SidebarContext';
 import { useApp } from '@/context/AppContext';
-import { Toggle, Modal, Button } from '@/components/ui';
+import { Toggle, Modal, Button, Input } from '@/components/ui';
 import type { MenuEntry } from '@/types';
 
 const CATEGORY_ICON_BG: Record<string, string> = {
@@ -35,6 +36,7 @@ export default function ProductosTab({ onGoToImportar, onGoToBanners }: Producto
   const { carta, addItem, updateItem, removeItem, toggleItem, toggleCartaActive } = useCarta();
   const { banners } = useBanners();
   const activeBanners = banners.filter(b => b.active);
+  const { business, updateBusiness } = useBusiness();
   const { isCollapsed } = useSidebar();
   const { triggerToast } = useApp();
 
@@ -43,6 +45,26 @@ export default function ProductosTab({ onGoToImportar, onGoToBanners }: Producto
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm());
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const [showBusinessForm, setShowBusinessForm] = useState(false);
+  const [businessForm, setBusinessForm] = useState(business);
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => updateBusiness({ logo: reader.result as string });
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const openBusinessForm = () => { setBusinessForm(business); setShowBusinessForm(true); };
+  const submitBusinessForm = () => {
+    updateBusiness(businessForm);
+    setShowBusinessForm(false);
+    triggerToast('Información del negocio actualizada.', 'success');
+  };
 
   const [extraCategories, setExtraCategories] = useState<string[]>([]);
   const [showNewCategory, setShowNewCategory] = useState(false);
@@ -164,7 +186,7 @@ export default function ProductosTab({ onGoToImportar, onGoToBanners }: Producto
       </div>
 
       {/* ── Banner carousel + tarjeta de negocio ── */}
-      <div className="relative mb-10">
+      <div className="relative mb-14">
         <div className="relative rounded-2xl overflow-hidden h-44 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
           {activeBanners.length > 0 ? (
             <>
@@ -229,16 +251,45 @@ export default function ProductosTab({ onGoToImportar, onGoToBanners }: Producto
           </button>
         </div>
 
-        <div className="absolute -bottom-8 left-4 flex items-center gap-3 bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">
-          <div className="h-10 w-10 rounded-xl bg-brand/10 flex items-center justify-center shrink-0">
-            <Store className="h-5 w-5 text-brand" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-slate-800 truncate">RestoPro Perú</p>
-            <p className="text-[11px] text-slate-500 truncate max-w-[220px]">
-              Gestión gastronómica inteligente para tu restaurante.
+        <div className="absolute -bottom-10 left-4 right-4 sm:right-auto flex items-center gap-3 bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">
+          {/* Logo: click / hover para cambiarlo */}
+          <button
+            type="button"
+            onClick={() => logoInputRef.current?.click()}
+            className="group/logo relative h-14 w-14 rounded-xl overflow-hidden shrink-0 bg-brand/10 border border-slate-200 flex items-center justify-center"
+            title="Cambiar logo"
+          >
+            {business.logo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={business.logo} alt="Logo del negocio" className="h-full w-full object-cover" />
+            ) : (
+              <Store className="h-6 w-6 text-brand" />
+            )}
+            <div className="absolute inset-0 bg-black/55 opacity-0 group-hover/logo:opacity-100 transition-opacity flex flex-col items-center justify-center gap-0.5">
+              <Camera className="h-4 w-4 text-white" />
+              <span className="text-[8px] font-semibold text-white leading-none">Cambiar</span>
+            </div>
+          </button>
+          <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoChange} className="hidden" />
+
+          {/* Nombre, RUC y dirección: click para editar */}
+          <button type="button" onClick={openBusinessForm} className="group/info min-w-0 flex-1 text-left">
+            <span className="flex items-center gap-1.5">
+              <p className={`text-sm font-bold truncate ${business.name ? 'text-slate-800' : 'text-slate-400 italic'}`}>
+                {business.name || 'Configura el nombre de tu negocio'}
+              </p>
+              <Pencil className="h-3 w-3 text-slate-300 opacity-0 group-hover/info:opacity-100 transition-opacity shrink-0" />
+            </span>
+            <p className="text-[11px] text-slate-500 truncate max-w-[260px] flex items-center gap-1">
+              <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
+              {business.address || 'Agrega la dirección del negocio'}
             </p>
-          </div>
+            <p className="text-[10px] text-slate-400 font-mono truncate flex items-center gap-1">
+              <FileText className="h-3 w-3 shrink-0 text-slate-400" />
+              {business.ruc ? `RUC ${business.ruc}` : 'Agrega el RUC'}
+            </p>
+          </button>
+
           <div className="pl-3 ml-1 border-l border-slate-200 shrink-0" title={carta.active ? 'Carta activa' : 'Carta inactiva'}>
             <Toggle checked={carta.active} onChange={toggleCartaActive} />
           </div>
@@ -309,6 +360,45 @@ export default function ProductosTab({ onGoToImportar, onGoToBanners }: Producto
             placeholder="Ej: Combos familiares"
             className="input w-full px-3 py-2"
             autoFocus
+          />
+        </div>
+      </Modal>
+
+      {/* ── Modal datos del negocio ── */}
+      <Modal
+        open={showBusinessForm}
+        onClose={() => setShowBusinessForm(false)}
+        title="Información del negocio"
+        subtitle="Se muestra en la tarjeta sobre el banner de tu carta."
+        size="sm"
+        fullHeight={false}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowBusinessForm(false)}>Cancelar</Button>
+            <Button onClick={submitBusinessForm} disabled={!businessForm.name.trim()}>Guardar</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Input
+            label="Nombre del negocio"
+            value={businessForm.name}
+            onChange={e => setBusinessForm(f => ({ ...f, name: e.target.value }))}
+            placeholder="Ej: RestoPro Perú"
+            autoFocus
+          />
+          <Input
+            label="RUC"
+            value={businessForm.ruc}
+            onChange={e => setBusinessForm(f => ({ ...f, ruc: e.target.value.replace(/\D/g, '').slice(0, 11) }))}
+            placeholder="20123456789"
+            inputMode="numeric"
+          />
+          <Input
+            label="Dirección"
+            value={businessForm.address}
+            onChange={e => setBusinessForm(f => ({ ...f, address: e.target.value }))}
+            placeholder="Ej: Av. Larco 345, Miraflores"
           />
         </div>
       </Modal>
