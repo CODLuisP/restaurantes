@@ -732,9 +732,9 @@ export default function ComanderoPage() {
 
   /* RENDERIZADO POR DEFECTO PARA LISTAS Y PLANO DE MESAS */
   return (
-    <div className={`flex flex-col lg:flex-row gap-6 items-stretch ${detailView ? 'lg:h-[calc(100vh-8.5rem)] lg:overflow-hidden' : ''}`}>
+    <div className="flex flex-col lg:flex-row gap-6 items-start">
       {/* Columna principal: listas y plano (se comprime cuando se abre el detalle) */}
-      <div className={`flex-1 min-w-0 space-y-6 animate-section ${detailView ? 'pb-24 lg:pb-2 lg:overflow-y-auto lg:pr-1' : 'pb-24'}`}>
+      <div className={`flex-1 min-w-0 space-y-6 animate-section ${detailView ? 'pb-24 lg:pb-2 lg:h-[calc(100vh-8.5rem)] lg:overflow-y-auto lg:pr-1' : 'pb-24'}`}>
       {/* Header comandero */}
       <div className="card-lg p-4 space-y-4">
         <div className="flex items-center justify-between gap-3">
@@ -1474,8 +1474,8 @@ function OrderDetailDrawer({
   const TypeIcon = view.kind === 'mesa' ? Building2 : order!.type === 'llevar' ? ShoppingBag : Bike;
 
   return (
-    <div className="w-full lg:w-96 shrink-0 lg:h-full">
-      <div className="card-lg bg-white flex flex-col animate-section overflow-hidden h-full">
+    <div className="w-full lg:w-96 shrink-0 lg:-my-8 lg:-mr-8 lg:h-[calc(100vh-4rem)] lg:sticky lg:top-16">
+      <div className="card-lg bg-white flex flex-col overflow-hidden h-full lg:rounded-none lg:border-r-0">
         {/* Header */}
         <div className="flex items-start justify-between px-5 py-4 border-b border-slate-100 shrink-0">
           <div>
