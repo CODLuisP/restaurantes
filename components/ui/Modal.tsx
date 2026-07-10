@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useContext } from 'react';
 import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import { X } from 'lucide-react';
-import { useSidebar } from '@/context/SidebarContext';
+import { SidebarContext } from '@/context/SidebarContext';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
 
@@ -30,7 +30,8 @@ const SIZE_CLASSES: Record<ModalSize, string> = {
 
 export function Modal({ open, onClose, title, subtitle, children, footer, size = 'md', fullHeight = true }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
-  const { isCollapsed } = useSidebar();
+  const sidebar = useContext(SidebarContext);
+  const isCollapsed = sidebar ? sidebar.isCollapsed : false;
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
@@ -48,7 +49,7 @@ export function Modal({ open, onClose, title, subtitle, children, footer, size =
     <div
       ref={overlayRef}
       onClick={e => { if (e.target === overlayRef.current) onClose(); }}
-      className={`fixed inset-y-0 right-0 left-0 ${isCollapsed ? 'md:left-16' : 'md:left-64'} bg-black/60 backdrop-blur-sm z-40 flex ${fullHeight ? 'items-stretch' : 'items-center'} justify-center p-4 sm:p-6`}
+      className={`fixed inset-y-0 right-0 left-0 ${sidebar ? (isCollapsed ? 'md:left-16' : 'md:left-64') : ''} bg-black/60 backdrop-blur-sm z-40 flex ${fullHeight ? 'items-stretch' : 'items-center'} justify-center p-4 sm:p-6`}
     >
       <div className={`card-lg w-full ${SIZE_CLASSES[size]} ${fullHeight ? 'h-full' : 'max-h-[85vh]'} flex flex-col overflow-hidden`}>
         {/* Header */}

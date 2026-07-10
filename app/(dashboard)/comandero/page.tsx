@@ -1510,6 +1510,33 @@ function OrderDetailDrawer({
                 {order!.address && <p className="text-slate-500">Dirección: <span className="text-slate-700 font-medium">{order!.address}</span></p>}
                 <p className="text-slate-500">Hora: <span className="text-slate-700 font-medium">{order!.createdAt}</span></p>
                 {order!.waiter && <p className="text-slate-500">Mozo: <span className="text-slate-700 font-medium">{order!.waiter}</span></p>}
+                {order!.docType && (
+                  <p className="text-slate-500">Comprobante: <span className="text-slate-700 font-medium uppercase font-bold">{order!.docType} {order!.ruc ? `(RUC ${order!.ruc})` : ''}</span></p>
+                )}
+                {order!.paymentMethod && (
+                  <p className="text-slate-500">Pago: <span className="text-slate-700 font-medium font-bold">{order!.paymentMethod}</span></p>
+                )}
+                {order!.paymentScreenshot && (
+                  <div className="mt-2 pt-2 border-t border-slate-200">
+                    <span className="text-[10px] font-bold text-slate-400 block mb-1">CAPTURA DE PAGO YAPE/PLIN</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const win = window.open();
+                        if (win) {
+                          win.document.write(`<iframe src="${order!.paymentScreenshot}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                        }
+                      }}
+                      className="group/screenshot relative w-full h-24 rounded-lg overflow-hidden border border-slate-200 hover:border-brand transition-colors block"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={order!.paymentScreenshot} alt="Pago Yape/Plin" className="h-full w-full object-cover" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/screenshot:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold">
+                        Haga clic para ampliar
+                      </div>
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>
