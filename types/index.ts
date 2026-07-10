@@ -68,7 +68,7 @@ export interface KitchenOrder {
 
 /* ── Usuarios / Personal & Roles ───────────────────────────── */
 
-export type Role = 'admin' | 'cajero' | 'mozo';
+export type Role = 'admin' | 'cajero' | 'mozo' | 'cocinero' | 'repartidor';
 
 export interface User {
   id: string;
@@ -78,6 +78,10 @@ export interface User {
   pin: string;
   station: string;
   active: boolean;
+  /** Username real contra el backend (RestaurantesAPI) — ausente en usuarios mock locales. */
+  username?: string;
+  empresaId?: number;
+  sucursalId?: number | null;
 }
 
 /* ── Caja (apertura / arqueo / cierre) ─────────────────────── */

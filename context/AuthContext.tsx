@@ -1,83 +1,99 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import { useSession, signOut } from 'next-auth/react';
 import { MOCK_USERS } from '@/data/mockData';
 import type { User, Role } from '@/types';
-
-const USERS_KEY   = 'restopro.users';
-const SESSION_KEY = 'restopro.session';
 
 interface AuthContextType {
   users: User[];
   currentUser: User | null;
-  /** true una vez hidratado desde localStorage (evita parpadeo de guard) */
+  /** true una vez NextAuth resolvió el estado de sesión (evita parpadeo de guard) */
   ready: boolean;
-  loginByEmail: (email: string) => User | null;
-  loginByPin: (pin: string) => User | null;
   logout: () => void;
   addUser: (data: Omit<User, 'id'>) => void;
   toggleUserActive: (id: string) => void;
   hasRole: (...roles: Role[]) => boolean;
+  loginByEmail: (email: string) => User | null;
+  loginByPin: (pin: string) => User | null;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+// El backend distingue superadmin (todas las sucursales) de admin (una sola), pero
+// para la UI (menús, permisos) ambos se agrupan bajo el mismo Role local "admin".
+function mapBackendRole(rol: string): Role {
+  switch (rol?.trim().toLowerCase()) {
+    case 'superadmin':
+    case 'admin':
+      return 'admin';
+    case 'cajero':
+      return 'cajero';
+    case 'cocinero':
+      return 'cocinero';
+    case 'repartidor':
+      return 'repartidor';
+    case 'mozo':
+      return 'mozo';
+    default:
+      console.warn(`[AuthContext] Rol de backend no reconocido: "${rol}". Se usará "mozo" por defecto.`);
+      return 'mozo';
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { data: session, status } = useSession();
+
+  // Lista de personal mock, usada hoy solo por la pantalla de gestión de Personal
+  // (aún no conectada al backend real de usuarios). No tiene relación con currentUser.
   const [users, setUsers] = useState<User[]>(MOCK_USERS);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [ready, setReady] = useState(false);
+  const [localUser, setLocalUser] = useState<User | null>(null);
 
-  /* Hidratación desde localStorage (solo cliente) */
-  useEffect(() => {
-    try {
-      const storedUsers = localStorage.getItem(USERS_KEY);
-      if (storedUsers) setUsers(JSON.parse(storedUsers));
-
-      const storedSession = localStorage.getItem(SESSION_KEY);
-      if (storedSession) setCurrentUser(JSON.parse(storedSession));
-    } catch {
-      /* ignora datos corruptos */
+  const currentUser: User | null = useMemo(() => {
+    if (session?.user) {
+      return {
+        id: session.user.id,
+        name: session.user.name ?? session.user.username,
+        role: mapBackendRole(session.user.role),
+        email: session.user.username,
+        pin: '',
+        station: '',
+        active: true,
+        username: session.user.username,
+        empresaId: session.user.empresaId,
+        sucursalId: session.user.sucursalId,
+      };
     }
-    setReady(true);
+
+    return localUser;
+  }, [session, localUser]);
+
+  const logout = useCallback(() => {
+    setLocalUser(null);
+    signOut({ callbackUrl: '/' });
   }, []);
 
-  const persistUsers = useCallback((next: User[]) => {
-    setUsers(next);
-    try { localStorage.setItem(USERS_KEY, JSON.stringify(next)); } catch {}
-  }, []);
+  const loginByEmail = useCallback((email: string) => {
+    const normalized = email.trim().toLowerCase();
+    const match = users.find(user => user.email.toLowerCase() === normalized && user.active) ?? null;
+    setLocalUser(match);
+    return match;
+  }, [users]);
 
-  const persistSession = useCallback((user: User | null) => {
-    setCurrentUser(user);
-    try {
-      if (user) localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-      else localStorage.removeItem(SESSION_KEY);
-    } catch {}
-  }, []);
-
-  const loginByEmail = useCallback((email: string): User | null => {
-    const user = users.find(u => u.email.toLowerCase() === email.trim().toLowerCase());
-    if (!user || !user.active) return null;
-    persistSession(user);
-    return user;
-  }, [users, persistSession]);
-
-  const loginByPin = useCallback((pin: string): User | null => {
-    const user = users.find(u => u.pin === pin.trim());
-    if (!user || !user.active) return null;
-    persistSession(user);
-    return user;
-  }, [users, persistSession]);
-
-  const logout = useCallback(() => persistSession(null), [persistSession]);
+  const loginByPin = useCallback((pin: string) => {
+    const match = users.find(user => user.pin === pin.trim() && user.active) ?? null;
+    setLocalUser(match);
+    return match;
+  }, [users]);
 
   const addUser = useCallback((data: Omit<User, 'id'>) => {
     const newUser: User = { ...data, id: `u${Date.now().toString(36)}` };
-    persistUsers([...users, newUser]);
-  }, [users, persistUsers]);
+    setUsers(prev => [...prev, newUser]);
+  }, []);
 
   const toggleUserActive = useCallback((id: string) => {
-    persistUsers(users.map(u => (u.id === id ? { ...u, active: !u.active } : u)));
-  }, [users, persistUsers]);
+    setUsers(prev => prev.map(u => (u.id === id ? { ...u, active: !u.active } : u)));
+  }, []);
 
   const hasRole = useCallback(
     (...roles: Role[]) => !!currentUser && roles.includes(currentUser.role),
@@ -86,7 +102,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ users, currentUser, ready, loginByEmail, loginByPin, logout, addUser, toggleUserActive, hasRole }}
+      value={{
+        users,
+        currentUser,
+        ready: status !== 'loading',
+        logout,
+        addUser,
+        toggleUserActive,
+        hasRole,
+        loginByEmail,
+        loginByPin,
+      }}
     >
       {children}
     </AuthContext.Provider>
@@ -101,7 +127,9 @@ export function useAuth() {
 
 /* Etiquetas legibles por rol, reutilizables en toda la app */
 export const ROLE_LABELS: Record<Role, string> = {
-  admin:  'Administrador',
-  cajero: 'Cajero / Facturación',
-  mozo:   'Mozo / Salón',
+  admin:      'Administrador',
+  cajero:     'Cajero / Facturación',
+  mozo:       'Mozo / Salón',
+  cocinero:   'Cocina',
+  repartidor: 'Repartidor',
 };

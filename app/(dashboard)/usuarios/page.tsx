@@ -1,16 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { ShieldCheck, UserPlus, ShieldAlert, Crown, CreditCard, Utensils } from 'lucide-react';
+import { ShieldCheck, UserPlus, ShieldAlert, Crown, CreditCard, Utensils, Bike } from 'lucide-react';
 import { useAuth, ROLE_LABELS } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
 import { Modal, Button, Input, Select, Badge } from '@/components/ui';
 import type { Role } from '@/types';
 
 const ROLE_META: Record<Role, { icon: React.ReactNode; badge: 'brand' | 'info' | 'warning' }> = {
-  admin:  { icon: <Crown className="h-3.5 w-3.5" />,      badge: 'brand' },
-  cajero: { icon: <CreditCard className="h-3.5 w-3.5" />, badge: 'info' },
-  mozo:   { icon: <Utensils className="h-3.5 w-3.5" />,   badge: 'warning' },
+  admin:      { icon: <Crown className="h-3.5 w-3.5" />,      badge: 'brand' },
+  cajero:     { icon: <CreditCard className="h-3.5 w-3.5" />, badge: 'info' },
+  mozo:       { icon: <Utensils className="h-3.5 w-3.5" />,   badge: 'warning' },
+  cocinero:   { icon: <Utensils className="h-3.5 w-3.5" />,   badge: 'warning' },
+  repartidor: { icon: <Bike className="h-3.5 w-3.5" />,       badge: 'info' },
 };
 
 function initials(name: string) {
