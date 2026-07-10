@@ -85,6 +85,8 @@ interface AppContextType {
   updateActiveOrderItemQty: (orderId: string, productId: string, delta: number) => void;
   /** Quita por completo un ítem ya enviado de un pedido de llevar/delivery. */
   removeActiveOrderItem: (orderId: string, productId: string) => void;
+  /** Cancela por completo un pedido de llevar/delivery activo (antes de cobrarlo). */
+  cancelActiveOrder: (orderId: string) => void;
   /** Cobra un pedido para llevar / delivery, emite comprobante y lo cierra. */
   chargeOrder: (
     orderId: string,
@@ -630,6 +632,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [triggerToast]
   );
 
+  const cancelActiveOrder = useCallback(
+    (orderId: string) => {
+      setActiveOrders(prev => prev.filter(o => o.id !== orderId));
+      triggerToast(`Pedido ${orderId} cancelado.`, 'info');
+    },
+    [triggerToast]
+  );
+
   const chargeOrder = useCallback(
     (orderId: string, paymentMethod: PaymentMethod, docType: DocType, cashier?: string): SalesHistory | null => {
       if (!cashSession || cashSession.status !== 'abierta') {
@@ -846,6 +856,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         addItemsToActiveOrder,
         updateActiveOrderItemQty,
         removeActiveOrderItem,
+        cancelActiveOrder,
         chargeOrder,
         chargeTable,
         setTableStatus,
