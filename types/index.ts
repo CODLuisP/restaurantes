@@ -128,7 +128,33 @@ export interface Toast {
 }
 
 export type PaymentMethod = 'Efectivo' | 'Yape / Plin' | 'Tarjeta';
-export type DocType = 'Boleta' | 'Factura';
+/** 'Nota de venta' = venta interna sin comprobante electrónico ante SUNAT. */
+export type DocType = 'Boleta' | 'Factura' | 'Nota de venta';
+
+/** Documento de identidad del cliente para el comprobante. */
+export interface CustomerDoc {
+  type: 'DNI' | 'RUC';
+  number: string;
+  name: string;
+}
+
+/** Datos con los que se cobra una comanda (o una parte, en cuentas separadas). */
+export interface ChargeInput {
+  method: PaymentMethod;
+  docType: DocType;
+  cashier?: string;
+  customer?: string;
+  /** Identificación tributaria del cliente (DNI para boleta, RUC para factura). */
+  customerDoc?: CustomerDoc;
+  /** Efectivo entregado por el cliente (para calcular el vuelto). */
+  received?: number;
+  /** Monto a cobrar; si se omite, se cobra el total pendiente. Se usa en cuentas separadas. */
+  amount?: number;
+  /** Nº de ítems de esta (sub)cuenta. */
+  itemsCount?: number;
+  /** Si true (por defecto), libera la mesa / cierra el pedido tras cobrar. En cuentas separadas se pasa false hasta el último pago. */
+  closeAfter?: boolean;
+}
 
 /* Canal / tipo de pedido */
 export type OrderType = 'mesa' | 'llevar' | 'delivery';
@@ -158,6 +184,9 @@ export interface SalesHistory {
   comprobante?: string;   // Ej. "B001-000123"
   waiter?: string;
   cashier?: string;
+  customerDoc?: CustomerDoc;
+  received?: number;      // efectivo entregado
+  change?: number;        // vuelto entregado
 }
 
 export interface MenuEntry {
