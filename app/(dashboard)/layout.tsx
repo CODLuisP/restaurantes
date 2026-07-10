@@ -6,7 +6,7 @@ import { SidebarProvider } from '@/context/SidebarContext';
 import Sidebar from '@/components/layout/Sidebar';
 import TopBar from '@/components/layout/TopBar';
 import MainAreaClient from '@/components/layout/MainAreaClient';
-import AuthGuard from '@/components/layout/AuthGuard';
+import AuthGuard from '@/components/auth/AuthGuard';
 import ToastContainer from '@/components/ui/Toast';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

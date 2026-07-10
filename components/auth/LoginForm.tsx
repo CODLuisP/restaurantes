@@ -2,46 +2,25 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useAuth } from '@/context/AuthContext';
 import {
   User, Lock, Eye, EyeOff, Loader2, AlertCircle,
   Utensils, Layers, ChefHat, Smartphone,
   Clock, MapPin, CreditCard, TrendingUp, Delete,
 } from 'lucide-react';
 
-interface RolePreset {
-  id: string;
-  name: string;
-  role: string;
-  email: string;
-  pin: string;
-  description: string;
-  accent: string;
-  station: string;
-  pendingTasks: number;
-}
-
-export default function Login() {
+export default function LoginForm() {
   const router = useRouter();
-  const { loginByEmail, loginByPin } = useAuth();
 
-  const [loginMethod, setLoginMethod] = useState<'email' | 'pin'>('email');
-  const [email, setEmail]             = useState('');
+  const [loginMethod, setLoginMethod] = useState<'password' | 'pin'>('password');
+  const [username, setUsername]       = useState('');
   const [password, setPassword]       = useState('');
   const [pin, setPin]                 = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading]     = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [rememberMe, setRememberMe]   = useState(true);
   const [time, setTime]               = useState('');
-
-  const roles: RolePreset[] = [
-    { id: 'admin',  name: 'Carlos Cabrera', role: 'Administrador General',  email: 'carlos.cabrera@restopro.pe', pin: '1092', description: 'Control de caja, facturación electrónica, stock e insumos.',            accent: '#007542', station: 'Mesa de Control Central',     pendingTasks: 3 },
-    { id: 'mozo',   name: 'Lucía Mendoza',  role: 'Personal de Salón',      email: 'lucia.mendoza@restopro.pe',  pin: '2540', description: 'Gestión ágil de mesas, comandas rápidas y atención sincronizada.', accent: '#1E8C45', station: 'Terraza Principal y Salón A', pendingTasks: 4 },
-    { id: 'cajero', name: 'Miguel Prado',   role: 'Cajero / Facturación',   email: 'miguel.prado@restopro.pe',   pin: '4480', description: 'Cierres de caja, boletas/facturas (SUNAT) y métodos de pago.',     accent: '#3AA346', station: 'Módulo de Caja Principal',    pendingTasks: 1 },
-    { id: 'chef',   name: 'Elena Quispe',   role: 'Jefa de Cocina',         email: 'elena.quispe@restopro.pe',   pin: '0887', description: 'Cola de platos en tiempo real, recetas y control de mermas.',     accent: '#58BB43', station: 'Cocina Caliente & Fría',      pendingTasks: 7 },
-  ];
 
   useEffect(() => {
     const update = () =>
@@ -52,43 +31,49 @@ export default function Login() {
   }, []);
 
   const handlePinKeyPress = (digit: string) => {
-    if (pin.length < 4) setPin(prev => prev + digit);
+    if (pin.length < 6) setPin(prev => prev + digit);
   };
   const handlePinBackspace = () => setPin(prev => prev.slice(0, -1));
   const handleClearPin     = () => setPin('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
-    if (loginMethod === 'email') {
-      if (!email.trim())        { setErrorMessage('Por favor, ingrese su correo electrónico institucional.'); return; }
-      if (!password)            { setErrorMessage('Por favor, ingrese su clave de acceso obligatoria.'); return; }
-      if (!email.includes('@')) { setErrorMessage('Formato de correo electrónico inválido.'); return; }
-    } else {
-      if (pin.length < 4)       { setErrorMessage('El PIN operativo debe constar de 4 dígitos exactos.'); return; }
+    if (!username.trim()) {
+      setErrorMessage('Por favor, ingrese su usuario.');
+      return;
+    }
+    if (loginMethod === 'password' && !password) {
+      setErrorMessage('Por favor, ingrese su clave de acceso.');
+      return;
+    }
+    if (loginMethod === 'pin' && pin.length < 4) {
+      setErrorMessage('El PIN operativo debe constar de al menos 4 dígitos.');
+      return;
     }
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
 
-      /* Autenticación real contra el padrón de personal (AuthContext) */
-      const authUser = loginMethod === 'email' ? loginByEmail(email) : loginByPin(pin);
+    // No incluir la clave si no aplica: signIn() serializa las credenciales como
+    // URLSearchParams, y ahí `undefined` se convierte en el string literal "undefined"
+    // (no se omite), lo que rompía la validación en el backend.
+    const credentials: Record<string, string> = { username: username.trim() };
+    if (loginMethod === 'password') credentials.password = password;
+    else credentials.pin = pin;
 
-      if (!authUser) {
-        if (loginMethod === 'email') {
-          setErrorMessage('Correo no registrado o usuario inactivo. Verifique sus credenciales con administración.');
-        } else {
-          setErrorMessage('PIN de acceso incorrecto o usuario inactivo. Verifique sus credenciales con administración.');
-          setPin('');
-        }
-        return;
-      }
+    const result = await signIn('credentials', { ...credentials, redirect: false });
 
-      /* Autenticado: ingreso directo al sistema */
-      router.push('/dashboard');
-    }, 1200);
+    setIsLoading(false);
+
+    if (!result || result.error) {
+      setErrorMessage('Usuario o clave incorrectos. Verifique sus credenciales con administración.');
+      if (loginMethod === 'pin') setPin('');
+      return;
+    }
+
+    router.push('/dashboard');
+    router.refresh();
   };
 
   return (
@@ -109,7 +94,7 @@ export default function Login() {
             <div className="absolute top-0 right-0 w-86 h-86 bg-white/35 rounded-full -translate-y-1/2 translate-x-1/2" />
             <div className="absolute bottom-0 left-0 w-54 h-54 bg-white/40 rounded-full translate-y-1/3 -translate-x-1/3" />
           </div>
-          
+
           <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,#58BB43_2px,transparent_2px)] bg-size-[24px_24px]" />
           <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-brand opacity-40 blur-3xl pointer-events-none" />
           <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-brand-subtle opacity-30 blur-2xl pointer-events-none" />
@@ -211,9 +196,9 @@ export default function Login() {
                   </div>
 
                   <div className="grid grid-cols-2 bg-gray-100 p-1 rounded-lg mb-6">
-                    <button type="button" onClick={() => { setLoginMethod('email'); setErrorMessage(null); }}
-                      className={`py-1.5 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-2 ${loginMethod === 'email' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}>
-                      <User className="w-3.5 h-3.5" /> Credenciales 
+                    <button type="button" onClick={() => { setLoginMethod('password'); setErrorMessage(null); }}
+                      className={`py-1.5 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-2 ${loginMethod === 'password' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}>
+                      <User className="w-3.5 h-3.5" /> Credenciales
                     </button>
                     <button type="button" onClick={() => { setLoginMethod('pin'); setErrorMessage(null); }}
                       className={`py-1.5 text-xs font-medium rounded-md transition-all flex items-center justify-center gap-2 ${loginMethod === 'pin' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}>
@@ -229,44 +214,43 @@ export default function Login() {
                   )}
 
                   <form onSubmit={handleSubmit} className="space-y-4">
-                    {loginMethod === 'email' ? (
-                      <div className="space-y-3.5">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Correo Electrónico</label>
-                          <div className="relative">
-                            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <input type="email" placeholder="usuario@restopro.pe" value={email}
-                              onChange={e => { setEmail(e.target.value); if (errorMessage) setErrorMessage(null); }}
-                              className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 transition-colors" />
-                          </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Usuario</label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input type="text" placeholder="usuario" value={username} autoComplete="username"
+                          onChange={e => { setUsername(e.target.value); if (errorMessage) setErrorMessage(null); }}
+                          className="w-full pl-9 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 transition-colors" />
+                      </div>
+                    </div>
+
+                    {loginMethod === 'password' ? (
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="block text-xs font-medium text-gray-600">Contraseña</label>
+                          <button type="button"
+                            onClick={() => alert('Se ha enviado una solicitud a sistemas para restablecer la contraseña. Revise su bandeja de entrada.')}
+                            className="text-[11px] text-brand hover:text-brand-hover hover:underline transition-all">
+                            ¿Olvidó su clave?
+                          </button>
                         </div>
-                        <div>
-                          <div className="flex justify-between items-center mb-1">
-                            <label className="block text-xs font-medium text-gray-600">Contraseña</label>
-                            <button type="button"
-                              onClick={() => alert('Se ha enviado una solicitud a sistemas para restablecer la contraseña. Revise su bandeja de entrada.')}
-                              className="text-[11px] text-brand hover:text-brand-hover hover:underline transition-all">
-                              ¿Olvidó su clave?
-                            </button>
-                          </div>
-                          <div className="relative">
-                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <input type={showPassword ? 'text' : 'password'} placeholder="••••••••••••" value={password}
-                              onChange={e => { setPassword(e.target.value); if (errorMessage) setErrorMessage(null); }}
-                              className="w-full pl-9 pr-10 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 transition-colors" />
-                            <button type="button" onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
-                              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                            </button>
-                          </div>
+                        <div className="relative">
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input type={showPassword ? 'text' : 'password'} placeholder="••••••••••••" value={password} autoComplete="current-password"
+                            onChange={e => { setPassword(e.target.value); if (errorMessage) setErrorMessage(null); }}
+                            className="w-full pl-9 pr-10 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 transition-colors" />
+                          <button type="button" onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
                         </div>
                       </div>
                     ) : (
                       <div className="space-y-4">
                         <div className="text-center">
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Ingrese su código PIN Operativo (4 dígitos)</label>
-                          <div className="flex justify-center gap-3.5 my-2.5">
-                            {[0,1,2,3].map(i => (
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Ingrese su código PIN Operativo</label>
+                          <div className="flex justify-center gap-2 my-2.5">
+                            {Array.from({ length: Math.max(pin.length, 4) }).map((_, i) => (
                               <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${pin[i] ? 'bg-brand border-brand scale-110' : 'bg-gray-100 border-gray-300'}`} />
                             ))}
                           </div>
@@ -295,17 +279,6 @@ export default function Login() {
                       </div>
                     )}
 
-                    {loginMethod === 'email' && (
-                      <div className="flex items-center justify-between pt-0.5">
-                        <label className="flex items-center gap-2 select-none cursor-pointer">
-                          <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)}
-                            className="rounded border-gray-300 text-[#003566] accent-[#003566] focus:ring-[#003566] w-4 h-4" />
-                          <span className="text-xs text-gray-500 font-normal">Siguiente turno recordado</span>
-                        </label>
-                        <span className="text-[10px] text-gray-400 font-medium">Estación de trabajo segura</span>
-                      </div>
-                    )}
-
                     <button type="submit" disabled={isLoading}
                       className="w-full mt-4 bg-brand hover:bg-brand-hover text-white py-2.5 px-4 rounded-lg font-medium text-xs transition-all duration-150 focus:ring-4 focus:ring-brand/20 flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:bg-gray-300 disabled:cursor-not-allowed">
                       {isLoading
@@ -313,31 +286,6 @@ export default function Login() {
                         : 'Comenzar Turno de Trabajo'}
                     </button>
                   </form>
-
-                  {/* Cuentas de prueba — clic para autocompletar */}
-                  <div className="mt-6 pt-4 border-t border-gray-100">
-                    <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-2">
-                      Cuentas de demostración
-                    </p>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {roles.filter(r => ['admin', 'mozo', 'cajero'].includes(r.id)).map(r => (
-                        <button
-                          key={r.id}
-                          type="button"
-                          onClick={() => {
-                            setLoginMethod('email');
-                            setEmail(r.email);
-                            setPassword(r.pin);
-                            setErrorMessage(null);
-                          }}
-                          className="text-left px-2 py-1.5 rounded-lg border border-gray-200 hover:border-brand hover:bg-brand/5 transition-colors"
-                        >
-                          <span className="block text-[10px] font-bold text-gray-700 capitalize">{r.id}</span>
-                          <span className="block text-[9px] text-gray-400 font-mono truncate">PIN {r.pin}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </motion.div>
 
             </AnimatePresence>
