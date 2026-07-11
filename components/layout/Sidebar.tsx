@@ -19,6 +19,7 @@ import {
   Receipt,
   BellRing,
   ChevronDown,
+  FileText,
   type LucideIcon,
 } from 'lucide-react';
 import { useSidebar } from '@/context/SidebarContext';
@@ -43,6 +44,7 @@ const menuItems: MenuItem[] = [
   { href: '/cocina',        label: 'Cocina',           icon: ChefHat },
   { href: '/despachar',     label: 'Por despachar',    icon: BellRing,        roles: ['admin', 'mozo'] },
   { href: '/caja',          label: 'Caja',             icon: Coins,           roles: ['admin', 'cajero'] },
+  { href: '/comprobantes',  label: 'Comprobantes',     icon: FileText,        roles: ['admin', 'cajero'] },
   { href: '/carta',         label: 'Menú Digital',     icon: BookOpen },
   { href: '/clientes',      label: 'Clientes',         icon: Users,           roles: ['admin', 'cajero'] },
   { href: '/usuarios',      label: 'Personal',         icon: ShieldCheck,     roles: ['admin'] },

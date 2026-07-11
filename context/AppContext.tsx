@@ -104,6 +104,7 @@ interface AppContextType {
   openCaja: (openingAmount: number, by: string) => void;
   closeCaja: (countedAmount: number, by: string) => CashSession | null;
   addCashMovement: (type: CashMovementType, amount: number, reason: string, by: string) => void;
+  addManualSale: (sale: SalesHistory) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -878,6 +879,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [cashSession, cajaExpectedCash, cajaHistory, persistCaja, persistCajaHistory, triggerToast]
   );
 
+  const addManualSale = useCallback(
+    (sale: SalesHistory) => {
+      setSalesHistory(prev => [sale, ...prev]);
+      if (cashSession && cashSession.status === 'abierta') {
+        persistCaja({
+          ...cashSession,
+          cashSales:    cashSession.cashSales    + (sale.paymentMethod === 'Efectivo'    ? sale.total : 0),
+          cardSales:    cashSession.cardSales    + (sale.paymentMethod === 'Tarjeta'     ? sale.total : 0),
+          digitalSales: cashSession.digitalSales + (sale.paymentMethod === 'Yape / Plin' ? sale.total : 0),
+          salesCount:   cashSession.salesCount + 1,
+        });
+      }
+    },
+    [cashSession, persistCaja]
+  );
+
   return (
     <AppContext.Provider
       value={{
@@ -924,6 +941,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         openCaja,
         closeCaja,
         addCashMovement,
+        addManualSale,
       }}
     >
       {children}

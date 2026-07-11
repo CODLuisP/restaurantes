@@ -2,12 +2,32 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
+/** Tipo de afectación del IGV aplicado por defecto en los comprobantes. */
+export type IgvType = 'Gravado' | 'Exonerado' | 'Inafecto';
+
 export interface BusinessInfo {
+  /** Nombre comercial (marca), el que ve el cliente en la carta. */
   name: string;
+  /** Razón social registrada ante SUNAT (puede diferir del nombre comercial). */
+  razonSocial: string;
   ruc: string;
   address: string;
   /** Logo del negocio como data URL (imagen subida) o vacío si no se ha configurado. */
   logo: string;
+
+  /* ── SUNAT: facturación electrónica ─────────────────────── */
+  /** Usuario SOL (Clave SOL) para operaciones con SUNAT. */
+  solUser: string;
+  /** Clave SOL. Se almacena localmente para autocompletar el envío de comprobantes. */
+  solPassword: string;
+  /** Tipo de afectación del IGV usado por defecto al emitir. */
+  igvType: IgvType;
+  /** Nombre del archivo del certificado digital (.pfx/.p12) cargado. */
+  certFileName: string;
+  /** Fecha de emisión del certificado (ISO). */
+  certIssuedAt: string;
+  /** Fecha de vencimiento del certificado (ISO). */
+  certExpiresAt: string;
 }
 
 export const BUSINESS_STORAGE_KEY = 'restopro_business_info_v1';
@@ -15,9 +35,16 @@ const STORAGE_KEY = BUSINESS_STORAGE_KEY;
 
 export const DEFAULT_BUSINESS: BusinessInfo = {
   name: '',
+  razonSocial: '',
   ruc: '',
   address: '',
   logo: '',
+  solUser: '',
+  solPassword: '',
+  igvType: 'Gravado',
+  certFileName: '',
+  certIssuedAt: '',
+  certExpiresAt: '',
 };
 
 interface BusinessContextType {
