@@ -808,12 +808,6 @@ export default function ComprobantesPage() {
                           title={correoIsEnviado ? `Enviado a ${comp.correoDestino}` : 'Enviar por Correo'}
                         >
                           <Mail className="h-4 w-4" />
-                          {correoIsEnviado && (
-                            <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-                            </span>
-                          )}
                         </button>
                         {correoIsEnviado && (
                           <div className="text-[8px] text-blue-600 font-semibold mt-0.5">Enviado</div>
@@ -832,12 +826,6 @@ export default function ComprobantesPage() {
                           title={whatsappIsEnviado ? `Enviado a +51 ${comp.whatsappDestino}` : 'Enviar por WhatsApp'}
                         >
                           <MessageCircle className="h-4 w-4" />
-                          {whatsappIsEnviado && (
-                            <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                            </span>
-                          )}
                         </button>
                         {whatsappIsEnviado && (
                           <div className="text-[8px] text-emerald-600 font-semibold mt-0.5">Enviado</div>

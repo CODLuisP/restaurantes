@@ -35,6 +35,13 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+function drawImageFit(ctx: CanvasRenderingContext2D, img: HTMLImageElement, cx: number, cy: number, maxW: number, maxH: number) {
+  const ratio = Math.min(maxW / img.width, maxH / img.height);
+  const w = img.width * ratio;
+  const h = img.height * ratio;
+  ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h);
+}
+
 function wrapCenteredText(ctx: CanvasRenderingContext2D, text: string, cx: number, y: number, maxWidth: number, lineHeight: number) {
   const words = text.split(' ');
   let line = '';
@@ -57,7 +64,13 @@ function wrapCenteredText(ctx: CanvasRenderingContext2D, text: string, cx: numbe
 function drawPoster(
   canvas: HTMLCanvasElement,
   brand: Brand,
-  data: { qrImg: HTMLImageElement | null; holderName: string; phone: string; businessName: string }
+  data: {
+    qrImg: HTMLImageElement | null;
+    logoImg: HTMLImageElement | null;
+    holderName: string;
+    phone: string;
+    businessName: string;
+  }
 ) {
   const W = 500, H = 700;
   canvas.width = W;
@@ -70,79 +83,101 @@ function drawPoster(
   const business = data.businessName.trim() || 'Nombre del negocio';
 
   if (brand === 'yape') {
-    /* ── Fondo morado con degradado ── */
-    const grad = ctx.createLinearGradient(0, 0, 0, H);
-    grad.addColorStop(0, '#6D28D9');
-    grad.addColorStop(1, '#3B1264');
-    roundedRect(ctx, 0, 0, W, H, 28);
+    /* ── Fondo degradado morado con negro de abajo hacia arriba ── */
+    const grad = ctx.createLinearGradient(0, H, 0, 0); // De abajo (H) hacia arriba (0)
+    grad.addColorStop(0, '#7A2296'); // Morado abajo
+    grad.addColorStop(0.7, '#7A2296'); // Mantiene el morado puro hasta el 70% de la altura
+    grad.addColorStop(1, '#000000'); // Difuminado negro solo en el 30% superior
     ctx.fillStyle = grad;
-    ctx.fill();
+    ctx.fillRect(0, 0, W, H);
 
-    /* ── Burbuja "yape" ── */
-    const bubbleY = 78;
+    /* ── Dos líneas verticales blancas semitransparentes ── */
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.ellipse(W / 2, bubbleY, 66, 34, 0, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-    ctx.fillStyle = '#6D28D9';
-    ctx.font = '700 30px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(BRAND_META.yape.wordmark, W / 2, bubbleY + 2);
+    ctx.moveTo(W / 2 - 84, 50);
+    ctx.lineTo(W / 2 - 84, H);
+    ctx.moveTo(W / 2 + 84, 50);
+    ctx.lineTo(W / 2 + 84, H);
+    ctx.stroke();
+
+    /* ── Toldo scalloped con rayas cyan y blanco ── */
+    const scallopW = 50; // 10 scallops total for W=500
+    const count = W / scallopW;
+    for (let i = 0; i < count; i++) {
+      const x = i * scallopW;
+      ctx.fillStyle = i % 2 === 0 ? '#35B2B6' : '#ffffff';
+      ctx.fillRect(x, 0, scallopW, 40);
+      
+      ctx.beginPath();
+      ctx.arc(x + scallopW / 2, 40, scallopW / 2, 0, Math.PI);
+      ctx.fill();
+    }
+
+    /* ── Sombra del toldo ── */
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+    ctx.fillRect(0, 65, W, 8);
+
+    /* ── Logotipo de Yape ── */
+    if (data.logoImg) {
+      drawImageFit(ctx, data.logoImg, W / 2, 140, 140, 100);
+    } else {
+      // Burbuja yape fallback
+      const bubbleY = 140;
+      ctx.beginPath();
+      ctx.ellipse(W / 2, bubbleY, 66, 34, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.fillStyle = '#7A1E8C';
+      ctx.font = '700 30px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('yape', W / 2, bubbleY + 2);
+    }
 
     /* ── Tarjeta blanca del QR ── */
-    const qrBoxSize = 320;
+    const qrBoxSize = 290;
     const qrBoxX = (W - qrBoxSize) / 2;
-    const qrBoxY = 150;
-    roundedRect(ctx, qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 20);
+    const qrBoxY = 210;
+    roundedRect(ctx, qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 24);
     ctx.fillStyle = '#ffffff';
+    ctx.fill();
+
+    // Sombra sutil del cuadro del QR
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+    roundedRect(ctx, qrBoxX - 2, qrBoxY + qrBoxSize, qrBoxSize + 4, 6, 3);
     ctx.fill();
 
     if (data.qrImg) {
-      const pad = 24;
+      const pad = 20;
       ctx.drawImage(data.qrImg, qrBoxX + pad, qrBoxY + pad, qrBoxSize - pad * 2, qrBoxSize - pad * 2);
     } else {
       ctx.fillStyle = '#94a3b8';
       ctx.font = '600 17px sans-serif';
-      wrapCenteredText(ctx, '"Pega aquí tu código QR"', W / 2, qrBoxY + qrBoxSize / 2 - 10, qrBoxSize - 60, 24);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      wrapCenteredText(ctx, '"Pega aquí tu código QR"', W / 2, qrBoxY + qrBoxSize / 2, qrBoxSize - 40, 24);
     }
 
-    /* ── Corchetes amarillos ── */
-    ctx.strokeStyle = '#FCD34D';
-    ctx.lineWidth = 6;
-    ctx.lineCap = 'round';
-    const bl = 26, m = 14;
-    const corners: [number, number, number, number][] = [
-      [qrBoxX - m, qrBoxY - m, 1, 1],
-      [qrBoxX + qrBoxSize + m, qrBoxY - m, -1, 1],
-      [qrBoxX - m, qrBoxY + qrBoxSize + m, 1, -1],
-      [qrBoxX + qrBoxSize + m, qrBoxY + qrBoxSize + m, -1, -1],
-    ];
-    corners.forEach(([cx, cy, dx, dy]) => {
-      ctx.beginPath();
-      ctx.moveTo(cx, cy + bl * dy);
-      ctx.lineTo(cx, cy);
-      ctx.lineTo(cx + bl * dx, cy);
-      ctx.stroke();
-    });
-
-    /* ── Píldora "PAGA AQUÍ CON YAPE" ── */
-    const pillY = qrBoxY + qrBoxSize + 34;
-    const pillW = 290, pillH = 40;
-    roundedRect(ctx, (W - pillW) / 2, pillY, pillW, pillH, pillH / 2);
-    ctx.fillStyle = '#14B8A6';
-    ctx.fill();
+    /* ── Texto: Número de Celular (Primero) ── */
+    ctx.font = '800 28px sans-serif';
     ctx.fillStyle = '#ffffff';
-    ctx.font = '700 15px sans-serif';
-    ctx.fillText('PAGA AQUÍ CON YAPE', W / 2, pillY + pillH / 2 + 1);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    const rawPhone = data.phone.trim();
+    const phoneText = rawPhone ? rawPhone : 'NÚMERO DE CELULAR';
+    ctx.fillText(phoneText, W / 2, 540);
 
-    /* ── Nombre del negocio + titular ── */
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '800 26px sans-serif';
-    wrapCenteredText(ctx, business.toUpperCase(), W / 2, pillY + 94, W - 80, 32);
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.font = '500 15px sans-serif';
-    ctx.fillText(holder, W / 2, pillY + 140);
+    /* ── Texto: Nombre del Titular (Segundo) ── */
+    ctx.font = '800 22px sans-serif';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    const rawHolder = data.holderName.trim();
+    const nameText = rawHolder ? rawHolder.toUpperCase() : 'NOMBRE DEL TITULAR';
+    ctx.fillText(nameText, W / 2, 606);
 
   } else {
     /* ═══ PLIN ═══ */
@@ -193,6 +228,8 @@ function drawPoster(
     } else {
       ctx.fillStyle = '#94a3b8';
       ctx.font = '600 17px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       wrapCenteredText(ctx, '"Pega aquí tu código QR"', W / 2, qrBoxY + qrBoxSize / 2 - 10, qrBoxSize - 60, 24);
     }
 
@@ -204,6 +241,8 @@ function drawPoster(
     ctx.fill();
     ctx.fillStyle = '#0F172A';
     ctx.font = '800 26px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     ctx.fillText(phone, W / 2, bar1Y + barH / 2 + 2);
 
     /* ── Barra blanca: titular ── */
@@ -214,6 +253,8 @@ function drawPoster(
     ctx.fill();
     ctx.fillStyle = '#334155';
     ctx.font = '700 17px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     ctx.fillText(holder.toUpperCase(), W / 2, bar2Y + bar2H / 2 + 1);
   }
 }
@@ -250,12 +291,15 @@ export default function QrPosterModal({ open, onClose, brand }: { open: boolean;
       const canvas = previewCanvasRef.current;
       if (!canvas) return;
       setRendering(true);
-      let qrImg: HTMLImageElement | null = null;
-      if (config.qrImage) {
-        try { qrImg = await loadImage(config.qrImage); } catch { qrImg = null; }
-      }
+
+      const logoUrl = brand === 'yape' ? '/pagos/yape.png' : '/pagos/plin.png';
+      const [qrImg, logoImg] = await Promise.all([
+        config.qrImage ? loadImage(config.qrImage).catch(() => null) : Promise.resolve(null),
+        loadImage(logoUrl).catch(() => null),
+      ]);
+
       if (cancelled) return;
-      drawPoster(canvas, brand, { ...posterData, qrImg });
+      drawPoster(canvas, brand, { ...posterData, qrImg, logoImg });
       setRendering(false);
     };
     render();
@@ -274,11 +318,12 @@ export default function QrPosterModal({ open, onClose, brand }: { open: boolean;
 
   const buildExportCanvas = async (): Promise<HTMLCanvasElement> => {
     const canvas = document.createElement('canvas');
-    let qrImg: HTMLImageElement | null = null;
-    if (config.qrImage) {
-      try { qrImg = await loadImage(config.qrImage); } catch { qrImg = null; }
-    }
-    drawPoster(canvas, brand, { ...posterData, qrImg });
+    const logoUrl = brand === 'yape' ? '/pagos/yape.png' : '/pagos/plin.png';
+    const [qrImg, logoImg] = await Promise.all([
+      config.qrImage ? loadImage(config.qrImage).catch(() => null) : Promise.resolve(null),
+      loadImage(logoUrl).catch(() => null),
+    ]);
+    drawPoster(canvas, brand, { ...posterData, qrImg, logoImg });
     return canvas;
   };
 
@@ -375,7 +420,7 @@ export default function QrPosterModal({ open, onClose, brand }: { open: boolean;
         {/* ── Vista previa del cartel ── */}
         <div className="flex flex-col items-center gap-3">
           <label className="self-start text-[10px] font-bold text-slate-500 uppercase tracking-wider">Vista previa</label>
-          <div className={`w-full max-w-[220px] aspect-[5/7] rounded-2xl overflow-hidden shadow-lg ring-1 ${brandTheme.ring} bg-slate-100 relative`}>
+          <div className={`w-full max-w-[300px] aspect-[5/7] rounded-2xl overflow-hidden shadow-lg ring-1 ${brandTheme.ring} bg-slate-100 relative`}>
             <canvas ref={previewCanvasRef} className="w-full h-full" />
             {rendering && (
               <div className="absolute inset-0 bg-white/40 flex items-center justify-center">
@@ -383,7 +428,7 @@ export default function QrPosterModal({ open, onClose, brand }: { open: boolean;
               </div>
             )}
           </div>
-          <div className="flex gap-2 w-full max-w-[220px]">
+          <div className="flex gap-2 w-full max-w-[300px]">
             <button
               onClick={handleDownload}
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold bg-brand text-white hover:bg-brand-hover transition-colors"
