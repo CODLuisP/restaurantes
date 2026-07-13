@@ -171,6 +171,11 @@ export interface ActiveOrder {
   itemsCount: number;
   waiter?: string;
   createdAt: string;     // hora
+  docType?: string;
+  ruc?: string;
+  razonSocial?: string;
+  paymentMethod?: string;
+  paymentScreenshot?: string;
 }
 
 export interface SalesHistory {

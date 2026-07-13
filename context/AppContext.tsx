@@ -104,6 +104,7 @@ interface AppContextType {
   openCaja: (openingAmount: number, by: string) => void;
   closeCaja: (countedAmount: number, by: string) => CashSession | null;
   addCashMovement: (type: CashMovementType, amount: number, reason: string, by: string) => void;
+  addManualSale: (sale: SalesHistory) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -122,7 +123,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [cashSession, setCashSession] = useState<CashSession | null>(null);
   const [cajaHistory, setCajaHistory] = useState<CashSession[]>([]);
 
-  /* Hidratar caja y distribución de mesas desde localStorage (solo cliente) */
+  /* Hidratar caja, distribución de mesas, comandas activas y de cocina desde localStorage */
   useEffect(() => {
     try {
       const stored = localStorage.getItem(CAJA_KEY);
@@ -133,9 +134,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (storedPisos) setPisos(JSON.parse(storedPisos));
       const storedTables = localStorage.getItem(TABLES_KEY);
       if (storedTables) setTables(JSON.parse(storedTables));
+      const storedActive = localStorage.getItem('restopro.activeOrders');
+      if (storedActive) setActiveOrders(JSON.parse(storedActive));
+      const storedKitchen = localStorage.getItem('restopro.kitchenOrders');
+      if (storedKitchen) setKitchenOrders(JSON.parse(storedKitchen));
     } catch {
       /* ignora datos corruptos */
     }
+  }, []);
+
+  /* Escuchador para sincronización en tiempo real entre pestañas (ej. pedidos de clientes) */
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      try {
+        if (e.key === TABLES_KEY) {
+          const storedTables = localStorage.getItem(TABLES_KEY);
+          if (storedTables) setTables(JSON.parse(storedTables));
+        }
+        if (e.key === 'restopro.activeOrders') {
+          const storedActive = localStorage.getItem('restopro.activeOrders');
+          if (storedActive) setActiveOrders(JSON.parse(storedActive));
+        }
+        if (e.key === 'restopro.kitchenOrders') {
+          const storedKitchen = localStorage.getItem('restopro.kitchenOrders');
+          if (storedKitchen) setKitchenOrders(JSON.parse(storedKitchen));
+        }
+      } catch {}
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   /* Persistir distribución de mesas (solo cliente) */
@@ -146,6 +173,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     try { localStorage.setItem(TABLES_KEY, JSON.stringify(tables)); } catch {}
   }, [tables]);
+
+  useEffect(() => {
+    try { localStorage.setItem('restopro.activeOrders', JSON.stringify(activeOrders)); } catch {}
+  }, [activeOrders]);
+
+  useEffect(() => {
+    try { localStorage.setItem('restopro.kitchenOrders', JSON.stringify(kitchenOrders)); } catch {}
+  }, [kitchenOrders]);
 
   const persistCaja = useCallback((session: CashSession | null) => {
     setCashSession(session);
@@ -844,6 +879,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [cashSession, cajaExpectedCash, cajaHistory, persistCaja, persistCajaHistory, triggerToast]
   );
 
+  const addManualSale = useCallback(
+    (sale: SalesHistory) => {
+      setSalesHistory(prev => [sale, ...prev]);
+      if (cashSession && cashSession.status === 'abierta') {
+        persistCaja({
+          ...cashSession,
+          cashSales:    cashSession.cashSales    + (sale.paymentMethod === 'Efectivo'    ? sale.total : 0),
+          cardSales:    cashSession.cardSales    + (sale.paymentMethod === 'Tarjeta'     ? sale.total : 0),
+          digitalSales: cashSession.digitalSales + (sale.paymentMethod === 'Yape / Plin' ? sale.total : 0),
+          salesCount:   cashSession.salesCount + 1,
+        });
+      }
+    },
+    [cashSession, persistCaja]
+  );
+
   return (
     <AppContext.Provider
       value={{
@@ -890,6 +941,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         openCaja,
         closeCaja,
         addCashMovement,
+        addManualSale,
       }}
     >
       {children}

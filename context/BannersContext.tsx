@@ -14,9 +14,10 @@ export interface Banner {
   days: DayKey[];
 }
 
-const STORAGE_KEY = 'restopro_banners_v1';
+export const BANNERS_STORAGE_KEY = 'restopro_banners_v1';
+const STORAGE_KEY = BANNERS_STORAGE_KEY;
 
-const DEFAULT_BANNERS: Banner[] = [
+export const DEFAULT_BANNERS: Banner[] = [
   { id: 'b1', title: 'Banner 2', image: '', gradient: 'from-slate-900 to-slate-700', active: true, scheduleEnabled: false, days: [] },
   { id: 'b2', title: 'Banner',   image: '', gradient: 'from-orange-600 to-rose-900', active: true, scheduleEnabled: false, days: [] },
   { id: 'b3', title: 'Banner 3', image: '', gradient: 'from-slate-500 to-slate-700', active: true, scheduleEnabled: true, days: ['sab', 'dom'] },

@@ -34,7 +34,7 @@ export default function NegocioPage() {
   const [tab, setTab] = useState<TabId>('datos');
 
   return (
-    <div className="space-y-0 animate-section max-w-4xl mx-auto">
+    <div className="space-y-0 animate-section">
       {/* Header */}
       <div className="flex items-center gap-3 pb-5">
         <div className="bg-brand p-2.5 rounded-xl shrink-0">

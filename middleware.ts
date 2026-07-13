@@ -3,7 +3,7 @@ import { auth } from '@/auth';
 
 // Rutas accesibles sin sesión: login ('/') y el menú público que escanea el cliente por QR.
 function esRutaPublica(pathname: string) {
-  return pathname === '/' || pathname.startsWith('/menu');
+  return pathname === '/' || pathname.startsWith('/menu') || pathname.startsWith('/api');
 }
 
 export default auth((req) => {
