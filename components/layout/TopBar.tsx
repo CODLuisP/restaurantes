@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { Search, Bell, ChevronDown, Command, Menu, LogOut } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { useSidebar } from '@/context/SidebarContext';
@@ -37,7 +37,6 @@ const NOTIFICATIONS = [
 
 export default function TopBar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { searchQuery, setSearchQuery, triggerToast } = useApp();
   const { currentUser, logout } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -171,7 +170,7 @@ export default function TopBar() {
               </button>
               <div className="border-t border-slate-100 my-1" />
               <button
-                onClick={() => { setShowProfileMenu(false); logout(); router.replace('/'); }}
+                onClick={() => { setShowProfileMenu(false); logout(); }}
                 className="w-full text-left px-4 py-2 text-xs text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-2 font-medium"
               >
                 <LogOut className="h-3.5 w-3.5" /> Cerrar sesión

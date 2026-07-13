@@ -52,7 +52,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             Sesión iniciada como <span className="font-bold text-slate-700">{ROLE_LABELS[currentUser.role]}</span>
           </div>
           <button
-            onClick={() => { logout(); router.replace('/'); }}
+            onClick={() => logout()}
             className="btn-secondary w-full justify-center"
           >
             <LogOut className="h-3.5 w-3.5" /> Cerrar sesión
