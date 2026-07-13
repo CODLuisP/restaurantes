@@ -65,7 +65,7 @@ export default function ClientesPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-1 min-w-[260px]">
+        <div className="flex items-center gap-2 flex-1 min-w-65">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <input

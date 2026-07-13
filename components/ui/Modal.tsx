@@ -19,6 +19,8 @@ interface ModalProps {
   size?:     ModalSize;
   /** Si es false, el panel se ajusta a su contenido (centrado) en vez de llenar el alto de la pantalla. Por defecto true. */
   fullHeight?: boolean;
+  /** Si es false, hacer click fuera del modal no lo cierra (solo "X" / botones del footer). Por defecto true. */
+  closeOnOverlayClick?: boolean;
 }
 
 const SIZE_CLASSES: Record<ModalSize, string> = {
@@ -28,7 +30,9 @@ const SIZE_CLASSES: Record<ModalSize, string> = {
   xl: 'max-w-4xl',
 };
 
-export function Modal({ open, onClose, title, subtitle, children, footer, size = 'md', fullHeight = true }: ModalProps) {
+export function Modal({
+  open, onClose, title, subtitle, children, footer, size = 'md', fullHeight = true, closeOnOverlayClick = true,
+}: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const { isCollapsed } = useSidebar();
   const [mounted, setMounted] = useState(false);
@@ -36,18 +40,18 @@ export function Modal({ open, onClose, title, subtitle, children, footer, size =
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !closeOnOverlayClick) return;
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [open, onClose]);
+  }, [open, onClose, closeOnOverlayClick]);
 
   if (!open || !mounted) return null;
 
   return createPortal(
     <div
       ref={overlayRef}
-      onClick={e => { if (e.target === overlayRef.current) onClose(); }}
+      onClick={e => { if (closeOnOverlayClick && e.target === overlayRef.current) onClose(); }}
       className={`fixed inset-y-0 right-0 left-0 ${isCollapsed ? 'md:left-16' : 'md:left-64'} bg-black/60 backdrop-blur-sm z-40 flex ${fullHeight ? 'items-stretch' : 'items-center'} justify-center p-4 sm:p-6`}
     >
       <div className={`card-lg w-full ${SIZE_CLASSES[size]} ${fullHeight ? 'h-full' : 'max-h-[85vh]'} flex flex-col overflow-hidden`}>
