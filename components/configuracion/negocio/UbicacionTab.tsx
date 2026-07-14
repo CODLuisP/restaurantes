@@ -5,6 +5,7 @@ import { GoogleMap, Autocomplete, Marker, useJsApiLoader } from '@react-google-m
 import { MapPin, TriangleAlert } from 'lucide-react';
 import { GOOGLE_MAPS_LOADER_ID, GOOGLE_MAPS_LIBRARIES } from '@/lib/googleMapsLoader';
 import { useBusiness } from '@/context/BusinessContext';
+import { Toggle } from '@/components/ui';
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -73,22 +74,6 @@ export default function UbicacionTab() {
 
   return (
     <div className="space-y-6">
-      <div className="w-full sm:w-1/2 space-y-1">
-        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-          País del negocio
-        </label>
-        <select defaultValue="PE" className="input w-full px-3 py-2">
-          <option value="PE">Peru (PEN)</option>
-          <option value="CL">Chile (CLP)</option>
-          <option value="CO">Colombia (COP)</option>
-          <option value="MX">México (MXN)</option>
-        </select>
-        <p className="text-[11px] text-slate-500">
-          Solo filtra en qué país se busca la dirección. El país y la moneda del negocio se guardan
-          según la dirección que elijas abajo.
-        </p>
-      </div>
-
       <div className="space-y-1">
         <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
           Dirección del negocio
@@ -171,20 +156,14 @@ export default function UbicacionTab() {
         </div>
       )}
 
-      <label className="flex items-start gap-2.5 cursor-pointer">
-        <input
-          type="checkbox"
+      <div className="pt-2 border-t border-slate-100">
+        <Toggle
           checked={mostrarDireccion}
-          onChange={e => setMostrarDireccion(e.target.checked)}
-          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand"
+          onChange={setMostrarDireccion}
+          label="Mostrar dirección en el menú digital"
+          hint="Si la desactivas, la dirección se sigue usando internamente para zonas de entrega pero no se muestra públicamente."
         />
-        <span>
-          <span className="block text-sm font-medium text-slate-800">Mostrar dirección en el menú digital</span>
-          <span className="block text-[11px] text-slate-500">
-            Si la desactivas, la dirección se sigue usando internamente para zonas de entrega pero no se muestra públicamente.
-          </span>
-        </span>
-      </label>
+      </div>
     </div>
   );
 }

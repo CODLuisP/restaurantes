@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Eye, EyeOff, FileCheck2, KeyRound, Receipt, ShieldCheck, Upload } from 'lucide-react';
+import { Eye, EyeOff, FileCheck2, KeyRound, Percent, Receipt, ShieldCheck, Upload } from 'lucide-react';
 import { Input } from '@/components/ui';
 import { useBusiness, type IgvType, type IgvPercent } from '@/context/BusinessContext';
 
@@ -20,9 +20,9 @@ const fmtDate = (iso: string) =>
   iso ? new Date(iso).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
 /** Encabezado de sección: separa grupos de campos con una línea, sin cajas de fondo. */
-function SectionHeader({ icon, title, description }: { icon?: React.ReactNode; title: string; description?: string }) {
+function SectionHeader({ icon, title, description, noBorder }: { icon?: React.ReactNode; title: string; description?: string; noBorder?: boolean }) {
   return (
-    <div>
+    <div className={noBorder ? '' : 'pt-2 border-t border-slate-100'}>
       <p className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
         {icon}
         {title}
@@ -68,12 +68,13 @@ export default function SunatTab() {
   }[certStatus];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       {/* Credenciales SOL */}
       <SectionHeader
         icon={<KeyRound className="h-3.5 w-3.5 text-slate-400" />}
         title="Credenciales SOL"
         description="Usuario y clave del portal SUNAT Operaciones en Línea, usados para enviar tus comprobantes."
+        noBorder
       />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
@@ -107,6 +108,11 @@ export default function SunatTab() {
       </div>
 
       {/* Afectación e IGV por defecto */}
+      <SectionHeader
+        icon={<Percent className="h-3.5 w-3.5 text-slate-400" />}
+        title="Afectación e IGV por defecto"
+        description="Cómo se calcula el IGV al emitir tus comprobantes."
+      />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">

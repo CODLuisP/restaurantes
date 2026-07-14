@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   GoogleMap, Marker, Circle, Polygon, useJsApiLoader,
 } from '@react-google-maps/api';
@@ -17,6 +17,41 @@ import {
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 const MAP_HEIGHT = 560;
+
+/** Distancia en km entre dos coordenadas (fórmula haversine). */
+function distanceKm(a: LatLng, b: LatLng): number {
+  const R = 6371;
+  const dLat = (b.lat - a.lat) * (Math.PI / 180);
+  const dLng = (b.lng - a.lng) * (Math.PI / 180);
+  const lat1 = a.lat * (Math.PI / 180);
+  const lat2 = b.lat * (Math.PI / 180);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/** true si el punto está dentro del polígono (ray casting). */
+function isPointInPolygon(point: LatLng, path: LatLng[]): boolean {
+  let inside = false;
+  for (let i = 0, j = path.length - 1; i < path.length; j = i++) {
+    const xi = path[i].lng, yi = path[i].lat;
+    const xj = path[j].lng, yj = path[j].lat;
+    const intersect = (yi > point.lat) !== (yj > point.lat)
+      && point.lng < ((xj - xi) * (point.lat - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/** true si el punto cae dentro del área de cobertura de la zona (círculo o polígono). */
+function isPointInsideZone(point: LatLng, zone: DeliveryZone): boolean {
+  if (zone.type === 'circulo' && zone.center && zone.radiusKm) {
+    return distanceKm(point, zone.center) <= zone.radiusKm;
+  }
+  if (zone.type === 'poligono' && zone.path) {
+    return isPointInPolygon(point, zone.path);
+  }
+  return false;
+}
 
 const money = (n: number) => `S/. ${n.toFixed(2)}`;
 
@@ -39,7 +74,7 @@ const emptyForm = (): FormState => ({
 export default function AreasEntregaTab() {
   const {
     zones, restaurantLocation, setRestaurantLocation,
-    addZone, updateZone, removeZone, addExclusion, removeExclusion,
+    addZone, updateZone, removeZone, addExclusion, updateExclusion, removeExclusion,
   } = useDeliveryZones();
 
   const { isLoaded, loadError } = useJsApiLoader({
@@ -55,6 +90,9 @@ export default function AreasEntregaTab() {
   const [drawPoints, setDrawPoints] = useState<LatLng[]>([]);
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [addingExclusionFor, setAddingExclusionFor] = useState<string | null>(null);
+  const [exclusionRadiusKm, setExclusionRadiusKm] = useState('1');
+  const [exclusionOutsideError, setExclusionOutsideError] = useState(false);
+  const exclusionCircleRefs = useRef(new Map<string, google.maps.Circle>());
 
   const nextColor = useMemo(() => ZONE_COLORS[zones.length % ZONE_COLORS.length], [zones.length]);
 
@@ -133,8 +171,14 @@ export default function AreasEntregaTab() {
     const point = { lat: e.latLng.lat(), lng: e.latLng.lng() };
 
     if (addingExclusionFor) {
-      addExclusion(addingExclusionFor, { center: point, radiusKm: 0.3 });
+      const zone = zones.find(z => z.id === addingExclusionFor);
+      if (!zone || !isPointInsideZone(point, zone)) {
+        setExclusionOutsideError(true);
+        return;
+      }
+      addExclusion(addingExclusionFor, { center: point, radiusKm: Number(exclusionRadiusKm) || 1 });
       setAddingExclusionFor(null);
+      setExclusionOutsideError(false);
       return;
     }
 
@@ -146,6 +190,20 @@ export default function AreasEntregaTab() {
   const handleMarkerDragEnd = (e: google.maps.MapMouseEvent) => {
     if (!e.latLng) return;
     setRestaurantLocation({ lat: e.latLng.lat(), lng: e.latLng.lng() });
+  };
+
+  const handleExclusionDragEnd = (zone: DeliveryZone, exclusionId: string, e: google.maps.MapMouseEvent) => {
+    if (!e.latLng) return;
+    const point = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+    if (!isPointInsideZone(point, zone)) {
+      // El arrastre nativo del mapa ya movió el círculo visualmente; como no vamos a
+      // guardar esta posición, hay que devolverlo a mano a su centro original.
+      const original = zone.exclusions.find(e2 => e2.id === exclusionId)?.center;
+      const circle = exclusionCircleRefs.current.get(exclusionId);
+      if (original && circle) circle.setCenter(original);
+      return;
+    }
+    updateExclusion(zone.id, exclusionId, { center: point });
   };
 
   return (
@@ -173,8 +231,24 @@ export default function AreasEntregaTab() {
       {addingExclusionFor && (
         <div className="flex items-center gap-2.5 bg-rose-50 border border-rose-200 rounded-xl px-4 py-2.5 text-xs text-rose-700">
           <Ban className="h-4 w-4 shrink-0" />
-          Toca un punto del mapa para ubicar la zona de exclusión.
-          <button onClick={() => setAddingExclusionFor(null)} className="ml-auto font-bold hover:underline shrink-0">Cancelar</button>
+          <span>
+            {exclusionOutsideError
+              ? 'Ese punto está fuera de la zona. Toca dentro del área verde/morada de la zona.'
+              : 'Toca un punto del mapa para ubicar la zona de exclusión.'}
+          </span>
+          <label className="flex items-center gap-1.5 shrink-0">
+            Radio
+            <input
+              type="number"
+              min={0.1}
+              step={0.1}
+              value={exclusionRadiusKm}
+              onChange={e => setExclusionRadiusKm(e.target.value)}
+              className="w-16 rounded-lg border border-rose-200 bg-white px-2 py-1 text-xs text-rose-700"
+            />
+            km
+          </label>
+          <button onClick={() => { setAddingExclusionFor(null); setExclusionOutsideError(false); }} className="ml-auto font-bold hover:underline shrink-0">Cancelar</button>
         </div>
       )}
 
@@ -218,7 +292,9 @@ export default function AreasEntregaTab() {
                   strokeColor: zone.color,
                   strokeWeight: isSelected ? 3 : 2,
                   strokeOpacity: zone.active ? 1 : 0.4,
-                  clickable: true,
+                  // Mientras se ubica una exclusión, la forma no debe "atrapar" el click:
+                  // tiene que dejarlo pasar al mapa para poder tocar puntos dentro de la zona.
+                  clickable: !addingExclusionFor,
                 };
                 return (
                   <div key={zone.id}>
@@ -237,7 +313,14 @@ export default function AreasEntregaTab() {
                         key={ex.id}
                         center={ex.center}
                         radius={ex.radiusKm * 1000}
-                        options={{ fillColor: '#ef4444', fillOpacity: 0.28, strokeColor: '#ef4444', strokeWeight: 2 }}
+                        draggable={!addingExclusionFor}
+                        onDragEnd={e => handleExclusionDragEnd(zone, ex.id, e)}
+                        onLoad={circle => exclusionCircleRefs.current.set(ex.id, circle)}
+                        onUnmount={() => exclusionCircleRefs.current.delete(ex.id)}
+                        options={{
+                          fillColor: '#ef4444', fillOpacity: 0.28, strokeColor: '#ef4444', strokeWeight: 2,
+                          clickable: !addingExclusionFor,
+                        }}
                       />
                     ))}
                   </div>
@@ -488,7 +571,7 @@ export default function AreasEntregaTab() {
                       </div>
                     )}
                     <button
-                      onClick={e => { e.stopPropagation(); setSelectedZoneId(zone.id); setAddingExclusionFor(zone.id); }}
+                      onClick={e => { e.stopPropagation(); setSelectedZoneId(zone.id); setAddingExclusionFor(zone.id); setExclusionRadiusKm('1'); setExclusionOutsideError(false); }}
                       className="w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-rose-500 border border-dashed border-rose-200 hover:bg-rose-50 py-1.5 rounded-lg transition-colors"
                     >
                       <Ban className="h-3.5 w-3.5" /> Agregar zona de exclusión
@@ -500,15 +583,36 @@ export default function AreasEntregaTab() {
           )}
 
           {/* Info */}
-          <div className="rounded-xl bg-sky-50 border border-sky-100 p-4">
-            <p className="text-[11px] font-bold text-sky-800 flex items-center gap-1.5 mb-1.5">
-              <Info className="h-3.5 w-3.5" /> ¿Cómo funcionan las zonas?
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5 mb-3">
+              <Info className="h-3.5 w-3.5 text-slate-400" /> ¿Cómo funcionan las zonas?
             </p>
-            <ul className="space-y-1 text-[11px] text-sky-700 list-disc list-inside">
-              <li><strong>Círculo:</strong> cobertura por radio desde el restaurante.</li>
-              <li><strong>Polígono:</strong> área libre dibujada en el mapa.</li>
-              <li><strong>Exclusiones</strong> en rojo: áreas donde no se entrega aunque estén dentro.</li>
-            </ul>
+            <div className="space-y-3">
+              <div className="flex items-start gap-2.5">
+                <span className="h-7 w-7 rounded-lg bg-brand/10 text-brand flex items-center justify-center shrink-0">
+                  <CircleIcon className="h-3.5 w-3.5" />
+                </span>
+                <p className="text-[11px] text-slate-600 pt-1">
+                  <strong className="text-slate-800">Círculo:</strong> cobertura por radio desde el restaurante.
+                </p>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <span className="h-7 w-7 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center shrink-0">
+                  <PenTool className="h-3.5 w-3.5" />
+                </span>
+                <p className="text-[11px] text-slate-600 pt-1">
+                  <strong className="text-slate-800">Polígono:</strong> área libre dibujada en el mapa.
+                </p>
+              </div>
+              <div className="flex items-start gap-2.5">
+                <span className="h-7 w-7 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <Ban className="h-3.5 w-3.5" />
+                </span>
+                <p className="text-[11px] text-slate-600 pt-1">
+                  <strong className="text-slate-800">Exclusiones</strong> en rojo: áreas donde no se entrega aunque estén dentro.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

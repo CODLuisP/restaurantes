@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { ImagePlus, Pencil } from 'lucide-react';
+import { ImagePlus, Pencil, Phone, Landmark, Printer } from 'lucide-react';
 import { Input, Toggle } from '@/components/ui';
 import { useBusiness, type PaperSize } from '@/context/BusinessContext';
 import LogoCropModal from './LogoCropModal';
@@ -52,7 +52,7 @@ export default function DatosTab() {
     <div className="space-y-2">
       {/* Logo del negocio */}
       <div className="space-y-1.5">
-        <SectionHeader title="Logo del negocio" noBorder />
+        <SectionHeader icon={<ImagePlus className="h-3.5 w-3.5 text-slate-400" />} title="Logo del negocio" noBorder />
         <div className="flex items-center gap-4">
           <button
             type="button"
@@ -104,6 +104,7 @@ export default function DatosTab() {
 
       {/* Contacto */}
       <SectionHeader
+        icon={<Phone className="h-3.5 w-3.5 text-slate-400" />}
         title="Contacto"
         description="Cómo te llaman, te escriben y hacen pedidos tus clientes."
       />
@@ -126,6 +127,7 @@ export default function DatosTab() {
 
       {/* Identificación (SUNAT) */}
       <SectionHeader
+        icon={<Landmark className="h-3.5 w-3.5 text-slate-400" />}
         title="Identificación"
         description="RUC, razón social y ubicación — se usan para emitir boletas/facturas y aparecen en tu carta digital."
       />
@@ -153,7 +155,7 @@ export default function DatosTab() {
       </div>
 
       {/* Impresión */}
-      <SectionHeader title="Impresión" />
+      <SectionHeader icon={<Printer className="h-3.5 w-3.5 text-slate-400" />} title="Impresión" />
       <div className="w-full sm:w-1/2 space-y-1.5">
         <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
           Tamaño de papel
