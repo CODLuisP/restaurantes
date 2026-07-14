@@ -48,6 +48,7 @@ const menuItems: MenuItem[] = [
   { href: '/carta',         label: 'Menú Digital',     icon: BookOpen },
   { href: '/clientes',      label: 'Clientes',         icon: Users,           roles: ['admin', 'cajero'] },
   { href: '/usuarios',      label: 'Personal',         icon: ShieldCheck,     roles: ['admin'] },
+  { href: '/sucursales',    label: 'Sucursales',       icon: Store,           roles: ['admin'] },
   { href: '/reportes',      label: 'Reportes',         icon: TrendingUp,      roles: ['admin', 'cajero'] },
 ];
 
@@ -59,14 +60,10 @@ type ConfigSubItem = {
 
 const configSubItems: ConfigSubItem[] = [
   { href: '/configuracion/negocio',              label: 'Información del negocio' },
-  { href: '/configuracion/campos-personalizados', label: 'Campos personalizados', badge: 'PRO' },
   { href: '/configuracion/metodos-pago',         label: 'Métodos de pago' },
   { href: '/configuracion/metodos-entrega',      label: 'Métodos de entrega' },
-  { href: '/configuracion/zonas-entrega',        label: 'Zonas de entrega' },
   { href: '/configuracion/tickets',              label: 'Tickets', badge: 'NEW' },
   { href: '/configuracion/tracking',             label: 'Tracking' },
-  { href: '/configuracion/dominio',              label: 'Dominio personalizado', badge: 'PRO' },
-  { href: '/configuracion/plan',                 label: 'Mi plan' },
 ];
 
 export default function Sidebar() {

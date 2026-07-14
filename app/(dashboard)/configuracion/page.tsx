@@ -1,5 +1,5 @@
-import StubPage from '@/components/ui/StubPage';
+import { redirect } from 'next/navigation';
 
 export default function ConfiguracionPage() {
-  return <StubPage section="configuración" />;
+  redirect('/configuracion/negocio?tab=datos');
 }

@@ -8,6 +8,8 @@ import {
 import { CARTA_STORAGE_KEY, CARTA_CATEGORIES } from '@/context/CartaContext';
 import { BANNERS_STORAGE_KEY, DEFAULT_BANNERS, type Banner } from '@/context/BannersContext';
 import { BUSINESS_STORAGE_KEY, type BusinessInfo } from '@/context/BusinessContext';
+import { REDES_SOCIALES_STORAGE_KEY, DEFAULT_REDES_SOCIALES, type RedesSocialesState } from '@/context/RedesSocialesContext';
+import { buildSocialLinks, SocialLinksRow } from '@/components/menu/SocialLinksRow';
 import { ProfileHeader, type ProfileTab } from '@/components/menu/ProfileHeader';
 import type { CartaDelDia, MenuEntry, OrderItem, ActiveOrder, KitchenOrder, Table } from '@/types';
 import { Modal, Button, Input, Select } from '@/components/ui';
@@ -43,6 +45,7 @@ export default function PublicMenu({ mesaLabel }: { mesaLabel?: string }) {
   const [carta, setCarta] = useState<CartaDelDia | null>(null);
   const [banners, setBanners] = useState<Banner[]>([]);
   const [business, setBusiness] = useState<BusinessInfo | null>(null);
+  const [redes, setRedes] = useState<RedesSocialesState>(DEFAULT_REDES_SOCIALES);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState('todos');
@@ -94,6 +97,8 @@ export default function PublicMenu({ mesaLabel }: { mesaLabel?: string }) {
         setBanners(b ? JSON.parse(b) : DEFAULT_BANNERS);
         const biz = localStorage.getItem(BUSINESS_STORAGE_KEY);
         if (biz) setBusiness(JSON.parse(biz));
+        const rs = localStorage.getItem(REDES_SOCIALES_STORAGE_KEY);
+        if (rs) setRedes({ ...DEFAULT_REDES_SOCIALES, ...JSON.parse(rs) });
       } catch {}
     };
     load();
@@ -439,6 +444,9 @@ export default function PublicMenu({ mesaLabel }: { mesaLabel?: string }) {
     </div>
   );
 
+  const socialLinks = buildSocialLinks(redes);
+  const headerActions = socialLinks.length > 0 ? <SocialLinksRow links={socialLinks} /> : undefined;
+
   return (
     <div className="min-h-screen bg-[#f9fafb] selection:bg-brand selection:text-white pb-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-0 pb-6">
@@ -448,6 +456,7 @@ export default function PublicMenu({ mesaLabel }: { mesaLabel?: string }) {
           logo={business?.logo}
           name={bizName}
           subtitle={subtitle}
+          headerActions={headerActions}
           tabs={tabs}
           activeTab={tab}
           onTabChange={setActiveTab}

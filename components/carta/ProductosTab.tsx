@@ -12,8 +12,10 @@ import { useBanners } from '@/context/BannersContext';
 import { useBusiness } from '@/context/BusinessContext';
 import { useSidebar } from '@/context/SidebarContext';
 import { useApp } from '@/context/AppContext';
+import { useRedesSociales } from '@/context/RedesSocialesContext';
 import { Toggle, Modal, Button, Input } from '@/components/ui';
 import { ProfileHeader, type ProfileTab } from '@/components/menu/ProfileHeader';
+import { buildSocialLinks, SocialLinksRow } from '@/components/menu/SocialLinksRow';
 import type { MenuEntry } from '@/types';
 
 const CATEGORY_ICON_BG: Record<string, string> = {
@@ -45,6 +47,8 @@ export default function ProductosTab({ onGoToImportar, onGoToBanners }: Producto
   const { banners } = useBanners();
   const activeBanners = banners.filter(b => b.active);
   const { business, updateBusiness } = useBusiness();
+  const { redes } = useRedesSociales();
+  const socialLinks = buildSocialLinks(redes);
   const { isCollapsed } = useSidebar();
   const { triggerToast } = useApp();
 
@@ -264,6 +268,11 @@ export default function ProductosTab({ onGoToImportar, onGoToBanners }: Producto
         <FileText className="h-3 w-3 shrink-0" />
         {business.ruc ? `RUC ${business.ruc}` : 'Agrega el RUC'}
       </p>
+      {socialLinks.length > 0 && (
+        <div className="pt-1">
+          <SocialLinksRow links={socialLinks} />
+        </div>
+      )}
     </div>
   );
 

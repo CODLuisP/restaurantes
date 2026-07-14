@@ -1,37 +1,50 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import type { LucideIcon } from 'lucide-react';
 import {
   Building2,
-  Phone,
   MapPin,
-  Share2,
-  Clock,
+  Truck,
   Palette,
-  CalendarClock,
+  Landmark,
 } from 'lucide-react';
 import DatosTab from '@/components/configuracion/negocio/DatosTab';
-import ContactoTab from '@/components/configuracion/negocio/ContactoTab';
 import UbicacionTab from '@/components/configuracion/negocio/UbicacionTab';
-import RedesSocialesTab from '@/components/configuracion/negocio/RedesSocialesTab';
-import HorariosTab from '@/components/configuracion/negocio/HorariosTab';
-import CierresProgramadosTab from '@/components/configuracion/negocio/CierresProgramadosTab';
+import AreasEntregaTab from '@/components/configuracion/negocio/AreasEntregaTab';
+import SunatTab from '@/components/configuracion/negocio/SunatTab';
 
-type TabId = 'datos' | 'contacto' | 'ubicacion' | 'redes' | 'horarios' | 'apariencia' | 'cierres';
+type TabId = 'datos' | 'ubicacion' | 'areas-entrega' | 'apariencia' | 'sunat';
 
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
-  { id: 'datos',       label: 'Datos',               icon: Building2 },
-  { id: 'contacto',    label: 'Contacto',             icon: Phone },
-  { id: 'ubicacion',   label: 'Ubicación',            icon: MapPin },
-  { id: 'redes',       label: 'Redes Sociales',       icon: Share2 },
-  { id: 'horarios',    label: 'Horarios',             icon: Clock },
-  { id: 'apariencia',  label: 'Apariencia',           icon: Palette },
-  { id: 'cierres',     label: 'Cierres programados',  icon: CalendarClock },
+  { id: 'datos',          label: 'Datos',               icon: Building2 },
+  { id: 'sunat',          label: 'SUNAT',                icon: Landmark },
+  { id: 'ubicacion',      label: 'Ubicación',            icon: MapPin },
+  { id: 'areas-entrega',  label: 'Áreas de entrega',     icon: Truck },
+  { id: 'apariencia',     label: 'Apariencia',           icon: Palette },
 ];
 
+const TAB_IDS = TABS.map(t => t.id);
+
 export default function NegocioPage() {
+  const router = useRouter();
+  const pathname = usePathname();
   const [tab, setTab] = useState<TabId>('datos');
+
+  /* Al cargar la página, respeta el tab de la URL (?tab=...) y si no hay ninguno, lo agrega */
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get('tab');
+    const resolved = fromUrl && TAB_IDS.includes(fromUrl as TabId) ? (fromUrl as TabId) : 'datos';
+    setTab(resolved);
+    if (fromUrl !== resolved) router.replace(`${pathname}?tab=${resolved}`, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const changeTab = (id: TabId) => {
+    setTab(id);
+    router.replace(`${pathname}?tab=${id}`, { scroll: false });
+  };
 
   return (
     <div className="space-y-0 animate-section">
@@ -55,7 +68,7 @@ export default function NegocioPage() {
             <button
               key={t.id}
               type="button"
-              onClick={() => setTab(t.id)}
+              onClick={() => changeTab(t.id)}
               className={`flex items-center gap-1.5 pb-3 px-0.5 text-xs font-semibold whitespace-nowrap border-b-2 transition-colors ${
                 isActive
                   ? 'border-brand text-brand'
@@ -72,11 +85,9 @@ export default function NegocioPage() {
       {/* Content */}
       <div className="card-lg p-8 mt-6">
         {tab === 'datos' && <DatosTab />}
-        {tab === 'contacto' && <ContactoTab />}
         {tab === 'ubicacion' && <UbicacionTab />}
-        {tab === 'redes' && <RedesSocialesTab />}
-        {tab === 'horarios' && <HorariosTab />}
-        {tab === 'cierres' && <CierresProgramadosTab />}
+        {tab === 'areas-entrega' && <AreasEntregaTab />}
+        {tab === 'sunat' && <SunatTab />}
 
         {tab === 'apariencia' && (
           <div className="py-16 text-center space-y-1">

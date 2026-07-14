@@ -3,9 +3,9 @@
 import { useCallback, useRef, useState } from 'react';
 import { GoogleMap, Autocomplete, Marker, useJsApiLoader } from '@react-google-maps/api';
 import { MapPin, TriangleAlert } from 'lucide-react';
+import { GOOGLE_MAPS_LOADER_ID, GOOGLE_MAPS_LIBRARIES } from '@/lib/googleMapsLoader';
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-const LIBRARIES: ('places')[] = ['places'];
 
 const DEFAULT_CENTER = { lat: -12.0464, lng: -77.0428 }; // Lima, Perú
 
@@ -13,9 +13,9 @@ interface LatLng { lat: number; lng: number }
 
 export default function UbicacionTab() {
   const { isLoaded, loadError } = useJsApiLoader({
-    id: 'restopro-google-maps',
+    id: GOOGLE_MAPS_LOADER_ID,
     googleMapsApiKey: GOOGLE_MAPS_API_KEY ?? '',
-    libraries: LIBRARIES,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   const [direccion, setDireccion] = useState('');
