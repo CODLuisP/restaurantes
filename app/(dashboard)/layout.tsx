@@ -6,6 +6,7 @@ import { PaymentMethodsProvider } from '@/context/PaymentMethodsContext';
 import { DeliveryMethodsProvider } from '@/context/DeliveryMethodsContext';
 import { DeliveryZonesProvider } from '@/context/DeliveryZonesContext';
 import { RedesSocialesProvider } from '@/context/RedesSocialesContext';
+import { HorariosProvider } from '@/context/HorariosContext';
 import { SidebarProvider } from '@/context/SidebarContext';
 import Sidebar from '@/components/layout/Sidebar';
 import TopBar from '@/components/layout/TopBar';
@@ -23,18 +24,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <DeliveryMethodsProvider>
                 <DeliveryZonesProvider>
                   <RedesSocialesProvider>
-                    <SidebarProvider>
-                      <AuthGuard>
-                        <div className="min-h-screen font-sans bg-brand-medium/3 text-slate-800">
-                          <Sidebar />
-                          <MainAreaClient>
-                            <TopBar />
-                            <main className="flex-1 p-6 lg:p-8">{children}</main>
-                          </MainAreaClient>
-                          <ToastContainer />
-                        </div>
-                      </AuthGuard>
-                    </SidebarProvider>
+                    <HorariosProvider>
+                      <SidebarProvider>
+                        <AuthGuard>
+                          <div className="min-h-screen font-sans bg-brand-medium/3 text-slate-800">
+                            <Sidebar />
+                            <MainAreaClient>
+                              <TopBar />
+                              <main className="flex-1 p-6 lg:p-8">{children}</main>
+                            </MainAreaClient>
+                            <ToastContainer />
+                          </div>
+                        </AuthGuard>
+                      </SidebarProvider>
+                    </HorariosProvider>
                   </RedesSocialesProvider>
                 </DeliveryZonesProvider>
               </DeliveryMethodsProvider>

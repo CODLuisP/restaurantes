@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import { GoogleMap, Autocomplete, Marker, useJsApiLoader } from '@react-google-maps/api';
 import { MapPin, TriangleAlert } from 'lucide-react';
 import { GOOGLE_MAPS_LOADER_ID, GOOGLE_MAPS_LIBRARIES } from '@/lib/googleMapsLoader';
+import { useBusiness } from '@/context/BusinessContext';
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -18,9 +19,12 @@ export default function UbicacionTab() {
     libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
-  const [direccion, setDireccion] = useState('');
+  const { business, updateBusiness } = useBusiness();
+  const direccion = business.ubicacionDireccion;
+  const setDireccion = useCallback((value: string) => updateBusiness({ ubicacionDireccion: value }), [updateBusiness]);
   const [posicion, setPosicion] = useState<LatLng | null>(null);
-  const [mostrarDireccion, setMostrarDireccion] = useState(true);
+  const mostrarDireccion = business.mostrarDireccionEnMenu;
+  const setMostrarDireccion = (value: boolean) => updateBusiness({ mostrarDireccionEnMenu: value });
 
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const geocoderRef = useRef<google.maps.Geocoder | null>(null);

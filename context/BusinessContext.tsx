@@ -19,6 +19,11 @@ export interface BusinessInfo {
   /** Logo del negocio como data URL (imagen subida) o vacío si no se ha configurado. */
   logo: string;
 
+  /** Dirección elegida en el mapa (tab Ubicación), distinta del campo "Ubicación / Dirección" de Datos. */
+  ubicacionDireccion: string;
+  /** Si es false, `ubicacionDireccion` no se muestra en la carta pública (solo se usa internamente para zonas de entrega). */
+  mostrarDireccionEnMenu: boolean;
+
   /* ── SUNAT: facturación electrónica ─────────────────────── */
   /** Usuario SOL (Clave SOL) para operaciones con SUNAT. */
   solUser: string;
@@ -49,6 +54,8 @@ export const DEFAULT_BUSINESS: BusinessInfo = {
   ruc: '',
   address: '',
   logo: '',
+  ubicacionDireccion: '',
+  mostrarDireccionEnMenu: true,
   solUser: '',
   solPassword: '',
   igvType: 'Gravado',

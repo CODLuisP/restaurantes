@@ -13,9 +13,11 @@ import { useBusiness } from '@/context/BusinessContext';
 import { useSidebar } from '@/context/SidebarContext';
 import { useApp } from '@/context/AppContext';
 import { useRedesSociales } from '@/context/RedesSocialesContext';
+import { useHorarios } from '@/context/HorariosContext';
 import { Toggle, Modal, Button, Input } from '@/components/ui';
 import { ProfileHeader, type ProfileTab } from '@/components/menu/ProfileHeader';
 import { buildSocialLinks, SocialLinksRow } from '@/components/menu/SocialLinksRow';
+import { BusinessInfoSection } from '@/components/menu/BusinessInfoSection';
 import type { MenuEntry } from '@/types';
 
 const CATEGORY_ICON_BG: Record<string, string> = {
@@ -49,6 +51,7 @@ export default function ProductosTab({ onGoToImportar, onGoToBanners }: Producto
   const { business, updateBusiness } = useBusiness();
   const { redes } = useRedesSociales();
   const socialLinks = buildSocialLinks(redes);
+  const { horarios } = useHorarios();
   const { isCollapsed } = useSidebar();
   const { triggerToast } = useApp();
 
@@ -268,19 +271,30 @@ export default function ProductosTab({ onGoToImportar, onGoToBanners }: Producto
         <FileText className="h-3 w-3 shrink-0" />
         {business.ruc ? `RUC ${business.ruc}` : 'Agrega el RUC'}
       </p>
-      {socialLinks.length > 0 && (
-        <div className="pt-1">
-          <SocialLinksRow links={socialLinks} />
-        </div>
-      )}
+    </div>
+  );
+
+  const headerActions = (
+    <div className="flex items-center gap-3">
+      {socialLinks.length > 0 && <SocialLinksRow links={socialLinks} />}
+      <BusinessInfoSection
+        tipoNegocio={horarios.tipoNegocio}
+        descripcionCompleta={horarios.descripcionCompleta}
+        schedule={horarios.schedule}
+        numeroPedidos={horarios.numeroPedidos}
+        direccion={business.mostrarDireccionEnMenu ? business.ubicacionDireccion : ''}
+      />
     </div>
   );
 
   const cartaToggle = (
-    <div className="flex flex-col items-center gap-1" title={carta.active ? 'Carta visible para clientes' : 'Carta oculta'}>
+    <div
+      className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white shrink-0"
+      title={carta.active ? 'Carta visible para clientes' : 'Carta oculta'}
+    >
       <Toggle checked={carta.active} onChange={toggleCartaActive} />
-      <span className={`text-[8px] font-bold uppercase tracking-wider ${carta.active ? 'text-brand' : 'text-slate-400'}`}>
-        {carta.active ? 'Activa' : 'Oculta'}
+      <span className={`text-xs font-semibold whitespace-nowrap ${carta.active ? 'text-brand' : 'text-slate-400'}`}>
+        {carta.active ? 'Carta activa' : 'Carta oculta'}
       </span>
     </div>
   );
@@ -327,6 +341,7 @@ export default function ProductosTab({ onGoToImportar, onGoToBanners }: Producto
           <button onClick={() => setShowNewCategory(true)} className="btn-secondary" title="Nueva categoría">
             <FolderPlus className="h-3.5 w-3.5" /> <span className="hidden lg:inline">Nueva Categoría</span>
           </button>
+          {cartaToggle}
           <button onClick={openAdd} className="btn-primary">
             <Plus className="h-3.5 w-3.5" /> Agregar Producto
           </button>
@@ -345,7 +360,7 @@ export default function ProductosTab({ onGoToImportar, onGoToBanners }: Producto
           nameEditable
           onNameClick={openBusinessForm}
           subtitle={headerSubtitle}
-          headerActions={cartaToggle}
+          headerActions={headerActions}
           tabs={catTabs}
           activeTab={effectiveCat}
           onTabChange={setCatTab}

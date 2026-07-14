@@ -9,7 +9,9 @@ import { CARTA_STORAGE_KEY, CARTA_CATEGORIES } from '@/context/CartaContext';
 import { BANNERS_STORAGE_KEY, DEFAULT_BANNERS, type Banner } from '@/context/BannersContext';
 import { BUSINESS_STORAGE_KEY, type BusinessInfo } from '@/context/BusinessContext';
 import { REDES_SOCIALES_STORAGE_KEY, DEFAULT_REDES_SOCIALES, type RedesSocialesState } from '@/context/RedesSocialesContext';
+import { HORARIOS_STORAGE_KEY, DEFAULT_HORARIOS, type HorariosState } from '@/context/HorariosContext';
 import { buildSocialLinks, SocialLinksRow } from '@/components/menu/SocialLinksRow';
+import { BusinessInfoSection } from '@/components/menu/BusinessInfoSection';
 import { ProfileHeader, type ProfileTab } from '@/components/menu/ProfileHeader';
 import type { CartaDelDia, MenuEntry, OrderItem, ActiveOrder, KitchenOrder, Table } from '@/types';
 import { Modal, Button, Input, Select } from '@/components/ui';
@@ -46,6 +48,7 @@ export default function PublicMenu({ mesaLabel }: { mesaLabel?: string }) {
   const [banners, setBanners] = useState<Banner[]>([]);
   const [business, setBusiness] = useState<BusinessInfo | null>(null);
   const [redes, setRedes] = useState<RedesSocialesState>(DEFAULT_REDES_SOCIALES);
+  const [horarios, setHorarios] = useState<HorariosState>(DEFAULT_HORARIOS);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState('todos');
@@ -99,6 +102,11 @@ export default function PublicMenu({ mesaLabel }: { mesaLabel?: string }) {
         if (biz) setBusiness(JSON.parse(biz));
         const rs = localStorage.getItem(REDES_SOCIALES_STORAGE_KEY);
         if (rs) setRedes({ ...DEFAULT_REDES_SOCIALES, ...JSON.parse(rs) });
+        const hs = localStorage.getItem(HORARIOS_STORAGE_KEY);
+        if (hs) {
+          const parsed = JSON.parse(hs);
+          setHorarios({ ...DEFAULT_HORARIOS, ...parsed, schedule: { ...DEFAULT_HORARIOS.schedule, ...(parsed.schedule ?? {}) } });
+        }
       } catch {}
     };
     load();
@@ -445,11 +453,22 @@ export default function PublicMenu({ mesaLabel }: { mesaLabel?: string }) {
   );
 
   const socialLinks = buildSocialLinks(redes);
-  const headerActions = socialLinks.length > 0 ? <SocialLinksRow links={socialLinks} /> : undefined;
+  const headerActions = (
+    <div className="flex items-center gap-3">
+      {socialLinks.length > 0 && <SocialLinksRow links={socialLinks} />}
+      <BusinessInfoSection
+        tipoNegocio={horarios.tipoNegocio}
+        descripcionCompleta={horarios.descripcionCompleta}
+        schedule={horarios.schedule}
+        numeroPedidos={horarios.numeroPedidos}
+        direccion={business && business.mostrarDireccionEnMenu ? business.ubicacionDireccion : ''}
+      />
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-[#f9fafb] selection:bg-brand selection:text-white pb-20">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-0 pb-6">
+    <div className="min-h-screen bg-[#f9fafb] selection:bg-brand selection:text-white pb-20 overflow-x-hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-0 pb-6">
 
         <ProfileHeader
           cover={cover}
@@ -460,6 +479,7 @@ export default function PublicMenu({ mesaLabel }: { mesaLabel?: string }) {
           tabs={tabs}
           activeTab={tab}
           onTabChange={setActiveTab}
+          coverFullBleed
         />
 
         {/* ── Buscador de Platos ── */}

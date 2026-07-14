@@ -10,7 +10,7 @@ export interface SocialLink {
   icon: ReactNode;
 }
 
-const ICON_SIZE = 'h-5 w-5';
+const ICON_SIZE = 'h-8 w-8';
 
 export function buildSocialLinks(redes: RedesSocialesState): SocialLink[] {
   const links: (SocialLink | '')[] = [

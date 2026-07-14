@@ -17,7 +17,7 @@ export interface ProfileTab {
 export function ProfileHeader({
   cover, logo, fallbackIcon, avatarEditable, onAvatarClick,
   name, nameMuted, nameEditable, onNameClick, subtitle, verified = true,
-  headerActions, tabs, activeTab, onTabChange,
+  headerActions, tabs, activeTab, onTabChange, coverFullBleed,
 }: {
   cover: ReactNode;
   logo?: string;
@@ -34,18 +34,20 @@ export function ProfileHeader({
   tabs: ProfileTab[];
   activeTab: string;
   onTabChange: (id: string) => void;
+  /** Si es true, la portada se muestra a todo el ancho de la ventana, sin bordes redondeados ni padding. */
+  coverFullBleed?: boolean;
 }) {
   const AvatarTag = avatarEditable ? 'button' : 'div';
 
   return (
-    <div className="rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm">
+    <div className={coverFullBleed ? '' : 'rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm'}>
       {/* Portada */}
-      <div className="relative h-44 sm:h-60 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      <div className={`relative h-44 sm:h-60 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 ${coverFullBleed ? 'w-screen left-1/2 -translate-x-1/2' : ''}`}>
         {cover}
       </div>
 
       {/* Identidad */}
-      <div className="px-4 sm:px-6">
+      <div className={coverFullBleed ? 'px-4 sm:px-6 rounded-2xl border border-slate-200 bg-white shadow-sm' : 'px-4 sm:px-6'}>
         <div className="flex items-start gap-4">
           <AvatarTag
             type={avatarEditable ? 'button' : undefined}
@@ -70,28 +72,30 @@ export function ProfileHeader({
           </AvatarTag>
 
           <div className="flex-1 min-w-0 pt-2 sm:pt-4 pb-2 sm:pb-3">
-            <button
-              type="button"
-              onClick={onNameClick}
-              disabled={!nameEditable}
-              className="group/name flex items-center gap-1.5 max-w-full text-left disabled:cursor-default"
-            >
-              <h2 className={`text-lg sm:text-2xl font-extrabold truncate ${nameMuted ? 'text-slate-400 italic' : 'text-slate-900'}`}>
-                {name}
-              </h2>
-              {verified && (
-                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-sky-500 shrink-0" title="Verificado">
-                  <Check className="h-3 w-3 text-white" strokeWidth={3.5} />
-                </span>
-              )}
-              {nameEditable && (
-                <Pencil className="h-3.5 w-3.5 text-slate-300 opacity-0 group-hover/name:opacity-100 transition-opacity shrink-0" />
-              )}
-            </button>
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={onNameClick}
+                disabled={!nameEditable}
+                className="group/name flex items-center gap-1.5 min-w-0 text-left disabled:cursor-default"
+              >
+                <h2 className={`text-lg sm:text-2xl font-extrabold truncate ${nameMuted ? 'text-slate-400 italic' : 'text-slate-900'}`}>
+                  {name}
+                </h2>
+                {verified && (
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-sky-500 shrink-0" title="Verificado">
+                    <Check className="h-3 w-3 text-white" strokeWidth={3.5} />
+                  </span>
+                )}
+                {nameEditable && (
+                  <Pencil className="h-3.5 w-3.5 text-slate-300 opacity-0 group-hover/name:opacity-100 transition-opacity shrink-0" />
+                )}
+              </button>
+
+              {headerActions && <div className="shrink-0">{headerActions}</div>}
+            </div>
             {subtitle && <div className="text-xs sm:text-sm text-slate-500 mt-0.5">{subtitle}</div>}
           </div>
-
-          {headerActions && <div className="pb-2 sm:pb-3 shrink-0">{headerActions}</div>}
         </div>
 
         {/* Pestañas */}

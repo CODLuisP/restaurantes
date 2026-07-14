@@ -3,26 +3,24 @@
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { LucideIcon } from 'lucide-react';
-import { Package, Upload, Image, DoorOpen, QrCode, Share2, Clock, CalendarClock } from 'lucide-react';
+import { Package, Upload, Image, QrCode, Share2, Clock, CalendarClock } from 'lucide-react';
 import ProductosTab from '@/components/carta/ProductosTab';
 import ImportarTab from '@/components/carta/ImportarTab';
 import BannersTab from '@/components/carta/BannersTab';
-import PaginaBienvenidaTab from '@/components/carta/PaginaBienvenidaTab';
 import QrTab from '@/components/carta/QrTab';
 import RedesSocialesTab from '@/components/carta/RedesSocialesTab';
 import HorariosTab from '@/components/carta/HorariosTab';
 import CierresProgramadosTab from '@/components/carta/CierresProgramadosTab';
 
-type TabId = 'carta' | 'importar' | 'banners' | 'bienvenida' | 'qr' | 'redes' | 'horarios' | 'cierres';
+type TabId = 'carta' | 'importar' | 'banners' | 'qr' | 'redes' | 'horarios' | 'cierres';
 
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: 'carta',      label: 'Carta',                icon: Package },
   { id: 'importar',   label: 'Importar',             icon: Upload },
   { id: 'banners',    label: 'Banners',               icon: Image },
-  { id: 'bienvenida', label: 'Página de bienvenida',  icon: DoorOpen },
   { id: 'qr',         label: 'QR y Link de la Carta', icon: QrCode },
   { id: 'redes',      label: 'Redes Sociales',        icon: Share2 },
-  { id: 'horarios',   label: 'Horarios',              icon: Clock },
+  { id: 'horarios',   label: 'Horarios y rubro de negocio', icon: Clock },
   { id: 'cierres',    label: 'Cierres programados',   icon: CalendarClock },
 ];
 
@@ -85,7 +83,6 @@ export default function CartaPage() {
         )}
         {tab === 'importar' && <ImportarTab />}
         {tab === 'banners' && <BannersTab />}
-        {tab === 'bienvenida' && <PaginaBienvenidaTab />}
         {tab === 'qr' && <QrTab />}
 
         {(tab === 'redes' || tab === 'horarios' || tab === 'cierres') && (

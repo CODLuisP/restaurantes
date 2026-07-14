@@ -6,9 +6,6 @@ import { Input, Toggle } from '@/components/ui';
 import { useBusiness, type PaperSize } from '@/context/BusinessContext';
 import LogoCropModal from './LogoCropModal';
 
-const DESC_CORTA_MAX = 200;
-const DESC_LARGA_MAX = 500;
-
 const PAPER_SIZES: { id: PaperSize; label: string }[] = [
   { id: '58mm',          label: '58 mm' },
   { id: '80mm',          label: '80 mm' },
@@ -31,11 +28,7 @@ function SectionHeader({ icon, title, description }: { icon?: React.ReactNode; t
 export default function DatosTab() {
   const { business, updateBusiness } = useBusiness();
   const [subdominio, setSubdominio] = useState('');
-  const [descCorta, setDescCorta] = useState('');
-  const [descLarga, setDescLarga] = useState('');
-  const [tipoNegocio, setTipoNegocio] = useState('Restaurante');
   const [numeroPrincipal, setNumeroPrincipal] = useState('');
-  const [numeroPedidos, setNumeroPedidos] = useState('');
   const [email, setEmail] = useState('');
   const [autoAceptar, setAutoAceptar] = useState(false);
 
@@ -123,18 +116,6 @@ export default function DatosTab() {
           placeholder="+51 999 999 999"
           inputMode="tel"
         />
-        <div>
-          <Input
-            label="Número para pedidos"
-            value={numeroPedidos}
-            onChange={e => setNumeroPedidos(e.target.value.replace(/[^\d ()+-]/g, ''))}
-            placeholder="+51 999 999 999"
-            inputMode="tel"
-          />
-          <p className="text-[11px] text-slate-500 mt-1">
-            El que verán tus clientes para llamar o escribir y hacer pedidos.
-          </p>
-        </div>
         <Input
           label="Email de contacto"
           type="email"
@@ -172,88 +153,44 @@ export default function DatosTab() {
         />
       </div>
 
-      {/* Presencia digital */}
-      <SectionHeader title="Presencia digital" />
-
-      <div className="space-y-1">
-        <Input
-          label="Descripción corta"
-          value={descCorta}
-          onChange={e => setDescCorta(e.target.value.slice(0, DESC_CORTA_MAX))}
-          placeholder="Breve descripción para SEO y listados..."
-        />
-        <p className="text-right text-[11px] text-slate-400">{descCorta.length}/{DESC_CORTA_MAX}</p>
-      </div>
-
-      <div className="space-y-1">
-        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-          Descripción completa
+      {/* Impresión */}
+      <SectionHeader title="Impresión" />
+      <div className="w-full sm:w-1/2 space-y-1.5">
+        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+          <Printer className="h-3.5 w-3.5 text-slate-400" /> Tamaño de papel
         </label>
-        <textarea
-          value={descLarga}
-          onChange={e => setDescLarga(e.target.value.slice(0, DESC_LARGA_MAX))}
-          placeholder="Describe tu negocio en detalle..."
-          rows={4}
-          className="input w-full px-3 py-2 resize-none"
-        />
-        <p className="text-right text-[11px] text-slate-400">{descLarga.length}/{DESC_LARGA_MAX}</p>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-            Tipo de negocio
-          </label>
-          <select
-            value={tipoNegocio}
-            onChange={e => setTipoNegocio(e.target.value)}
-            className="input w-full px-3 py-2"
-          >
-            <option>Restaurante</option>
-            <option>Cafetería</option>
-            <option>Bar</option>
-            <option>Food Truck</option>
-            <option>Pastelería</option>
-          </select>
+        <div className="grid grid-cols-3 gap-1.5">
+          {PAPER_SIZES.map(s => {
+            const active = business.paperSize === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => updateBusiness({ paperSize: s.id })}
+                className={`px-2 py-2 rounded-lg border text-[11px] font-semibold transition-colors ${
+                  active
+                    ? 'bg-brand text-white border-brand'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                {s.label}
+              </button>
+            );
+          })}
         </div>
-
-        <div className="space-y-1.5">
-          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-            <Printer className="h-3.5 w-3.5 text-slate-400" /> Tamaño de papel
-          </label>
-          <div className="grid grid-cols-3 gap-1.5">
-            {PAPER_SIZES.map(s => {
-              const active = business.paperSize === s.id;
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => updateBusiness({ paperSize: s.id })}
-                  className={`px-2 py-2 rounded-lg border text-[11px] font-semibold transition-colors ${
-                    active
-                      ? 'bg-brand text-white border-brand'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  {s.label}
-                </button>
-              );
-            })}
+        {business.paperSize === 'personalizado' && (
+          <div className="flex items-center gap-2 pt-1">
+            <input
+              type="number"
+              min={20}
+              max={210}
+              value={business.paperSizeCustomMm}
+              onChange={e => updateBusiness({ paperSizeCustomMm: Number(e.target.value) || 0 })}
+              className="input w-full px-3 py-1.5 text-xs"
+            />
+            <span className="text-[11px] text-slate-500 shrink-0">mm de ancho</span>
           </div>
-          {business.paperSize === 'personalizado' && (
-            <div className="flex items-center gap-2 pt-1">
-              <input
-                type="number"
-                min={20}
-                max={210}
-                value={business.paperSizeCustomMm}
-                onChange={e => updateBusiness({ paperSizeCustomMm: Number(e.target.value) || 0 })}
-                className="input w-full px-3 py-1.5 text-xs"
-              />
-              <span className="text-[11px] text-slate-500 shrink-0">mm de ancho</span>
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
       <div className="pt-6 border-t border-slate-100 space-y-5">
