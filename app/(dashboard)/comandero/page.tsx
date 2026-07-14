@@ -14,10 +14,10 @@ import { useAuth } from '@/context/AuthContext';
 import { useCarta, CARTA_CATEGORIES } from '@/context/CartaContext';
 import { Modal, Input, Button } from '@/components/ui';
 import { RestaurantTable, type UnitStatus } from '@/components/mesas/RestaurantTable';
+import { GOOGLE_MAPS_LOADER_ID, GOOGLE_MAPS_LIBRARIES } from '@/lib/googleMapsLoader';
 import type { OrderItem, Product, MenuEntry, OrderType, Table, ActiveOrder } from '@/types';
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-const LIBRARIES: ('places')[] = ['places'];
 const DEFAULT_CENTER = { lat: -12.0464, lng: -77.0428 }; // Lima, Perú
 
 /** Adapta un plato de la Carta al formato de producto que usa la comanda. */
@@ -92,9 +92,9 @@ export default function ComanderoPage() {
 
   // Cargador de Google Maps API
   const { isLoaded, loadError } = useJsApiLoader({
-    id: 'restopro-google-maps',
+    id: GOOGLE_MAPS_LOADER_ID,
     googleMapsApiKey: GOOGLE_MAPS_API_KEY ?? '',
-    libraries: LIBRARIES,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   // Estados de navegación e interfaz

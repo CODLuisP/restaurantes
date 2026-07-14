@@ -1,21 +1,20 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { ImagePlus, Pencil, Printer } from 'lucide-react';
+import { ImagePlus, Pencil } from 'lucide-react';
 import { Input, Toggle } from '@/components/ui';
 import { useBusiness, type PaperSize } from '@/context/BusinessContext';
 import LogoCropModal from './LogoCropModal';
 
 const PAPER_SIZES: { id: PaperSize; label: string }[] = [
-  { id: '58mm',          label: '58 mm' },
-  { id: '80mm',          label: '80 mm' },
-  { id: 'personalizado', label: 'Personalizado' },
+  { id: '58mm', label: '58 mm' },
+  { id: '80mm', label: '80 mm' },
 ];
 
 /** Encabezado de sección: separa grupos de campos con una línea, sin cajas de fondo. */
-function SectionHeader({ icon, title, description }: { icon?: React.ReactNode; title: string; description?: string }) {
+function SectionHeader({ icon, title, description, noBorder }: { icon?: React.ReactNode; title: string; description?: string; noBorder?: boolean }) {
   return (
-    <div className="pt-6 border-t border-slate-100">
+    <div className={noBorder ? '' : 'pt-2 border-t border-slate-100'}>
       <p className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
         {icon}
         {title}
@@ -50,10 +49,10 @@ export default function DatosTab() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       {/* Logo del negocio */}
       <div className="space-y-1.5">
-        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Logo del negocio</label>
+        <SectionHeader title="Logo del negocio" noBorder />
         <div className="flex items-center gap-4">
           <button
             type="button"
@@ -62,7 +61,7 @@ export default function DatosTab() {
           >
             {business.logo ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={business.logo} alt="Logo del negocio" className="h-full w-full object-contain p-1.5" />
+              <img src={business.logo} alt="Logo del negocio" className="h-full w-full object-contain p-1.5 rounded-lg" />
             ) : (
               <ImagePlus className="h-6 w-6 text-slate-300" />
             )}
@@ -156,10 +155,10 @@ export default function DatosTab() {
       {/* Impresión */}
       <SectionHeader title="Impresión" />
       <div className="w-full sm:w-1/2 space-y-1.5">
-        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-          <Printer className="h-3.5 w-3.5 text-slate-400" /> Tamaño de papel
+        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+          Tamaño de papel
         </label>
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5">
           {PAPER_SIZES.map(s => {
             const active = business.paperSize === s.id;
             return (
@@ -178,22 +177,9 @@ export default function DatosTab() {
             );
           })}
         </div>
-        {business.paperSize === 'personalizado' && (
-          <div className="flex items-center gap-2 pt-1">
-            <input
-              type="number"
-              min={20}
-              max={210}
-              value={business.paperSizeCustomMm}
-              onChange={e => updateBusiness({ paperSizeCustomMm: Number(e.target.value) || 0 })}
-              className="input w-full px-3 py-1.5 text-xs"
-            />
-            <span className="text-[11px] text-slate-500 shrink-0">mm de ancho</span>
-          </div>
-        )}
       </div>
 
-      <div className="pt-6 border-t border-slate-100 space-y-5">
+      <div className="pt-2 border-t border-slate-100 space-y-5">
         <Toggle
           checked={autoAceptar}
           onChange={setAutoAceptar}

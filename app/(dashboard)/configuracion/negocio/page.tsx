@@ -49,7 +49,7 @@ export default function NegocioPage() {
   return (
     <div className="space-y-0 animate-section">
       {/* Header */}
-      <div className="flex items-center gap-3 pb-5">
+      <div className="flex items-center gap-3 pb-4">
         <div className="bg-brand p-2.5 rounded-xl shrink-0">
           <Building2 className="h-5 w-5 text-white" />
         </div>
@@ -83,7 +83,7 @@ export default function NegocioPage() {
       </div>
 
       {/* Content */}
-      <div className="card-lg p-8 mt-6">
+      <div className="card-lg p-3 mt-4">
         {tab === 'datos' && <DatosTab />}
         {tab === 'ubicacion' && <UbicacionTab />}
         {tab === 'areas-entrega' && <AreasEntregaTab />}

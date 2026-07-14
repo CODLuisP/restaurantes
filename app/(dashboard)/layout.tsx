@@ -7,6 +7,7 @@ import { DeliveryMethodsProvider } from '@/context/DeliveryMethodsContext';
 import { DeliveryZonesProvider } from '@/context/DeliveryZonesContext';
 import { RedesSocialesProvider } from '@/context/RedesSocialesContext';
 import { HorariosProvider } from '@/context/HorariosContext';
+import { GastosProvider } from '@/context/GastosContext';
 import { SidebarProvider } from '@/context/SidebarContext';
 import Sidebar from '@/components/layout/Sidebar';
 import TopBar from '@/components/layout/TopBar';
@@ -25,18 +26,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <DeliveryZonesProvider>
                   <RedesSocialesProvider>
                     <HorariosProvider>
-                      <SidebarProvider>
-                        <AuthGuard>
-                          <div className="min-h-screen font-sans bg-brand-medium/3 text-slate-800">
-                            <Sidebar />
-                            <MainAreaClient>
-                              <TopBar />
-                              <main className="flex-1 p-6 lg:p-8">{children}</main>
-                            </MainAreaClient>
-                            <ToastContainer />
-                          </div>
-                        </AuthGuard>
-                      </SidebarProvider>
+                      <GastosProvider>
+                        <SidebarProvider>
+                          <AuthGuard>
+                            <div className="min-h-screen font-sans bg-brand-medium/3 text-slate-800">
+                              <Sidebar />
+                              <MainAreaClient>
+                                <TopBar />
+                                <main className="flex-1 p-4">{children}</main>
+                              </MainAreaClient>
+                              <ToastContainer />
+                            </div>
+                          </AuthGuard>
+                        </SidebarProvider>
+                      </GastosProvider>
                     </HorariosProvider>
                   </RedesSocialesProvider>
                 </DeliveryZonesProvider>

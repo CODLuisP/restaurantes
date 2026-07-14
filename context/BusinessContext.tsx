@@ -7,7 +7,7 @@ export type IgvType = 'Gravado' | 'Exonerado' | 'Inafecto';
 /** Porcentaje de IGV aplicado al emitir (18% general, 10.5% régimen de restaurantes/agrarios). */
 export type IgvPercent = 18 | 10.5;
 /** Tamaño de papel para la impresora térmica de comprobantes. */
-export type PaperSize = '58mm' | '80mm' | 'personalizado';
+export type PaperSize = '58mm' | '80mm';
 
 export interface BusinessInfo {
   /** Nombre comercial (marca), el que ve el cliente en la carta. */
@@ -41,8 +41,6 @@ export interface BusinessInfo {
   certExpiresAt: string;
   /** Tamaño de papel de la impresora térmica usada para imprimir comprobantes. */
   paperSize: PaperSize;
-  /** Ancho en mm cuando `paperSize` es "personalizado". */
-  paperSizeCustomMm: number;
 }
 
 export const BUSINESS_STORAGE_KEY = 'restopro_business_info_v1';
@@ -64,7 +62,6 @@ export const DEFAULT_BUSINESS: BusinessInfo = {
   certIssuedAt: '',
   certExpiresAt: '',
   paperSize: '80mm',
-  paperSizeCustomMm: 80,
 };
 
 interface BusinessContextType {

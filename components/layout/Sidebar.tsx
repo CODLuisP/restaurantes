@@ -6,7 +6,6 @@ import { useState } from 'react';
 import {
   LayoutDashboard,
   ShoppingBag,
-  Grid,
   ChefHat,
   Users,
   Coins,
@@ -17,6 +16,7 @@ import {
   BookOpen,
   ShieldCheck,
   Receipt,
+  Wallet,
   BellRing,
   ChevronDown,
   FileText,
@@ -38,12 +38,12 @@ type MenuItem = {
 
 const menuItems: MenuItem[] = [
   { href: '/dashboard',     label: 'Dashboard',       icon: LayoutDashboard },
-  { href: '/mesas',         label: 'Mesas',            icon: Grid },
   { href: '/comandero',     label: 'Comandero',        icon: ShoppingBag,     roles: ['admin', 'mozo'] },
   { href: '/cobrar',        label: 'Cobrar',           icon: Receipt,         roles: ['admin', 'cajero'] },
   { href: '/cocina',        label: 'Cocina',           icon: ChefHat },
   { href: '/despachar',     label: 'Por despachar',    icon: BellRing,        roles: ['admin', 'mozo'] },
   { href: '/caja',          label: 'Caja',             icon: Coins,           roles: ['admin', 'cajero'] },
+  { href: '/gastos',        label: 'Gastos',           icon: Wallet,          roles: ['admin', 'cajero'] },
   { href: '/comprobantes',  label: 'Comprobantes',     icon: FileText,        roles: ['admin', 'cajero'] },
   { href: '/carta',         label: 'Menú Digital',     icon: BookOpen },
   { href: '/clientes',      label: 'Clientes',         icon: Users,           roles: ['admin', 'cajero'] },
