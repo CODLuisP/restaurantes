@@ -79,12 +79,13 @@ const STAT_TONES: Record<string, string> = {
 
 const FEATURED_STORAGE_KEY = "restopro_productos_destacados";
 
-function resizeImage(
+/** Redimensiona/comprime la foto en el navegador antes de subirla, para no mandar el archivo original de la cámara (varios MB) a Cloudflare. */
+function resizeImageToBlob(
   file: File,
   maxW: number,
   maxH: number,
   quality: number,
-): Promise<string> {
+): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -105,7 +106,14 @@ function resizeImage(
         canvas.height = h;
         const ctx = canvas.getContext("2d")!;
         ctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/jpeg", quality));
+        canvas.toBlob(
+          (blob) =>
+            blob
+              ? resolve(blob)
+              : reject(new Error("No se pudo procesar la imagen.")),
+          "image/jpeg",
+          quality,
+        );
       };
       img.onerror = reject;
       img.src = reader.result as string;
@@ -113,6 +121,42 @@ function resizeImage(
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+
+/** Extrae el imageId de una URL de Cloudflare Images (https://imagedelivery.net/{hash}/{imageId}/{variant}). */
+function extractCloudflareImageId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname !== "imagedelivery.net") return null;
+    const parts = u.pathname.split("/").filter(Boolean);
+    return parts.length >= 2 ? parts[parts.length - 2] : null;
+  } catch {
+    return null;
+  }
+}
+
+async function subirImagenProducto(
+  blob: Blob,
+): Promise<{ url: string; imageId: string }> {
+  const fd = new FormData();
+  fd.append("file", blob, "producto.jpg");
+  const res = await fetch("/api/upload-imagen", { method: "POST", body: fd });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || "Error al subir la imagen.");
+  return { url: data.url, imageId: data.imageId };
+}
+
+/** Borrado en segundo plano: si falla, no bloquea al usuario (queda huérfana en Cloudflare, pero el producto sigue consistente). */
+async function eliminarImagenProductoCloudflare(imageId: string) {
+  try {
+    await fetch("/api/upload-imagen", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageId }),
+    });
+  } catch {
+    /* fallo silencioso */
+  }
 }
 
 interface ProductForm {
@@ -223,6 +267,12 @@ export default function ProductosTab({
   const [showBusinessForm, setShowBusinessForm] = useState(false);
   const [businessForm, setBusinessForm] = useState(business);
 
+  // Imagen del producto: se sube a Cloudflare recién al dar "Guardar", no al seleccionarla.
+  // Así el usuario puede cambiarla/quitarla varias veces sin gastar subidas/borrados de sobra.
+  const [pendingImageBlob, setPendingImageBlob] = useState<Blob | null>(null);
+  const [guardando, setGuardando] = useState(false);
+  const originalImagenUrlRef = useRef<string>("");
+
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -236,12 +286,21 @@ export default function ProductosTab({
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const resized = await resizeImage(file, 800, 800, 0.75);
-      setForm((f) => ({ ...f, imagenUrl: resized }));
+      const blob = await resizeImageToBlob(file, 800, 800, 0.75);
+      if (form.imagenUrl?.startsWith("blob:")) URL.revokeObjectURL(form.imagenUrl);
+      const previewUrl = URL.createObjectURL(blob);
+      setPendingImageBlob(blob);
+      setForm((f) => ({ ...f, imagenUrl: previewUrl }));
     } catch {
       triggerToast("No se pudo procesar la imagen.", "error");
     }
     e.target.value = "";
+  };
+
+  const handleQuitarImagenProducto = () => {
+    if (form.imagenUrl?.startsWith("blob:")) URL.revokeObjectURL(form.imagenUrl);
+    setPendingImageBlob(null);
+    setForm((f) => ({ ...f, imagenUrl: "" }));
   };
 
   const openBusinessForm = () => {
@@ -352,14 +411,18 @@ export default function ProductosTab({
   };
 
   const openAdd = (categoriaId?: number) => {
+    if (form.imagenUrl?.startsWith("blob:")) URL.revokeObjectURL(form.imagenUrl);
     setEditingId(null);
     setForm(emptyForm(categoriaId));
+    setPendingImageBlob(null);
+    originalImagenUrlRef.current = "";
     setVariantes([]);
     setPendingVariantes([]);
     setShowForm(true);
   };
 
   const openEdit = (item: ProductoDto) => {
+    if (form.imagenUrl?.startsWith("blob:")) URL.revokeObjectURL(form.imagenUrl);
     setEditingId(item.id);
     setForm({
       nombre: item.nombre,
@@ -369,11 +432,19 @@ export default function ProductosTab({
       disponible: item.disponible ?? true,
       imagenUrl: item.imagenUrl ?? "",
     });
+    setPendingImageBlob(null);
+    originalImagenUrlRef.current = item.imagenUrl ?? "";
     setShowForm(true);
     setShowVariantInput(false);
     setVariantForm({ nombre: "", precio: "" });
     setPendingVariantes([]);
     loadVariantes(item.id);
+  };
+
+  const closeForm = () => {
+    if (form.imagenUrl?.startsWith("blob:")) URL.revokeObjectURL(form.imagenUrl);
+    setPendingImageBlob(null);
+    setShowForm(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -387,18 +458,38 @@ export default function ProductosTab({
       return;
     }
 
-    const imagenEsDataUrl = form.imagenUrl?.startsWith("data:");
-    const imagenUrl = imagenEsDataUrl ? undefined : form.imagenUrl || undefined;
+    setGuardando(true);
 
-    if (imagenEsDataUrl) {
-      triggerToast(
-        "Las imágenes locales aún no se envían al servidor. Usa una URL externa o configura el almacenamiento de imágenes.",
-        "warning",
-      );
+    // La imagen recién se sube a Cloudflare aquí, al confirmar guardado
+    // (no al seleccionarla), para no subir/borrar de más si el usuario la cambia varias veces.
+    // Esto es un detalle interno: de cara al usuario todo el proceso es un solo "Guardando...".
+    let imagenUrl: string | undefined = form.imagenUrl || undefined;
+    let imagenSubidaId: string | null = null;
+
+    if (pendingImageBlob) {
+      try {
+        const subida = await subirImagenProducto(pendingImageBlob);
+        imagenUrl = subida.url;
+        imagenSubidaId = subida.imageId;
+      } catch {
+        setGuardando(false);
+        triggerToast("No se pudo subir la imagen. Intenta nuevamente.", "error");
+        return;
+      }
     }
 
+    // Si estamos editando y la imagen cambió (reemplazo o eliminación), la anterior
+    // queda para borrarse de Cloudflare recién cuando el producto se guardó con éxito.
+    const imagenOriginal = originalImagenUrlRef.current;
+    const imagenCambio = !!editingId && !!imagenOriginal && imagenOriginal !== imagenUrl;
+    const eliminarImagenAnterior = () => {
+      if (!imagenCambio) return;
+      const idAnterior = extractCloudflareImageId(imagenOriginal);
+      if (idAnterior) eliminarImagenProductoCloudflare(idAnterior);
+    };
+
     if (editingId) {
-      await editarProducto(
+      const resultado = await editarProducto(
         editingId,
         {
           categoriaId: form.categoriaId,
@@ -411,6 +502,12 @@ export default function ProductosTab({
           disponible: form.disponible,
         },
       );
+      if (!resultado) {
+        if (imagenSubidaId) eliminarImagenProductoCloudflare(imagenSubidaId);
+        setGuardando(false);
+        return;
+      }
+      eliminarImagenAnterior();
     } else {
       const creado = await crearProducto(
         {
@@ -422,7 +519,12 @@ export default function ProductosTab({
         form.precio,
         form.disponible,
       );
-      if (creado && pendingVariantes.length > 0) {
+      if (!creado) {
+        if (imagenSubidaId) eliminarImagenProductoCloudflare(imagenSubidaId);
+        setGuardando(false);
+        return;
+      }
+      if (pendingVariantes.length > 0) {
         const token = session?.accessToken;
         if (token) {
           for (const v of pendingVariantes) {
@@ -436,6 +538,10 @@ export default function ProductosTab({
         setPendingVariantes([]);
       }
     }
+
+    if (form.imagenUrl?.startsWith("blob:")) URL.revokeObjectURL(form.imagenUrl);
+    setPendingImageBlob(null);
+    setGuardando(false);
     setShowForm(false);
     setEditingId(null);
   };
@@ -1007,7 +1113,7 @@ export default function ProductosTab({
                   </p>
                 </div>
                 <button
-                  onClick={() => setShowForm(false)}
+                  onClick={closeForm}
                   className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100"
                 >
                   <X className="w-4 h-4" />
@@ -1054,30 +1160,33 @@ export default function ProductosTab({
                     onChange={handleProductImage}
                     className="hidden"
                   />
-                  <div className="flex items-center gap-2">
-                    <Input
-                      placeholder="…o pega una URL de imagen"
-                      value={
-                        form.imagenUrl?.startsWith("data:")
-                          ? ""
-                          : form.imagenUrl
-                      }
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, imagenUrl: e.target.value }))
-                      }
-                    />
-                    {form.imagenUrl && (
+                  {form.imagenUrl ? (
+                    <div className="flex items-center justify-between">
                       <button
                         type="button"
-                        onClick={() =>
-                          setForm((f) => ({ ...f, imagenUrl: "" }))
-                        }
-                        className="text-[11px] font-medium text-rose-500 hover:text-rose-600 shrink-0"
+                        onClick={() => productImageRef.current?.click()}
+                        className="text-[11px] font-medium text-brand hover:text-brand-hover"
                       >
-                        Quitar
+                        Cambiar imagen
                       </button>
-                    )}
-                  </div>
+                      <button
+                        type="button"
+                        onClick={handleQuitarImagenProducto}
+                        className="text-[11px] font-medium text-rose-500 hover:text-rose-600"
+                      >
+                        Quitar imagen
+                      </button>
+                    </div>
+                  ) : (
+                    <Input
+                      placeholder="…o pega una URL de imagen"
+                      value={form.imagenUrl}
+                      onChange={(e) => {
+                        setPendingImageBlob(null);
+                        setForm((f) => ({ ...f, imagenUrl: e.target.value }));
+                      }}
+                    />
+                  )}
                 </div>
 
                 <Input
@@ -1229,17 +1338,22 @@ export default function ProductosTab({
                 <div className="flex gap-2 pt-2 mt-auto">
                   <button
                     type="button"
-                    onClick={() => setShowForm(false)}
-                    className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50"
+                    onClick={closeForm}
+                    disabled={guardando}
+                    className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    disabled={!form.nombre.trim() || !form.categoriaId}
+                    disabled={!form.nombre.trim() || !form.categoriaId || guardando}
                     className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold bg-brand text-white hover:bg-brand-hover transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {editingId ? "Guardar cambios" : "Agregar producto"}
+                    {guardando
+                      ? "Guardando..."
+                      : editingId
+                        ? "Guardar cambios"
+                        : "Agregar producto"}
                   </button>
                 </div>
               </form>
