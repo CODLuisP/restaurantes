@@ -706,6 +706,14 @@ export default function ProductosTab({
     </div>
   );
 
+  // Solo mostramos "Cambiar imagen"/"Quitar imagen" cuando hay una imagen ya resuelta
+  // (archivo recién elegido, o la que trae el producto al editar). Si se basara en
+  // "form.imagenUrl tiene algo", el input de pegar URL desaparecería a la primera letra
+  // que el usuario escriba, sin dejarlo terminar de pegar el link.
+  const tieneImagenCargada =
+    !!pendingImageBlob ||
+    (!!originalImagenUrlRef.current && form.imagenUrl === originalImagenUrlRef.current);
+
   return (
     <div className="space-y-0">
       <div className="flex flex-wrap items-center gap-3 pb-5">
@@ -1086,7 +1094,7 @@ export default function ProductosTab({
                     onChange={handleProductImage}
                     className="hidden"
                   />
-                  {form.imagenUrl ? (
+                  {tieneImagenCargada ? (
                     <div className="flex items-center justify-between">
                       <button
                         type="button"
@@ -1104,14 +1112,25 @@ export default function ProductosTab({
                       </button>
                     </div>
                   ) : (
-                    <Input
-                      placeholder="…o pega una URL de imagen"
-                      value={form.imagenUrl}
-                      onChange={(e) => {
-                        setPendingImageBlob(null);
-                        setForm((f) => ({ ...f, imagenUrl: e.target.value }));
-                      }}
-                    />
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder="…o pega una URL de imagen"
+                        value={form.imagenUrl}
+                        onChange={(e) => {
+                          setPendingImageBlob(null);
+                          setForm((f) => ({ ...f, imagenUrl: e.target.value }));
+                        }}
+                      />
+                      {form.imagenUrl && (
+                        <button
+                          type="button"
+                          onClick={handleQuitarImagenProducto}
+                          className="text-[11px] font-medium text-rose-500 hover:text-rose-600 shrink-0"
+                        >
+                          Quitar
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
 
