@@ -1,8 +1,10 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import { Upload, Sparkles, ImageOff, RotateCcw, Check, Loader2 } from 'lucide-react';
-import { useCarta, CARTA_CATEGORIES } from '@/context/CartaContext';
+import { useProductos } from '@/hooks/productos/useProductos';
+import { useCategorias } from '@/hooks/categorias/useCategorias';
 import { useApp } from '@/context/AppContext';
 
 type Status = 'idle' | 'analyzing' | 'ready' | 'error';
@@ -17,7 +19,10 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 export default function ImportarTab() {
-  const { addItem } = useCarta();
+  const { data: session } = useSession();
+  const sucursalId = session?.user?.sucursalId ?? undefined;
+  const { crearProducto } = useProductos(sucursalId);
+  const { categorias } = useCategorias();
   const { triggerToast } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -25,13 +30,16 @@ export default function ImportarTab() {
   const [errorMsg, setErrorMsg] = useState('');
   const [preview, setPreview] = useState<string | null>(null);
 
-  const [form, setForm] = useState({ name: '', description: '', category: CARTA_CATEGORIES[0], price: '' });
+  const categoriasNombres = categorias.map((c) => c.nombre);
+  const defaultCategoria = categoriasNombres[0] ?? '';
+
+  const [form, setForm] = useState({ name: '', description: '', category: defaultCategoria, price: '' });
 
   const reset = () => {
     setStatus('idle');
     setErrorMsg('');
     setPreview(null);
-    setForm({ name: '', description: '', category: CARTA_CATEGORIES[0], price: '' });
+    setForm({ name: '', description: '', category: categoriasNombres[0] ?? '', price: '' });
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -61,10 +69,13 @@ export default function ImportarTab() {
         return;
       }
 
+      const suggestedCategory = data.category ?? '';
       setForm({
         name: data.name ?? '',
         description: data.description ?? '',
-        category: CARTA_CATEGORIES.includes(data.category) ? data.category : CARTA_CATEGORIES[0],
+        category: categoriasNombres.includes(suggestedCategory)
+          ? suggestedCategory
+          : (categoriasNombres[0] ?? ''),
         price: '',
       });
       setStatus('ready');
@@ -85,19 +96,22 @@ export default function ImportarTab() {
     if (file) handleFile(file);
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     const price = parseFloat(form.price);
     if (!form.name.trim()) { triggerToast('Ingresa un nombre para el plato.', 'warning'); return; }
     if (!price || price <= 0) { triggerToast('Ingresa un precio válido.', 'warning'); return; }
 
-    addItem({
-      name: form.name.trim(),
-      description: form.description.trim(),
-      category: form.category,
-      price,
-      available: true,
-      image: preview ?? '',
-    });
+    const cat = categorias.find((c) => c.nombre === form.category);
+    if (!cat) { triggerToast('Selecciona una categoría válida.', 'warning'); return; }
+
+    const imagenEsLocal = preview?.startsWith("blob:") || preview?.startsWith("data:");
+    await crearProducto({
+      categoriaId: cat.id,
+      nombre: form.name.trim(),
+      descripcion: form.description.trim() || undefined,
+      imagenUrl: imagenEsLocal ? undefined : (preview ?? undefined),
+    }, price);
+
     triggerToast(`"${form.name.trim()}" agregado al menú.`, 'success');
     reset();
   };
@@ -132,7 +146,6 @@ export default function ImportarTab() {
           <div className="space-y-2">
             <div className="relative h-56 sm:h-full rounded-2xl overflow-hidden bg-slate-100 border border-slate-200">
               {preview && (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img src={preview} alt="Plato analizado" className="h-full w-full object-cover" />
               )}
               {status === 'analyzing' && (
@@ -189,7 +202,10 @@ export default function ImportarTab() {
                       onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
                       className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-brand bg-slate-50"
                     >
-                      {CARTA_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                      {categoriasNombres.length === 0 && (
+                        <option value="">Sin categorías</option>
+                      )}
+                      {categoriasNombres.map(c => <option key={c}>{c}</option>)}
                     </select>
                   </div>
                 </div>

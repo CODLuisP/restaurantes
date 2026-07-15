@@ -13,7 +13,7 @@ interface ModalProps {
   onClose:   () => void;
   title?:    string;
   subtitle?: string;
-  children:  ReactNode;
+  children?:  ReactNode;
   footer?:   ReactNode;
   /** Ancho máximo del contenido dentro del panel (el panel siempre llena el área). */
   size?:     ModalSize;
@@ -58,7 +58,7 @@ export function Modal({
       <div className={`card-lg w-full ${SIZE_CLASSES[size]} ${fullHeight ? 'h-full' : 'max-h-[85vh]'} flex flex-col overflow-hidden`}>
         {/* Header */}
         {title && (
-          <div className="flex items-start justify-between px-6 py-4 border-b border-slate-200 shrink-0">
+          <div className={`flex items-start justify-between px-6 py-4 shrink-0 ${children ? 'border-b border-slate-200' : ''}`}>
             <div>
               <h4 className="text-sm font-bold text-slate-800">{title}</h4>
               {subtitle && <p className="text-[11px] text-slate-500 mt-0.5">{subtitle}</p>}
@@ -74,13 +74,15 @@ export function Modal({
         )}
 
         {/* Body */}
+        {children && (
         <div className="text-xs text-slate-600 leading-relaxed px-6 py-5 flex-1 overflow-y-auto">
           {children}
         </div>
+        )}
 
         {/* Footer */}
         {footer && (
-          <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-200 shrink-0">
+          <div className={`flex justify-end gap-2 px-6 py-4 shrink-0 ${children ? 'border-t border-slate-200' : ''}`}>
             {footer}
           </div>
         )}

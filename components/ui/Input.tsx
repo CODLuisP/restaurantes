@@ -16,7 +16,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full space-y-1">
         {label && (
-          <label htmlFor={inputId} className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+          <label htmlFor={inputId} className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
             {label}
           </label>
         )}
@@ -29,7 +29,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           <input
             ref={ref}
             id={inputId}
-            className={`input w-full py-2 ${iconLeft ? 'pl-9 pr-3' : 'px-3'} ${error ? 'border-rose-400 focus:ring-rose-400' : ''} ${className}`}
+            className={`input w-full py-2 ${iconLeft ? 'pl-9 pr-3' : 'px-3'} outline-hidden ${error ? 'border-rose-400' : ''} ${className}`}
             {...rest}
           />
         </div>
@@ -55,14 +55,14 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <div className="w-full space-y-1">
         {label && (
-          <label htmlFor={selectId} className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+          <label htmlFor={selectId} className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
             {label}
           </label>
         )}
         <select
           ref={ref}
           id={selectId}
-          className={`input w-full px-3 py-2 ${error ? 'border-rose-400' : ''} ${className}`}
+          className={`input w-full px-3 py-2 outline-hidden ${error ? 'border-rose-400' : ''} ${className}`}
           {...rest}
         >
           {children}
