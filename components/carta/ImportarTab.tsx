@@ -6,6 +6,11 @@ import { Upload, Sparkles, ImageOff, RotateCcw, Check, Loader2 } from 'lucide-re
 import { useProductos } from '@/hooks/productos/useProductos';
 import { useCategorias } from '@/hooks/categorias/useCategorias';
 import { useApp } from '@/context/AppContext';
+import {
+  resizeImageToBlob,
+  subirImagenProducto,
+  eliminarImagenProductoCloudflare,
+} from '@/lib/uploadImagen';
 
 type Status = 'idle' | 'analyzing' | 'ready' | 'error';
 
@@ -29,6 +34,8 @@ export default function ImportarTab() {
   const [status, setStatus] = useState<Status>('idle');
   const [errorMsg, setErrorMsg] = useState('');
   const [preview, setPreview] = useState<string | null>(null);
+  const [imageBlob, setImageBlob] = useState<Blob | null>(null);
+  const [guardando, setGuardando] = useState(false);
 
   const categoriasNombres = categorias.map((c) => c.nombre);
   const defaultCategoria = categoriasNombres[0] ?? '';
@@ -36,9 +43,11 @@ export default function ImportarTab() {
   const [form, setForm] = useState({ name: '', description: '', category: defaultCategoria, price: '' });
 
   const reset = () => {
+    if (preview) URL.revokeObjectURL(preview);
     setStatus('idle');
     setErrorMsg('');
     setPreview(null);
+    setImageBlob(null);
     setForm({ name: '', description: '', category: categoriasNombres[0] ?? '', price: '' });
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -56,6 +65,13 @@ export default function ImportarTab() {
     setPreview(URL.createObjectURL(file));
     setStatus('analyzing');
     setErrorMsg('');
+
+    // Se sube a Cloudflare recién al dar "Agregar al menú" (no aquí), igual que en la Carta.
+    try {
+      setImageBlob(await resizeImageToBlob(file, 800, 800, 0.75));
+    } catch {
+      setImageBlob(null);
+    }
 
     try {
       const body = new FormData();
@@ -104,13 +120,35 @@ export default function ImportarTab() {
     const cat = categorias.find((c) => c.nombre === form.category);
     if (!cat) { triggerToast('Selecciona una categoría válida.', 'warning'); return; }
 
-    const imagenEsLocal = preview?.startsWith("blob:") || preview?.startsWith("data:");
-    await crearProducto({
+    setGuardando(true);
+
+    let imagenUrl: string | undefined;
+    let imagenSubidaId: string | null = null;
+    if (imageBlob) {
+      try {
+        const subida = await subirImagenProducto(imageBlob);
+        imagenUrl = subida.url;
+        imagenSubidaId = subida.imageId;
+      } catch {
+        setGuardando(false);
+        triggerToast('No se pudo subir la imagen. Intenta nuevamente.', 'error');
+        return;
+      }
+    }
+
+    const creado = await crearProducto({
       categoriaId: cat.id,
       nombre: form.name.trim(),
       descripcion: form.description.trim() || undefined,
-      imagenUrl: imagenEsLocal ? undefined : (preview ?? undefined),
+      imagenUrl,
     }, price);
+
+    setGuardando(false);
+
+    if (!creado) {
+      if (imagenSubidaId) eliminarImagenProductoCloudflare(imagenSubidaId);
+      return;
+    }
 
     triggerToast(`"${form.name.trim()}" agregado al menú.`, 'success');
     reset();
@@ -157,7 +195,8 @@ export default function ImportarTab() {
             </div>
             <button
               onClick={reset}
-              className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 py-2 rounded-lg hover:bg-slate-50 transition-colors"
+              disabled={guardando}
+              className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-700 py-2 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <RotateCcw className="w-3.5 h-3.5" /> Subir otra imagen
             </button>
@@ -220,9 +259,10 @@ export default function ImportarTab() {
                 </div>
                 <button
                   onClick={handleAdd}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-brand text-white hover:bg-brand-hover transition-colors"
+                  disabled={guardando}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-brand text-white hover:bg-brand-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Check className="w-4 h-4" /> Agregar al menú
+                  <Check className="w-4 h-4" /> {guardando ? 'Guardando...' : 'Agregar al menú'}
                 </button>
               </div>
             )}
