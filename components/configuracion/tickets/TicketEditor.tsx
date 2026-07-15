@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Plus, GripVertical, X, Eye, EyeOff, ChevronUp, ChevronDown, Copy, Trash2,
-  Printer, FileText, RotateCcw, Save, Download, Bold,
+  Printer, FileText, RotateCcw, Save, Bold,
   ReceiptText, User, ChefHat, Layers, SlidersHorizontal,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
@@ -190,6 +190,12 @@ export default function TicketEditor() {
       const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
         .map(el => el.outerHTML).join('');
 
+      /* El papel real (58mm/80mm) debe declararse en @page: si no, el navegador
+         imprime en el tamaño de página por defecto (Carta/A4) y recorta o reescala
+         el ticket al forzarlo a la impresora térmica. margin:0 además evita que
+         Chrome reserve espacio para su encabezado/pie ("about:blank", "1/1"). */
+      const pageWidthMm = paper === '80mm' ? 80 : 58;
+
       const win = window.open('', '_blank', 'width=420,height=680');
       if (!win) {
         setSelectedId(prevSelected);
@@ -198,8 +204,9 @@ export default function TicketEditor() {
       }
       win.document.write(`<!DOCTYPE html><html><head><title>Ticket ${side}</title>${styles}
         <style>
+          @page{size:${pageWidthMm}mm auto;margin:0}
           body{margin:0;padding:24px;background:#fff;display:flex;justify-content:center}
-          @media print{body{padding:0}}
+          @media print{body{padding:0;display:block}}
         </style></head>
         <body>${clone.outerHTML}
         <script>window.onload=function(){setTimeout(function(){window.print()},120)}<\/script>
@@ -219,60 +226,57 @@ export default function TicketEditor() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-7.5rem)] min-h-[560px] animate-section -m-6 lg:-m-8">
+    <div className="flex flex-col h-[calc(100vh-7.5rem)] min-h-[560px] animate-section ">
       {/* ── Cabecera oscura tipo "estudio de diseño" ── */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 px-6 py-4 flex items-center justify-between gap-3 flex-wrap shrink-0">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-white/90">
-            <span className="bg-white/10 p-1.5 rounded-lg"><ReceiptText className="h-4 w-4" /></span>
-            <h3 className="text-sm font-bold">Diseñador de Tickets</h3>
-          </div>
+ <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 px-6 h-16 flex items-center justify-between gap-3 flex-wrap shrink-0">
+  <div className="flex items-center gap-4">
+    <div className="flex items-center gap-2 text-white/90">
+      <span className="bg-white/10 p-1.5 rounded-lg flex items-center justify-center">
+        <ReceiptText className="h-4 w-4" />
+      </span>
+      <h3 className="text-sm font-bold leading-none">Diseñador de Tickets</h3>
+    </div>
 
-          {/* Selector Cliente / Cocina */}
-          <div className="flex bg-white/5 rounded-xl p-1 gap-1">
-            <button
-              onClick={() => { setSide('cliente'); setSelectedId(null); }}
-              className={`flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-lg transition-colors ${
-                side === 'cliente' ? 'bg-emerald-500 text-white shadow-sm' : 'text-white/60 hover:text-white/90'
-              }`}
-            >
-              <User className="h-3.5 w-3.5" /> Cliente
-            </button>
-            <button
-              onClick={() => { setSide('cocina'); setSelectedId(null); }}
-              className={`flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-lg transition-colors ${
-                side === 'cocina' ? 'bg-orange-500 text-white shadow-sm' : 'text-white/60 hover:text-white/90'
-              }`}
-            >
-              <ChefHat className="h-3.5 w-3.5" /> Cocina
-            </button>
-          </div>
-        </div>
+    {/* Selector Cliente / Cocina */}
+    <div className="flex bg-white/5 rounded-xl p-1 gap-1">
+      <button
+        onClick={() => { setSide('cliente'); setSelectedId(null); }}
+        className={`flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-lg leading-none transition-colors ${
+          side === 'cliente' ? 'bg-emerald-500 text-white shadow-sm' : 'text-white/60 hover:text-white/90'
+        }`}
+      >
+        <User className="h-3.5 w-3.5" /> Cliente
+      </button>
+      <button
+        onClick={() => { setSide('cocina'); setSelectedId(null); }}
+        className={`flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-lg leading-none transition-colors ${
+          side === 'cocina' ? 'bg-orange-500 text-white shadow-sm' : 'text-white/60 hover:text-white/90'
+        }`}
+      >
+        <ChefHat className="h-3.5 w-3.5" /> Cocina
+      </button>
+    </div>
+  </div>
 
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <button onClick={() => triggerToast('Conecta tu impresora térmica desde GoMenu Printer.', 'info')}
-            title="GoMenu Printer"
-            className="flex items-center gap-1.5 text-xs font-bold text-white bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-colors">
-            <Download className="h-3.5 w-3.5" /> <span className="hidden sm:inline">GoMenu Printer</span>
-          </button>
-          <button onClick={handlePrint} title="Imprimir prueba"
-            className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors">
-            <Printer className="h-4 w-4" />
-          </button>
-          <button onClick={handlePrint} title="Vista de impresión"
-            className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors">
-            <FileText className="h-4 w-4" />
-          </button>
-          <button onClick={handleRestore} title="Restaurar diseño por defecto"
-            className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors">
-            <RotateCcw className="h-4 w-4" />
-          </button>
-          <button onClick={handleSave}
-            className="flex items-center gap-1.5 text-xs font-bold text-slate-900 bg-white hover:bg-slate-100 px-4 py-2 rounded-lg transition-colors ml-1">
-            <Save className="h-3.5 w-3.5" /> Guardar
-          </button>
-        </div>
-      </div>
+  <div className="flex items-center gap-1.5 flex-wrap">
+    <button onClick={handlePrint} title="Imprimir prueba"
+      className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center">
+      <Printer className="h-4 w-4" />
+    </button>
+    <button onClick={handlePrint} title="Vista de impresión"
+      className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center">
+      <FileText className="h-4 w-4" />
+    </button>
+    <button onClick={handleRestore} title="Restaurar diseño por defecto"
+      className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center">
+      <RotateCcw className="h-4 w-4" />
+    </button>
+    <button onClick={handleSave}
+      className="flex items-center gap-1.5 text-xs font-bold text-slate-900 bg-white hover:bg-slate-100 px-4 py-2 rounded-lg leading-none transition-colors ml-1">
+      <Save className="h-3.5 w-3.5" /> Guardar
+    </button>
+  </div>
+</div>
 
       {/* ── 3 paneles ── */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[280px_1fr_320px] gap-px bg-slate-200">
@@ -330,15 +334,15 @@ export default function TicketEditor() {
                   onDragEnd={() => { setDragIndex(null); setOverIndex(null); }}
                   onClick={() => setSelectedId(block.id)}
                   className={`group relative flex items-center gap-2 pl-3 pr-2 py-2 rounded-lg cursor-pointer transition-all border-l-[3px] ${
-                    isSel ? 'border-l-indigo-500 bg-indigo-50/70' : 'border-l-transparent hover:bg-slate-50'
-                  } ${isOver ? 'shadow-[inset_0_2px_0_0_theme(colors.indigo.400)]' : ''} ${dragIndex === idx ? 'opacity-40' : ''} ${
+                    isSel ? 'border-l-blue-500 bg-blue-50/70' : 'border-l-transparent hover:bg-slate-50'
+                  } ${isOver ? 'shadow-[inset_0_2px_0_0_theme(colors.blue.400)]' : ''} ${dragIndex === idx ? 'opacity-40' : ''} ${
                     !block.visible ? 'opacity-50' : ''
                   }`}
                 >
                   <GripVertical className="h-3.5 w-3.5 text-slate-300 shrink-0 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <Icon className={`h-3.5 w-3.5 shrink-0 ${isSel ? 'text-indigo-600' : 'text-slate-400'}`} />
+                  <Icon className={`h-3.5 w-3.5 shrink-0 ${isSel ? 'text-blue-600' : 'text-slate-400'}`} />
                   <div className="flex-1 min-w-0">
-                    <p className={`text-xs font-semibold leading-tight truncate ${isSel ? 'text-indigo-900' : 'text-slate-700'}`}>{meta.label}</p>
+                    <p className={`text-xs font-semibold leading-tight truncate ${isSel ? 'text-blue-900' : 'text-slate-700'}`}>{meta.label}</p>
                     <p className="text-[10px] text-slate-400 truncate">{meta.subtitle(block)}</p>
                   </div>
                   <button
@@ -385,7 +389,7 @@ export default function TicketEditor() {
         <div className="bg-white overflow-y-auto">
           {!selected ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 gap-2">
-              <div className="h-12 w-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-300">
+              <div className="h-12 w-12 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-300">
                 <SlidersHorizontal className="h-6 w-6" />
               </div>
               <p className="text-sm font-semibold text-slate-600">Ningún bloque seleccionado</p>
@@ -466,7 +470,7 @@ function Inspector({ block, onChange, onMove, onDuplicate, onRemove, onUploadCli
       {/* Cabecera */}
       <div className="flex items-center justify-between px-4 pt-4">
         <div className="flex items-center gap-2.5">
-          <span className="h-8 w-8 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
+          <span className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
             <Icon className="h-4 w-4 text-white" />
           </span>
           <h4 className="text-sm font-bold text-slate-800">{meta.label}</h4>
@@ -478,7 +482,7 @@ function Inspector({ block, onChange, onMove, onDuplicate, onRemove, onUploadCli
           <button onClick={() => onMove(1)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100" title="Bajar">
             <ChevronDown className="h-4 w-4" />
           </button>
-          <button onClick={onDuplicate} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50" title="Duplicar">
+          <button onClick={onDuplicate} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50" title="Duplicar">
             <Copy className="h-4 w-4" />
           </button>
           <button onClick={onRemove} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50" title="Eliminar">
@@ -489,7 +493,7 @@ function Inspector({ block, onChange, onMove, onDuplicate, onRemove, onUploadCli
 
       <div className="flex items-center justify-between px-4">
         <label className="flex items-center gap-2 cursor-pointer select-none">
-          <input type="checkbox" checked={block.visible} onChange={e => onChange({ visible: e.target.checked })} className="accent-indigo-600 w-4 h-4" />
+          <input type="checkbox" checked={block.visible} onChange={e => onChange({ visible: e.target.checked })} className="accent-blue-600 w-4 h-4" />
           <span className="text-xs font-medium text-slate-700">Visible</span>
         </label>
       </div>
