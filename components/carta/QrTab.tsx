@@ -8,7 +8,7 @@ import {
 import { QRCodeCanvas } from 'qrcode.react';
 import { useApp } from '@/context/AppContext';
 import { getSucursales } from '@/lib/api/sucursales';
-import { Select } from '@/components/ui';
+import { Select, Spinner } from '@/components/ui';
 
 export default function QrTab() {
   const { data: session } = useSession();
@@ -20,16 +20,17 @@ export default function QrTab() {
   const [sId, setSId] = useState<number | null>(null);
   const [url, setUrl] = useState('');
   const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(true);
   const canvasId = 'qr-canvas-carta-tab';
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) { setLoading(false); return; }
     getSucursales(token).then(lista => {
       const activas = lista.filter(s => s.activo);
       setSucursales(activas.map(s => ({ id: s.id, nombre: s.nombre })));
       const id = session?.user?.sucursalId ?? activas[0]?.id;
       if (id) setSId(id);
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setLoading(false));
   }, [token]);
 
   useEffect(() => {
@@ -68,6 +69,15 @@ export default function QrTab() {
     win.document.close();
   };
 
+  if (loading) {
+    return (
+      <div className="py-16 flex flex-col items-center justify-center gap-3">
+        <Spinner size="lg" />
+        <p className="text-xs font-semibold text-slate-600">Cargando código QR y enlace...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       {isSuperAdmin && sucursales.length > 0 && (
@@ -79,7 +89,7 @@ export default function QrTab() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col">
           <div className="flex items-center gap-2 mb-1">
             <Link2 className="w-5 h-5 text-brand" />
             <h4 className="text-base font-bold text-slate-800">Enlace de tu menú</h4>
@@ -107,7 +117,7 @@ export default function QrTab() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col">
           <div className="flex items-center gap-2 mb-1">
             <QrCode className="w-5 h-5 text-brand" />
             <h4 className="text-base font-bold text-slate-800">Código QR</h4>

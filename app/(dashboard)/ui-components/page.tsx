@@ -386,29 +386,46 @@ const [open, setOpen] = useState(false);
         </Section>
 
         {/* ══ 6. SPINNER / LOADING ═══════════════════════════════ */}
-        <Section id="spinners" title="6. Spinner / Loading" subtitle="Importa: import { Spinner, LoadingOverlay } from '@/components/ui'">
+        <Section id="spinners" title="6. Spinner / Loading Gastronómico" subtitle="Importa: import { Spinner, LoadingOverlay } from '@/components/ui'">
           <Card padding="lg" className="space-y-6">
             <div className="space-y-3">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tamaños</p>
-              <Row>
-                <Spinner size="xs" />
-                <Spinner size="sm" />
-                <Spinner size="md" />
-                <Spinner size="lg" />
-                <span className="text-[10px] text-slate-400 font-mono">xs · sm · md · lg</span>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Spinner Gastronómico Exclusivo — Tamaños</p>
+              <div className="flex flex-wrap items-center gap-6 p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+                <div className="flex flex-col items-center gap-1.5">
+                  <Spinner size="xs" />
+                  <span className="text-[10px] font-mono text-slate-400">xs (16px)</span>
+                </div>
+                <div className="flex flex-col items-center gap-1.5">
+                  <Spinner size="sm" />
+                  <span className="text-[10px] font-mono text-slate-400">sm (24px)</span>
+                </div>
+                <div className="flex flex-col items-center gap-1.5">
+                  <Spinner size="md" />
+                  <span className="text-[10px] font-mono text-slate-400">md (32px)</span>
+                </div>
+                <div className="flex flex-col items-center gap-1.5">
+                  <Spinner size="lg" />
+                  <span className="text-[10px] font-mono text-slate-400">lg (44px)</span>
+                </div>
+                <div className="flex flex-col items-center gap-1.5">
+                  <Spinner size="xl" />
+                  <span className="text-[10px] font-mono text-slate-400">xl (64px)</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Loading Overlay de Pantalla Completa</p>
+              <Row wrap>
+                <Button onClick={simulateOverlay} variant="primary" icon={<PlusCircle className="h-4 w-4" />}>
+                  Simular Overlay Gastronómico (2 s)
+                </Button>
               </Row>
             </div>
 
             <div className="space-y-3">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Loading overlay</p>
-              <Button onClick={simulateOverlay} variant="secondary">
-                Simular overlay de 2 s
-              </Button>
-            </div>
-
-            <div className="space-y-3">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">En botón</p>
-              <Row>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">En Botones</p>
+              <Row wrap>
                 <Button loading={loading} onClick={simulateLoad}>
                   {loading ? 'Guardando…' : 'Guardar'}
                 </Button>
@@ -421,14 +438,15 @@ const [open, setOpen] = useState(false);
 
           <Code>{`import { Spinner, LoadingOverlay } from '@/components/ui';
 
-// Spinner inline
-<Spinner size="md" />                  // xs | sm | md | lg
+// Spinner Gastronómico Único (sizes: 'xs' | 'sm' | 'md' | 'lg' | 'xl')
+<Spinner size="md" />
+<Spinner size="lg" className="my-4" />
 
-// Overlay de pantalla completa
-<LoadingOverlay label="Procesando…" />
+// Overlay de pantalla completa con desenfoque
+<LoadingOverlay label="Cargando datos del restaurante..." />
 
-// En un botón (usa la prop loading del Button)
-<Button loading={isLoading}>Guardar</Button>`}</Code>
+// En un botón (usa la prop loading)
+<Button loading={isLoading}>Guardar cambios</Button>`}</Code>
         </Section>
 
         {/* ══ 7. SKELETON ════════════════════════════════════════ */}

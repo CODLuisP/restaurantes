@@ -7,7 +7,6 @@ import {
   Building2,
   MapPin,
   Truck,
-  Palette,
   Landmark,
 } from 'lucide-react';
 import DatosTab from '@/components/configuracion/negocio/DatosTab';
@@ -15,14 +14,13 @@ import UbicacionTab from '@/components/configuracion/negocio/UbicacionTab';
 import AreasEntregaTab from '@/components/configuracion/negocio/AreasEntregaTab';
 import SunatTab from '@/components/configuracion/negocio/SunatTab';
 
-type TabId = 'datos' | 'ubicacion' | 'areas-entrega' | 'apariencia' | 'sunat';
+type TabId = 'datos' | 'ubicacion' | 'areas-entrega' | 'sunat';
 
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: 'datos',          label: 'Datos',               icon: Building2 },
   { id: 'sunat',          label: 'SUNAT',                icon: Landmark },
   { id: 'ubicacion',      label: 'Ubicación',            icon: MapPin },
   { id: 'areas-entrega',  label: 'Áreas de entrega',     icon: Truck },
-  { id: 'apariencia',     label: 'Apariencia',           icon: Palette },
 ];
 
 const TAB_IDS = TABS.map(t => t.id);
@@ -88,13 +86,6 @@ export default function NegocioPage() {
         {tab === 'ubicacion' && <UbicacionTab />}
         {tab === 'areas-entrega' && <AreasEntregaTab />}
         {tab === 'sunat' && <SunatTab />}
-
-        {tab === 'apariencia' && (
-          <div className="py-16 text-center space-y-1">
-            <p className="text-sm font-semibold text-slate-700">Apariencia</p>
-            <p className="text-xs text-slate-500">Esta sección estará disponible próximamente.</p>
-          </div>
-        )}
       </div>
     </div>
   );

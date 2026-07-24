@@ -10,7 +10,7 @@ export interface SocialLink {
   icon: ReactNode;
 }
 
-const ICON_SIZE = 'h-8 w-8';
+const ICON_SIZE = 'h-6 w-6';
 
 export function buildSocialLinks(redes: RedesSocialesState): SocialLink[] {
   const links: (SocialLink | '')[] = [
@@ -40,7 +40,7 @@ export function buildSocialLinks(redes: RedesSocialesState): SocialLink[] {
 export function SocialLinksRow({ links }: { links: SocialLink[] }) {
   if (links.length === 0) return null;
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2">
       {links.map(s => (
         <a
           key={s.label}

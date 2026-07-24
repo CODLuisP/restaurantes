@@ -5,7 +5,7 @@ import {
   Search, Eye, Upload, FolderPlus, Plus, Star, Store, Utensils,
   Package, LayoutGrid, CheckCircle2, X,
 } from "lucide-react";
-import { Toggle, Modal, Button, Input } from "@/components/ui";
+import { Toggle, Modal, Button, Input, Spinner } from "@/components/ui";
 import { useCarta } from "@/context/CartaContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { useApp } from "@/context/AppContext";
@@ -313,10 +313,10 @@ export default function ProductosTab({
       />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <StatChip icon={<Package className="h-4 w-4" />} tone="brand" label="Platos" value={stats.total} />
+        <StatChip icon={<Package className="h-4 w-4" />} tone="emerald" label="Platos" value={stats.total} />
         <StatChip icon={<CheckCircle2 className="h-4 w-4" />} tone="emerald" label="Disponibles" value={stats.available} />
-        <StatChip icon={<Star className="h-4 w-4" />} tone="amber" label="Destacados" value={stats.featured} />
-        <StatChip icon={<LayoutGrid className="h-4 w-4" />} tone="violet" label="Categorías" value={stats.categories} />
+        <StatChip icon={<Star className="h-4 w-4" />} tone="emerald" label="Destacados" value={stats.featured} />
+        <StatChip icon={<LayoutGrid className="h-4 w-4" />} tone="emerald" label="Categorías" value={stats.categories} />
       </div>
 
       {isSearching && (
@@ -337,11 +337,9 @@ export default function ProductosTab({
       )}
 
       {isLoading ? (
-        <div className="card-lg flex flex-col items-center justify-center text-center py-16 gap-3">
-          <div className="h-14 w-14 rounded-2xl bg-brand/10 text-brand flex items-center justify-center animate-pulse">
-            <Store className="h-7 w-7" />
-          </div>
-          <p className="text-sm text-slate-500">Cargando menú...</p>
+        <div className="py-16 flex flex-col items-center justify-center gap-3">
+          <Spinner size="xl" />
+          <p className="text-xs font-semibold text-slate-600 tracking-wide">Cargando menú del negocio...</p>
         </div>
       ) : noProducts ? (
         <div className="card-lg flex flex-col items-center justify-center text-center py-16 gap-3">
@@ -391,7 +389,7 @@ export default function ProductosTab({
               collapsed={!!collapsed[category]}
               onToggle={() => toggleSection(category)}
               icon={<Utensils className="h-4 w-4" />}
-              iconBg={CATEGORY_ICON_BG[category] ?? "bg-gray-100 text-gray-600"}
+              iconBg={CATEGORY_ICON_BG[category] ?? "bg-emerald-100 text-emerald-700"}
               onEdit={openEdit}
               onDelete={handleDelete}
               onToggleFeatured={toggleFeatured}

@@ -1136,7 +1136,7 @@ function PublicCategory({
 
       {!collapsed && (
         <div className="px-4 pb-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 animate-section">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5 animate-section">
             {items.map((item) => {
               const cartItem = cart.find((ci) => ci.product.id === String(item.id));
               const qty = cartItem ? cartItem.quantity : 0;
@@ -1179,7 +1179,7 @@ function PublicProductCard({
   const tieneVariantes = item.variantes && item.variantes.length > 0;
   return (
     <div className="group rounded-xl border border-slate-100 bg-white overflow-hidden flex flex-col shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
-      <div className="relative aspect-4/3 w-full bg-slate-100 overflow-hidden">
+      <div className="relative aspect-16/10 w-full bg-slate-100 overflow-hidden">
         {item.imagenUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img

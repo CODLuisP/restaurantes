@@ -3,11 +3,11 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { Image as ImageIcon, ChevronUp, ChevronDown, Pencil, Trash2, X, Upload, Link as LinkIcon } from 'lucide-react';
-import { Modal, Button, Toggle, Select } from '@/components/ui';
+import { Modal, Button, Toggle, Select, Spinner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { getBanners, createBanner, updateBanner, deleteBanner, reorderBanners } from '@/lib/api/banners';
 import { getSucursales } from '@/lib/api/sucursales';
-import { resizeImageToBlob, subirImagenProducto, extractCloudflareImageId, eliminarImagenProductoCloudflare } from '@/lib/uploadImagen';
+import { resizeImageToBlob, subirImagenProducto, extractCloudflareImageId, eliminarImagenProductoCloudflare, getCloudflareVariant } from '@/lib/uploadImagen';
 import type { BannerDto, CreateBannerDto, UpdateBannerDto } from '@/types/banners';
 
 type DayKey = 'lun' | 'mar' | 'mie' | 'jue' | 'vie' | 'sab' | 'dom';
@@ -42,31 +42,45 @@ export default function BannersTab() {
   const isSuperAdmin = session?.user?.role === "superadmin";
 
   const [banners, setBanners] = useState<BannerDto[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [sucursales, setSucursales] = useState<{ id: number; nombre: string }[]>([]);
   const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null);
 
   const fetchBanners = useCallback(async (sId: number) => {
-    if (!token) return;
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const data = await getBanners(token, sId);
       setBanners(data);
-    } catch { triggerToast('Error al cargar banners', 'error'); }
-    finally { setLoading(false); }
-  }, [token]);
+    } catch {
+      triggerToast('Error al cargar banners', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [token, triggerToast]);
 
   useEffect(() => {
     if (!token) return;
-    getSucursales(token).then((lista) => {
-      const activas = lista.filter((s) => s.activo);
-      setSucursales(activas.map((s) => ({ id: s.id, nombre: s.nombre })));
-      const sId = session?.user?.sucursalId ?? activas[0]?.id;
-      if (!sId) return;
-      setSelectedSucursalId(sId);
-      fetchBanners(sId);
-    }).catch(() => {});
-  }, [token, session?.user?.sucursalId]);
+    setLoading(true);
+    getSucursales(token)
+      .then((lista) => {
+        const activas = lista.filter((s) => s.activo);
+        setSucursales(activas.map((s) => ({ id: s.id, nombre: s.nombre })));
+        const sId = session?.user?.sucursalId ?? activas[0]?.id;
+        if (!sId) {
+          setLoading(false);
+          return;
+        }
+        setSelectedSucursalId(sId);
+        fetchBanners(sId);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
+  }, [token, session?.user?.sucursalId, fetchBanners]);
 
   const handleSucursalChange = (nuevoId: number) => {
     setSelectedSucursalId(nuevoId);
@@ -241,8 +255,9 @@ export default function BannersTab() {
       </div>
 
       {loading ? (
-        <div className="border border-dashed border-slate-300 rounded-xl py-12 text-center">
-          <p className="text-sm text-slate-400">Cargando banners...</p>
+        <div className="py-16 flex flex-col items-center justify-center gap-3">
+          <Spinner size="lg" />
+          <p className="text-xs font-semibold text-slate-600">Cargando banners...</p>
         </div>
       ) : banners.length === 0 ? (
         <div className="border border-dashed border-slate-300 rounded-xl py-12 text-center">
@@ -258,7 +273,19 @@ export default function BannersTab() {
             >
               <div className={`h-12 w-20 rounded-lg shrink-0 overflow-hidden bg-gradient-to-br ${banner.gradient ?? 'from-slate-200 to-slate-300'}`}>
                 {banner.imagenUrl && (
-                  <img src={banner.imagenUrl} alt={banner.titulo || 'Banner'} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                  <img
+                    src={getCloudflareVariant(banner.imagenUrl, 'thumbnail')}
+                    alt={banner.titulo || 'Banner'}
+                    loading="lazy"
+                    decoding="async"
+                    onError={(e) => {
+                      if (e.currentTarget.src !== banner.imagenUrl) {
+                        e.currentTarget.src = banner.imagenUrl;
+                      }
+                    }}
+                    className="h-full w-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
                 )}
               </div>
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Search, Bell, ChevronDown, Command, Menu, LogOut } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
@@ -65,7 +66,12 @@ export default function TopBar() {
         >
           <Menu className="h-4 w-4" />
         </button>
-        <span className="text-xs bg-slate-200 text-slate-600 font-mono px-2 py-1 rounded">RESTOPRO</span>
+        <Link
+          href="/dashboard"
+          className="text-xs bg-slate-200 hover:bg-brand/10 hover:text-brand transition-colors text-slate-600 font-mono px-2 py-1 rounded font-semibold"
+        >
+          RESTOPRO
+        </Link>
         <span className="text-slate-300">/</span>
         <h2 className="text-md font-semibold text-slate-800 capitalize tracking-tight font-sans">
           {sectionName}
@@ -162,12 +168,13 @@ export default function TopBar() {
                 <p className="text-xs font-bold text-slate-800 truncate">{currentUser?.email ?? '—'}</p>
                 <p className="text-[10px] text-brand font-medium mt-0.5">{roleLabel}</p>
               </div>
-              <button
-                onClick={() => { setShowProfileMenu(false); triggerToast('Perfil no disponible en modo maqueta.', 'info'); }}
-                className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 transition-colors"
+              <Link
+                href="/configuracion/negocio"
+                onClick={() => setShowProfileMenu(false)}
+                className="w-full text-left px-4 py-2 text-xs text-slate-700 hover:bg-slate-50 transition-colors block font-medium"
               >
-                Mi Perfil (RestoPro ID)
-              </button>
+                Configuración del Negocio
+              </Link>
               <div className="border-t border-slate-100 my-1" />
               <button
                 onClick={() => { setShowProfileMenu(false); logout(); }}

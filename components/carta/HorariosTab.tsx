@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { Plus, X } from 'lucide-react';
-import { Toggle, Select, Button } from '@/components/ui';
+import { Toggle, Select, Button, Spinner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { getConfiguracion, updateConfiguracion } from '@/lib/api/configuracion';
 import { getSucursales, getSucursalById } from '@/lib/api/sucursales';
@@ -42,6 +42,7 @@ export default function HorariosTab() {
   const [descCorta, setDescCorta] = useState('');
   const [descCompleta, setDescCompleta] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!token) return;
@@ -50,11 +51,13 @@ export default function HorariosTab() {
       setSucursales(activas.map(s => ({ id: s.id, nombre: s.nombre })));
       const id = session?.user?.sucursalId ?? activas[0]?.id;
       if (id) { setSId(id); load(id); }
-    }).catch(() => {});
+      else { setLoading(false); }
+    }).catch(() => setLoading(false));
   }, [token]);
 
   const load = (id: number) => {
     if (!token) return;
+    setLoading(true);
     getConfiguracion(token, id).then(c => {
       setZonaHoraria(c.zonaHoraria ?? 'Peru (Lima)');
       setNumeroPedidos(c.whatsappPedidos || '');
@@ -69,7 +72,7 @@ export default function HorariosTab() {
     }).catch(() => {
       setZonaHoraria('Peru (Lima)'); setNumeroPedidos(''); setSchedule(defaultSchedule());
       setTipoNegocio('Restaurante'); setDescCorta(''); setDescCompleta('');
-    });
+    }).finally(() => setLoading(false));
   };
 
   const handleSave = async () => {
@@ -101,6 +104,15 @@ export default function HorariosTab() {
     });
   };
 
+  if (loading) {
+    return (
+      <div className="py-16 flex flex-col items-center justify-center gap-3">
+        <Spinner size="lg" />
+        <p className="text-xs font-semibold text-slate-600">Cargando horarios y configuración...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {isSuperAdmin && sucursales.length > 0 && (
@@ -114,6 +126,7 @@ export default function HorariosTab() {
       <p className="text-sm text-slate-600">Configura los horarios de atención de tu negocio</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        
         <div className="space-y-1">
           <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Zona horaria</label>
           <input type="text" value={zonaHoraria} onChange={e => setZonaHoraria(e.target.value)} className="input w-full px-3 py-2" />
@@ -127,7 +140,7 @@ export default function HorariosTab() {
         </div>
       </div>
 
-      <div className="space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {DAY_ORDER.map((key, idx) => {
           const d = schedule[key];
           return (
@@ -164,17 +177,19 @@ export default function HorariosTab() {
 
       <div className="pt-6 border-t border-slate-100"><p className="text-xs font-bold text-slate-700 uppercase tracking-wide">Rubro de negocio</p></div>
 
-      <div className="w-full sm:w-1/2 space-y-1">
-        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tipo de negocio</label>
-        <select value={tipoNegocio} onChange={e => setTipoNegocio(e.target.value)} className="input w-full px-3 py-2">
-          <option>Restaurante</option><option>Cafetería</option><option>Bar</option><option>Food Truck</option><option>Pastelería</option>
-        </select>
-      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-1">
+          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tipo de negocio</label>
+          <select value={tipoNegocio} onChange={e => setTipoNegocio(e.target.value)} className="input w-full px-3 py-2">
+            <option>Restaurante</option><option>Cafetería</option><option>Bar</option><option>Food Truck</option><option>Pastelería</option>
+          </select>
+        </div>
 
-      <div className="space-y-1">
-        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Descripción corta</label>
-        <input type="text" value={descCorta} onChange={e => setDescCorta(e.target.value.slice(0, DESC_CORTA_MAX))} placeholder="Breve descripción..." className="input w-full px-3 py-2" />
-        <p className="text-right text-[11px] text-slate-400">{descCorta.length}/{DESC_CORTA_MAX}</p>
+        <div className="space-y-1">
+          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Descripción corta</label>
+          <input type="text" value={descCorta} onChange={e => setDescCorta(e.target.value.slice(0, DESC_CORTA_MAX))} placeholder="Breve descripción..." className="input w-full px-3 py-2" />
+          <p className="text-right text-[11px] text-slate-400">{descCorta.length}/{DESC_CORTA_MAX}</p>
+        </div>
       </div>
       <div className="space-y-1">
         <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Descripción completa</label>

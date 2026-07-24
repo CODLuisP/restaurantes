@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState, useContext } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import { X } from 'lucide-react';
-import { SidebarContext } from '@/context/SidebarContext';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
 
@@ -13,11 +12,11 @@ interface ModalProps {
   onClose:   () => void;
   title?:    string;
   subtitle?: string;
-  children?:  ReactNode;
+  children?: ReactNode;
   footer?:   ReactNode;
-  /** Ancho máximo del contenido dentro del panel (el panel siempre llena el área). */
+  /** Ancho máximo del contenido dentro del panel. */
   size?:     ModalSize;
-  /** Si es false, el panel se ajusta a su contenido (centrado) en vez de llenar el alto de la pantalla. Por defecto true. */
+  /** Si es true, el panel llena el alto de la pantalla. Por defecto false (se ajusta al contenido). */
   fullHeight?: boolean;
   /** Si es false, hacer click fuera del modal no lo cierra (solo "X" / botones del footer). Por defecto true. */
   closeOnOverlayClick?: boolean;
@@ -31,11 +30,17 @@ const SIZE_CLASSES: Record<ModalSize, string> = {
 };
 
 export function Modal({
-  open, onClose, title, subtitle, children, footer, size = 'md', fullHeight = true, closeOnOverlayClick = true,
+  open,
+  onClose,
+  title,
+  subtitle,
+  children,
+  footer,
+  size = 'md',
+  fullHeight = false,
+  closeOnOverlayClick = true,
 }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
-  const sidebar = useContext(SidebarContext);
-  const isCollapsed = sidebar ? sidebar.isCollapsed : false;
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
@@ -53,9 +58,9 @@ export function Modal({
     <div
       ref={overlayRef}
       onClick={e => { if (closeOnOverlayClick && e.target === overlayRef.current) onClose(); }}
-      className={`fixed inset-y-0 right-0 left-0 ${sidebar ? (isCollapsed ? 'md:left-16' : 'md:left-64') : ''} bg-black/60 backdrop-blur-sm z-40 flex ${fullHeight ? 'items-stretch' : 'items-center'} justify-center p-4 sm:p-6`}
+      className={`fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex ${fullHeight ? 'items-stretch' : 'items-center'} justify-center p-4 sm:p-6`}
     >
-      <div className={`card-lg w-full ${SIZE_CLASSES[size]} ${fullHeight ? 'h-full' : 'max-h-[85vh]'} flex flex-col overflow-hidden`}>
+      <div className={`card-lg w-full ${SIZE_CLASSES[size]} ${fullHeight ? 'h-full flex flex-col' : 'max-h-[90vh] flex flex-col'} overflow-hidden shadow-2xl`}>
         {/* Header */}
         {title && (
           <div className={`flex items-start justify-between px-6 py-4 shrink-0 ${children ? 'border-b border-slate-200' : ''}`}>
@@ -65,7 +70,7 @@ export function Modal({
             </div>
             <button
               onClick={onClose}
-              className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
               aria-label="Cerrar"
             >
               <X className="h-4 w-4" />
@@ -75,14 +80,14 @@ export function Modal({
 
         {/* Body */}
         {children && (
-        <div className="text-xs text-slate-600 leading-relaxed px-6 py-5 flex-1 overflow-y-auto">
-          {children}
-        </div>
+          <div className={`text-xs text-slate-600 leading-relaxed px-6 py-5 ${fullHeight ? 'flex-1' : 'shrink-0'} overflow-y-auto max-h-[calc(90vh-130px)]`}>
+            {children}
+          </div>
         )}
 
         {/* Footer */}
         {footer && (
-          <div className={`flex justify-end gap-2 px-6 py-4 shrink-0 ${children ? 'border-t border-slate-200' : ''}`}>
+          <div className={`flex justify-end gap-2 px-6 py-4 shrink-0 bg-slate-50/50 ${children ? 'border-t border-slate-200' : ''}`}>
             {footer}
           </div>
         )}

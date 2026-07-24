@@ -63,7 +63,6 @@ const configSubItems: ConfigSubItem[] = [
   { href: '/configuracion/metodos-pago',         label: 'Métodos de pago' },
   { href: '/configuracion/metodos-entrega',      label: 'Métodos de entrega' },
   { href: '/configuracion/tickets',              label: 'Tickets', badge: 'NEW' },
-  { href: '/configuracion/tracking',             label: 'Tracking' },
 ];
 
 export default function Sidebar() {
@@ -73,7 +72,7 @@ export default function Sidebar() {
   const { kitchenOrders } = useApp();
   const isConfigRoute = pathname.startsWith('/configuracion');
   const [isConfigOpen, setIsConfigOpen] = useState(isConfigRoute);
-  const canSeeConfig = currentUser?.role === 'admin';
+  const canSeeConfig = !currentUser || currentUser?.role === 'admin';
 
   /* Comandas listas por despachar (todas para admin, propias para el mozo) */
   const readyCount = kitchenOrders.filter(
@@ -81,7 +80,7 @@ export default function Sidebar() {
   ).length;
 
   const visibleItems = menuItems.filter(
-    item => !item.roles || (currentUser && item.roles.includes(currentUser.role))
+    item => !item.roles || !currentUser || item.roles.includes(currentUser.role)
   );
 
   return (
@@ -97,11 +96,15 @@ export default function Sidebar() {
         `}
       >
         {/* Brand */}
-        <div className="relative h-16 px-4 border-b border-[#306342] flex items-center gap-3 overflow-hidden shrink-0">
+        <Link
+          href="/dashboard"
+          onClick={closeOpen}
+          className="relative h-16 px-4 border-b border-[#306342] flex items-center gap-3 overflow-hidden shrink-0 group cursor-pointer"
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/33.png" alt="" className="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none" />
           <div className="absolute inset-0 bg-brand-dark/60 pointer-events-none" />
-          <div className="relative bg-white/10 p-2 rounded-xl border border-white/20 flex items-center justify-center shrink-0">
+          <div className="relative bg-white/10 p-2 rounded-xl border border-white/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
             <Store className="h-5 w-5 text-brand-accent stroke-[2]" />
           </div>
           {!isCollapsed && (
@@ -110,7 +113,7 @@ export default function Sidebar() {
               <span className="text-[10px] text-white/60 font-mono tracking-widest uppercase">Peru SaaS POS</span>
             </div>
           )}
-        </div>
+        </Link>
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">

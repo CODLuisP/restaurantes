@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { Eye, EyeOff, FileCheck2, KeyRound, Percent, Receipt, ShieldCheck, Upload, X, CheckCircle2, Trash2 } from 'lucide-react';
-import { Input, Button, Modal } from '@/components/ui';
+import { Input, Button, Modal, Spinner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { getMiEmpresa, updateEmpresa, type EmpresaDto } from '@/lib/api/empresas';
 
@@ -38,15 +38,18 @@ export default function SunatTab() {
   const [certTempFile, setCertTempFile] = useState<File | null>(null);
   const [certTempName, setCertTempName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!token) return;
+    setLoading(true);
     getMiEmpresa(token).then(e => {
       setEmpresa(e); setSolUser(e.solUser); setSolPassword(e.solPassword);
       setIgvTipo(e.igvTipo || 'Gravado'); setIgvPorcentaje(e.igvPorcentajeEmpresa || 18);
       setCertPfx(e.certificadoPfx || ''); setCertPassword(e.certificadoPassword);
       setCertFilename(e.certificadoFilename);
-    }).catch(() => triggerToast('Error al cargar SUNAT.', 'error'));
+    }).catch(() => triggerToast('Error al cargar SUNAT.', 'error'))
+    .finally(() => setLoading(false));
   }, [token]);
 
   const handleSave = async () => {
@@ -95,6 +98,15 @@ export default function SunatTab() {
   const handleRemoveCert = () => {
     setCertPfx(''); setCertPassword(''); setCertFilename('');
   };
+
+  if (loading) {
+    return (
+      <div className="py-16 flex flex-col items-center justify-center gap-3">
+        <Spinner size="lg" />
+        <p className="text-xs font-semibold text-slate-600">Cargando configuración de SUNAT...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">

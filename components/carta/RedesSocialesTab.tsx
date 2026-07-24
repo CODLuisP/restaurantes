@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { Globe, Star, Check, ChevronRight } from 'lucide-react';
-import { Button, Select } from '@/components/ui';
+import { Button, Select, Spinner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { getConfiguracion, updateConfiguracion } from '@/lib/api/configuracion';
 import { getSucursales } from '@/lib/api/sucursales';
@@ -28,6 +28,7 @@ export default function RedesSocialesTab() {
   const [form, setForm] = useState({ instagram: '', facebook: '', tiktok: '', sitioWeb: '', reviewsLink: '' });
   const [showHelp, setShowHelp] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!token) return;
@@ -36,15 +37,18 @@ export default function RedesSocialesTab() {
       setSucursales(activas.map(s => ({ id: s.id, nombre: s.nombre })));
       const id = session?.user?.sucursalId ?? activas[0]?.id;
       if (id) { setSId(id); load(id); }
-    }).catch(() => {});
+      else { setLoading(false); }
+    }).catch(() => setLoading(false));
   }, [token]);
 
   const load = (id: number) => {
     if (!token) return;
+    setLoading(true);
     getConfiguracion(token, id).then(c => setForm({
       instagram: c.instagram ?? '', facebook: c.facebook ?? '', tiktok: c.tiktok ?? '',
       sitioWeb: c.sitioWeb ?? '', reviewsLink: c.reviewsLink ?? '',
-    })).catch(() => setForm({ instagram: '', facebook: '', tiktok: '', sitioWeb: '', reviewsLink: '' }));
+    })).catch(() => setForm({ instagram: '', facebook: '', tiktok: '', sitioWeb: '', reviewsLink: '' }))
+    .finally(() => setLoading(false));
   };
 
   const handleSave = async () => {
@@ -65,6 +69,15 @@ export default function RedesSocialesTab() {
 
   const values: Record<SocialKey, string> = { instagram: form.instagram, facebook: form.facebook, tiktok: form.tiktok, sitioWeb: form.sitioWeb };
   const connectedCount = Object.values(values).filter(v => v.trim() !== '').length;
+
+  if (loading) {
+    return (
+      <div className="py-16 flex flex-col items-center justify-center gap-3">
+        <Spinner size="lg" />
+        <p className="text-xs font-semibold text-slate-600">Cargando enlaces y redes sociales...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

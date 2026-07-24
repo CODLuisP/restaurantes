@@ -77,7 +77,7 @@ export default function CartaPage() {
       </div>
 
       {/* Content */}
-      <div className="mt-6">
+      <div className="mt-4">
         {tab === 'carta' && (
           <ProductosTab onGoToImportar={() => changeTab('importar')} onGoToBanners={() => changeTab('banners')} />
         )}
@@ -86,7 +86,7 @@ export default function CartaPage() {
         {tab === 'qr' && <QrTab />}
 
         {(tab === 'redes' || tab === 'horarios' || tab === 'cierres') && (
-          <div className="card-lg p-8">
+          <div className="card-lg p-4">
             {tab === 'redes' && <RedesSocialesTab />}
             {tab === 'horarios' && <HorariosTab />}
             {tab === 'cierres' && <CierresProgramadosTab />}

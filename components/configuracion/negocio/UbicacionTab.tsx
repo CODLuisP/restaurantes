@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { GoogleMap, Autocomplete, Marker, useJsApiLoader } from '@react-google-maps/api';
 import { MapPin } from 'lucide-react';
 import { GOOGLE_MAPS_LOADER_ID, GOOGLE_MAPS_LIBRARIES } from '@/lib/googleMapsLoader';
-import { Toggle, Button, SucursalSelector } from '@/components/ui';
+import { Toggle, Button, SucursalSelector, Spinner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import { getConfiguracion, updateUbicacion } from '@/lib/api/configuracion';
@@ -22,15 +22,17 @@ export default function UbicacionTab() {
   const [mostrarDireccion, setMostrarDireccion] = useState(false);
   const [posicion, setPosicion] = useState(DEFAULT_CENTER);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
 
   useEffect(() => {
     if (!token || !sId) return;
+    setLoading(true);
     getConfiguracion(token, sId).then(c => {
       setDireccion(c.ubicacionDireccion || '');
       setMostrarDireccion(!!c.mostrarDireccionMenu);
       if (c.ubicacionLat && c.ubicacionLng) setPosicion({ lat: Number(c.ubicacionLat), lng: Number(c.ubicacionLng) });
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setLoading(false));
   }, [token, sId]);
 
   const handleSave = async () => {
@@ -68,6 +70,15 @@ export default function UbicacionTab() {
   }, []);
 
   if (loadError) return <div className="p-6 text-rose-600 text-sm">Error al cargar Google Maps.</div>;
+
+  if (loading) {
+    return (
+      <div className="py-16 flex flex-col items-center justify-center gap-3">
+        <Spinner size="lg" />
+        <p className="text-xs font-semibold text-slate-600">Cargando ubicación y mapa...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

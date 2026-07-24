@@ -56,6 +56,27 @@ export function extractCloudflareImageId(url: string): string | null {
   }
 }
 
+/**
+ * Transforma una URL de Cloudflare Images (https://imagedelivery.net/{hash}/{imageId}/{variant})
+ * para solicitar la variante optimizada o thumbnail (ej: 'thumbnail', 'w=400', 'public').
+ */
+export function getCloudflareVariant(url: string | undefined | null, variant: string = 'thumbnail'): string {
+  if (!url) return '';
+  try {
+    const u = new URL(url);
+    if (u.hostname === 'imagedelivery.net') {
+      const parts = u.pathname.split('/').filter(Boolean);
+      if (parts.length >= 3) {
+        parts[parts.length - 1] = variant;
+        return `https://imagedelivery.net/${parts.join('/')}`;
+      }
+    }
+  } catch {
+    return url;
+  }
+  return url;
+}
+
 export async function subirImagenProducto(
   blob: Blob,
 ): Promise<{ url: string; imageId: string }> {

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
-  ChevronLeft, ChevronRight, Image as ImageIcon, MapPin,
+  ChevronLeft, ChevronRight, Image as ImageIcon, MapPin, Phone, Store,
 } from "lucide-react";
 import { Modal, Button, Input, SucursalSelector } from "@/components/ui";
 import { useApp } from "@/context/AppContext";
@@ -223,7 +223,7 @@ export default function MenuHeaderSection({
       <button
         type="button"
         onClick={onGoToBanners}
-        className="absolute top-3 right-3 flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-white/90 text-slate-700 hover:bg-white transition-colors shadow-sm"
+        className="absolute top-3 right-3 flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-white/90 text-slate-700 hover:bg-white transition-colors shadow-sm cursor-pointer"
       >
         <ImageIcon className="h-3.5 w-3.5" /> Banners
       </button>
@@ -232,20 +232,33 @@ export default function MenuHeaderSection({
 
   const headerSubtitle = (
     <div className="space-y-0.5">
-      <p className="flex items-center gap-1 truncate">
-        <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
-        {sucursalDireccion || (
-          <span className="text-slate-400 italic">
-            Agrega la dirección del negocio
+      <div
+        onClick={openBusinessForm}
+        className="flex items-center gap-1.5 flex-wrap truncate group/sub cursor-pointer"
+        title="Haz clic para editar la dirección y teléfono del negocio"
+      >
+        <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400 group-hover/sub:text-brand transition-colors" />
+        {sucursalDireccion ? (
+          <span className="group-hover/sub:text-slate-900 transition-colors">{sucursalDireccion}</span>
+        ) : (
+          <span className="text-amber-600 font-medium hover:underline text-xs">
+            + Agrega la dirección del negocio
           </span>
         )}
-        {sucursalDireccion && sucursalTelefono && (
-          <span className="text-slate-400 mx-1">—</span>
+        {(sucursalDireccion || sucursalTelefono) && (
+          <span className="text-slate-300 mx-0.5">—</span>
         )}
-        {sucursalTelefono && (
-          <span className="text-slate-500 text-xs">{sucursalTelefono}</span>
+        {sucursalTelefono ? (
+          <span className="text-slate-500 text-xs flex items-center gap-1 group-hover/sub:text-slate-900 transition-colors">
+            <Phone className="h-3 w-3 text-slate-400 group-hover/sub:text-brand transition-colors" />
+            {sucursalTelefono}
+          </span>
+        ) : (
+          <span className="text-amber-600 font-medium hover:underline text-xs">
+            + Agrega teléfono
+          </span>
         )}
-      </p>
+      </div>
     </div>
   );
 
@@ -292,7 +305,7 @@ export default function MenuHeaderSection({
         open={showBusinessForm}
         onClose={() => setShowBusinessForm(false)}
         title="Información del negocio"
-        subtitle="Se muestra en la tarjeta sobre el banner de tu carta."
+        subtitle="Edita el nombre, dirección y teléfono que verán tus clientes en la carta digital."
         size="sm"
         fullHeight={false}
         footer={
@@ -301,30 +314,33 @@ export default function MenuHeaderSection({
               Cancelar
             </Button>
             <Button onClick={submitBusinessForm} disabled={!bizForm.name.trim()}>
-              Guardar
+              Guardar cambios
             </Button>
           </>
         }
       >
-        <div className="space-y-4">
+        <div className="space-y-4 pt-1">
           <Input
             label="Nombre del negocio"
             value={bizForm.name}
             onChange={(e) => setBizForm((f) => ({ ...f, name: e.target.value }))}
-            placeholder="Ej: RestoPro Perú"
+            placeholder="Ej: Paykos Chicken"
             autoFocus
+            iconLeft={<Store className="h-4 w-4 text-slate-400" />}
           />
           <Input
             label="Dirección"
             value={bizForm.address}
             onChange={(e) => setBizForm((f) => ({ ...f, address: e.target.value }))}
-            placeholder="Ej: Av. Larco 345, Miraflores"
+            placeholder="Ej: Vía de Evitamiento Nte. 1850, Cajamarca"
+            iconLeft={<MapPin className="h-4 w-4 text-slate-400" />}
           />
           <Input
-            label="Teléfono"
+            label="Teléfono de contacto"
             value={bizForm.telefono}
             onChange={(e) => setBizForm((f) => ({ ...f, telefono: e.target.value }))}
-            placeholder="Ej: 987 654 321"
+            placeholder="Ej: 912903330"
+            iconLeft={<Phone className="h-4 w-4 text-slate-400" />}
           />
         </div>
       </Modal>

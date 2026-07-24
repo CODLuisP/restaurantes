@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useJsApiLoader } from '@react-google-maps/api';
 import { Map as MapIcon, Plus, Ban } from 'lucide-react';
-import { SucursalSelector } from '@/components/ui';
+import { SucursalSelector, Spinner } from '@/components/ui';
 import { GOOGLE_MAPS_LOADER_ID, GOOGLE_MAPS_LIBRARIES } from '@/lib/googleMapsLoader';
 import { useApp } from '@/context/AppContext';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
@@ -252,7 +252,12 @@ export default function AreasEntregaTab() {
   };
 
   if (cargando) {
-    return <div className="py-16 text-center text-xs text-slate-400">Cargando zonas de entrega...</div>;
+    return (
+      <div className="py-16 flex flex-col items-center justify-center gap-3">
+        <Spinner size="lg" />
+        <p className="text-xs font-semibold text-slate-600">Cargando zonas de entrega...</p>
+      </div>
+    );
   }
 
   return (

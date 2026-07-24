@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { CalendarOff, Trash2 } from 'lucide-react';
-import { Button, Modal, Select } from '@/components/ui';
+import { Button, Modal, Select, Spinner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { getCierres, createCierre, deleteCierre } from '@/lib/api/cierres';
 import { getSucursales } from '@/lib/api/sucursales';
@@ -23,6 +23,7 @@ export default function CierresProgramadosTab() {
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!token) return;
@@ -31,12 +32,14 @@ export default function CierresProgramadosTab() {
       setSucursales(activas.map(s => ({ id: s.id, nombre: s.nombre })));
       const id = session?.user?.sucursalId ?? activas[0]?.id;
       if (id) { setSId(id); load(id); }
-    }).catch(() => {});
+      else { setLoading(false); }
+    }).catch(() => setLoading(false));
   }, [token]);
 
   const load = (id: number) => {
     if (!token) return;
-    getCierres(token, id).then(setCierres).catch(() => setCierres([]));
+    setLoading(true);
+    getCierres(token, id).then(setCierres).catch(() => setCierres([])).finally(() => setLoading(false));
   };
 
   const handleGuardar = async () => {
@@ -59,6 +62,15 @@ export default function CierresProgramadosTab() {
       setCierres(prev => prev.filter(c => c.id !== id));
     } catch { triggerToast('Error al eliminar', 'error'); }
   };
+
+  if (loading) {
+    return (
+      <div className="py-16 flex flex-col items-center justify-center gap-3">
+        <Spinner size="lg" />
+        <p className="text-xs font-semibold text-slate-600">Cargando cierres programados...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

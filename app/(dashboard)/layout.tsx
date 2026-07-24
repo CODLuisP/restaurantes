@@ -26,16 +26,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <HorariosProvider>
                     <GastosProvider>
                       <SidebarProvider>
-                        <AuthGuard>
-                          <div className="min-h-screen font-sans bg-brand-medium/3 text-slate-800">
-                            <Sidebar />
-                            <MainAreaClient>
-                              <TopBar />
-                              <main className="flex-1 p-4">{children}</main>
-                            </MainAreaClient>
-                            <ToastContainer />
-                          </div>
-                        </AuthGuard>
+                        <div className="min-h-screen font-sans bg-brand-medium/3 text-slate-800">
+                          <Sidebar />
+                          <MainAreaClient>
+                            <TopBar />
+                            <main className="flex-1 p-4">
+                              <AuthGuard>{children}</AuthGuard>
+                            </main>
+                          </MainAreaClient>
+                          <ToastContainer />
+                        </div>
                       </SidebarProvider>
                     </GastosProvider>
                   </HorariosProvider>

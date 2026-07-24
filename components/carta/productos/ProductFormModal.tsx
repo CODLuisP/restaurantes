@@ -309,9 +309,9 @@ export default function ProductFormModal({
 
   return createPortal(
     <div
-      className={`fixed inset-y-0 right-0 left-0 ${isCollapsed ? "md:left-16" : "md:left-64"} z-40 flex items-stretch justify-center p-4 sm:p-6 bg-black/40 backdrop-blur-sm`}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-xs"
     >
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-xl h-full flex flex-col overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
           <div>
             <h2 className="text-base font-bold text-slate-800">
@@ -323,14 +323,14 @@ export default function ProductFormModal({
           </div>
           <button
             onClick={handleClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100"
+            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
         <form
           onSubmit={handleSubmit}
-          className="p-6 space-y-4 flex-1 flex flex-col overflow-y-auto"
+          className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-120px)]"
         >
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
@@ -555,7 +555,7 @@ export default function ProductFormModal({
             ))}
           </div>
 
-          <div className="flex gap-2 pt-2 mt-auto">
+          <div className="flex gap-2 pt-4 border-t border-slate-100">
             <button
               type="button"
               onClick={handleClose}

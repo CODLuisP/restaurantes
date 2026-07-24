@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { ImagePlus, Pencil, Printer, Search, Loader2 } from 'lucide-react';
-import { Input, Toggle, Button } from '@/components/ui';
+import { Input, Toggle, Button, Spinner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { getMiEmpresa, updateEmpresa, type EmpresaDto } from '@/lib/api/empresas';
 import { resizeImageToBlob, subirImagenProducto, extractCloudflareImageId, eliminarImagenProductoCloudflare } from '@/lib/uploadImagen';
@@ -36,18 +36,21 @@ export default function DatosTab() {
   const [autoAceptar, setAutoAceptar] = useState(false);
   const [consultando, setConsultando] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [logoSource, setLogoSource] = useState<string | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
 
   useEffect(() => {
     if (!token) return;
+    setLoading(true);
     getMiEmpresa(token).then(e => {
       setEmpresa(e); setRuc(e.ruc); setRazonSocial(e.razonSocial); setNombreComercial(e.nombreComercial);
       setDireccion(e.direccion || ''); setDepartamento(e.departamento); setProvincia(e.provincia); setDistrito(e.distrito);
       setCondicion(e.condicion || ''); setLogoComprobante(e.logoComprobante || '');
       setPaperSize((e.paperSize as PaperSize) || '80mm'); setAutoAceptar(e.autoAceptarPedidos);
-    }).catch(() => triggerToast('Error al cargar datos de la empresa.', 'error'));
+    }).catch(() => triggerToast('Error al cargar datos de la empresa.', 'error'))
+    .finally(() => setLoading(false));
   }, [token]);
 
   const handleConsultarRuc = async () => {
@@ -95,6 +98,15 @@ export default function DatosTab() {
     } catch { triggerToast('Error al subir el logo.', 'error'); }
     setCropOpen(false);
   };
+
+  if (loading) {
+    return (
+      <div className="py-16 flex flex-col items-center justify-center gap-3">
+        <Spinner size="lg" />
+        <p className="text-xs font-semibold text-slate-600">Cargando datos de la empresa...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">
