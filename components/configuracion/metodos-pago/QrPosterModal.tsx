@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Upload, Download, Printer, ImageOff, User, Phone } from 'lucide-react';
 import { Modal, Input } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
-import { useBusiness } from '@/context/BusinessContext';
-import { usePaymentMethods, type QrPaymentMethod } from '@/context/PaymentMethodsContext';
+import type { QrPaymentMethod } from '@/context/PaymentMethodsContext';
+import { resizeImageToBlob, subirImagenProducto, extractCloudflareImageId, eliminarImagenProductoCloudflare } from '@/lib/uploadImagen';
 
 type Brand = 'yape' | 'plin';
 
@@ -29,6 +29,7 @@ function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: num
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = src;
@@ -261,15 +262,23 @@ function drawPoster(
 
 /* ── Componente ────────────────────────────────────────────── */
 
-export default function QrPosterModal({ open, onClose, brand }: { open: boolean; onClose: () => void; brand: Brand }) {
+export default function QrPosterModal({ open, onClose, brand, bizName, config, onUpdateConfig }: { open: boolean; onClose: () => void; brand: Brand; bizName: string; config: QrPaymentMethod; onUpdateConfig: (changes: Partial<QrPaymentMethod>) => void }) {
   const { triggerToast } = useApp();
-  const { business } = useBusiness();
-  const { methods, updateMethod } = usePaymentMethods();
-  const config: QrPaymentMethod = methods[brand];
 
   const fileRef = useRef<HTMLInputElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const [rendering, setRendering] = useState(false);
+  const [form, setForm] = useState({ qrImage: '', holderName: '', phone: '' });
+
+  useEffect(() => {
+    if (open) setForm({ qrImage: config.qrImage, holderName: config.holderName, phone: config.phone });
+  }, [open, config.qrImage, config.holderName, config.phone]);
+
+  const handleSave = () => {
+    onUpdateConfig(form);
+    triggerToast('Cartel de cobro guardado.', 'success');
+    onClose();
+  };
 
   const meta = BRAND_META[brand];
   const brandTheme = brand === 'yape'
@@ -278,9 +287,9 @@ export default function QrPosterModal({ open, onClose, brand }: { open: boolean;
 
   const posterData = {
     qrImg: null as HTMLImageElement | null,
-    holderName: config.holderName,
-    phone: config.phone,
-    businessName: business.name,
+    holderName: form.holderName,
+    phone: form.phone,
+    businessName: bizName,
   };
 
   /* Redibuja la vista previa cada vez que cambian los datos */
@@ -294,7 +303,7 @@ export default function QrPosterModal({ open, onClose, brand }: { open: boolean;
 
       const logoUrl = brand === 'yape' ? '/pagos/yape.png' : '/pagos/plin.png';
       const [qrImg, logoImg] = await Promise.all([
-        config.qrImage ? loadImage(config.qrImage).catch(() => null) : Promise.resolve(null),
+        form.qrImage ? loadImage(form.qrImage).catch(() => null) : Promise.resolve(null),
         loadImage(logoUrl).catch(() => null),
       ]);
 
@@ -305,22 +314,28 @@ export default function QrPosterModal({ open, onClose, brand }: { open: boolean;
     render();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, brand, config.qrImage, config.holderName, config.phone, business.name]);
+  }, [open, brand, form.qrImage, form.holderName, form.phone, bizName]);
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => updateMethod(brand, { qrImage: reader.result as string });
-    reader.readAsDataURL(file);
     e.target.value = '';
+    try {
+      const resized = await resizeImageToBlob(file, 900, 900, 0.95);
+      const subida = await subirImagenProducto(resized);
+      const anteriorId = form.qrImage ? extractCloudflareImageId(form.qrImage) : null;
+      if (anteriorId) eliminarImagenProductoCloudflare(anteriorId);
+      setForm(f => ({ ...f, qrImage: subida.url }));
+    } catch {
+      triggerToast('Error al subir el QR.', 'error');
+    }
   };
 
   const buildExportCanvas = async (): Promise<HTMLCanvasElement> => {
     const canvas = document.createElement('canvas');
     const logoUrl = brand === 'yape' ? '/pagos/yape.png' : '/pagos/plin.png';
     const [qrImg, logoImg] = await Promise.all([
-      config.qrImage ? loadImage(config.qrImage).catch(() => null) : Promise.resolve(null),
+      form.qrImage ? loadImage(form.qrImage).catch(() => null) : Promise.resolve(null),
       loadImage(logoUrl).catch(() => null),
     ]);
     drawPoster(canvas, brand, { ...posterData, qrImg, logoImg });
@@ -378,9 +393,9 @@ export default function QrPosterModal({ open, onClose, brand }: { open: boolean;
               onClick={() => fileRef.current?.click()}
               className="group/qr relative w-full aspect-square max-w-[180px] rounded-xl overflow-hidden border-2 border-dashed border-slate-200 hover:border-brand bg-slate-50 flex items-center justify-center transition-colors"
             >
-              {config.qrImage ? (
+              {form.qrImage ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={config.qrImage} alt={`QR de ${meta.label}`} className="h-full w-full object-contain p-2" />
+                <img src={form.qrImage} alt={`QR de ${meta.label}`} className="h-full w-full object-contain p-2" />
               ) : (
                 <div className="flex flex-col items-center gap-1.5 text-slate-400">
                   <ImageOff className="h-6 w-6" />
@@ -388,7 +403,7 @@ export default function QrPosterModal({ open, onClose, brand }: { open: boolean;
                 </div>
               )}
               <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/qr:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-[11px] font-semibold">
-                <Upload className="h-3.5 w-3.5" /> {config.qrImage ? 'Cambiar' : 'Subir'}
+                <Upload className="h-3.5 w-3.5" /> {form.qrImage ? 'Cambiar' : 'Subir'}
               </div>
             </button>
             <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
@@ -397,15 +412,15 @@ export default function QrPosterModal({ open, onClose, brand }: { open: boolean;
 
           <Input
             label="Nombre del titular"
-            value={config.holderName}
-            onChange={e => updateMethod(brand, { holderName: e.target.value })}
+            value={form.holderName}
+            onChange={e => setForm(f => ({ ...f, holderName: e.target.value }))}
             placeholder="Ej: Romelia Mendoza"
             iconLeft={<User className="h-3.5 w-3.5" />}
           />
           <Input
             label="Celular asociado"
-            value={config.phone}
-            onChange={e => updateMethod(brand, { phone: e.target.value.replace(/[^\d ]/g, '').slice(0, 11) })}
+            value={form.phone}
+            onChange={e => setForm(f => ({ ...f, phone: e.target.value.replace(/[^\d ]/g, '').slice(0, 11) }))}
             placeholder="950 830 342"
             inputMode="numeric"
             iconLeft={<Phone className="h-3.5 w-3.5" />}
@@ -427,6 +442,11 @@ export default function QrPosterModal({ open, onClose, brand }: { open: boolean;
                 <span className="text-[10px] text-slate-400">Generando…</span>
               </div>
             )}
+          </div>
+          <div className="flex gap-2 w-full max-w-[300px]">
+            <button onClick={handleSave} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold bg-brand text-white hover:bg-brand-hover transition-colors">
+              Guardar
+            </button>
           </div>
           <div className="flex gap-2 w-full max-w-[300px]">
             <button

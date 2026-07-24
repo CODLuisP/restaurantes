@@ -4,7 +4,6 @@ import { BannersProvider } from '@/context/BannersContext';
 import { BusinessProvider } from '@/context/BusinessContext';
 import { PaymentMethodsProvider } from '@/context/PaymentMethodsContext';
 import { DeliveryMethodsProvider } from '@/context/DeliveryMethodsContext';
-import { DeliveryZonesProvider } from '@/context/DeliveryZonesContext';
 import { RedesSocialesProvider } from '@/context/RedesSocialesContext';
 import { HorariosProvider } from '@/context/HorariosContext';
 import { GastosProvider } from '@/context/GastosContext';
@@ -23,26 +22,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <BusinessProvider>
             <PaymentMethodsProvider>
               <DeliveryMethodsProvider>
-                <DeliveryZonesProvider>
-                  <RedesSocialesProvider>
-                    <HorariosProvider>
-                      <GastosProvider>
-                        <SidebarProvider>
-                          <AuthGuard>
-                            <div className="min-h-screen font-sans bg-brand-medium/3 text-slate-800">
-                              <Sidebar />
-                              <MainAreaClient>
-                                <TopBar />
-                                <main className="flex-1 p-4">{children}</main>
-                              </MainAreaClient>
-                              <ToastContainer />
-                            </div>
-                          </AuthGuard>
-                        </SidebarProvider>
-                      </GastosProvider>
-                    </HorariosProvider>
-                  </RedesSocialesProvider>
-                </DeliveryZonesProvider>
+                <RedesSocialesProvider>
+                  <HorariosProvider>
+                    <GastosProvider>
+                      <SidebarProvider>
+                        <AuthGuard>
+                          <div className="min-h-screen font-sans bg-brand-medium/3 text-slate-800">
+                            <Sidebar />
+                            <MainAreaClient>
+                              <TopBar />
+                              <main className="flex-1 p-4">{children}</main>
+                            </MainAreaClient>
+                            <ToastContainer />
+                          </div>
+                        </AuthGuard>
+                      </SidebarProvider>
+                    </GastosProvider>
+                  </HorariosProvider>
+                </RedesSocialesProvider>
               </DeliveryMethodsProvider>
             </PaymentMethodsProvider>
           </BusinessProvider>

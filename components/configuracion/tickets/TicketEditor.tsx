@@ -1,18 +1,20 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import {
   Plus, GripVertical, X, Eye, EyeOff, ChevronUp, ChevronDown, Copy, Trash2,
   Printer, FileText, RotateCcw, Save, Bold,
   ReceiptText, User, ChefHat, Layers, SlidersHorizontal,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
+import { getTicketsConfig, updateTicketsConfig } from '@/lib/api/ticketsConfig';
+import { resizeImageToBlob, subirImagenProducto } from '@/lib/uploadImagen';
 import TicketPreview from './TicketPreview';
 import {
   type Side, type PaperSize, type BlockType, type TicketBlock, type TicketConfig,
   type Align, type FontSize, type SepStyle,
   BLOCK_META, ADDABLE, SEP_LABEL, makeBlock, defaultConfig, SEP_CHAR,
-  TICKETS_STORAGE_KEY,
 } from './ticketData';
 
 /* ─── Controles reutilizables ─── */
@@ -62,7 +64,9 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 
 /* ─── Editor ─── */
 export default function TicketEditor() {
+  const { data: session } = useSession();
   const { triggerToast } = useApp();
+  const token = session?.accessToken;
   const [config, setConfig] = useState<TicketConfig>(() => defaultConfig());
   const [side, setSide] = useState<Side>('cliente');
   const [paper, setPaper] = useState<PaperSize>('80mm');
@@ -70,15 +74,22 @@ export default function TicketEditor() {
   const [showAdd, setShowAdd] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  /* Hidratar */
+  /* Hidratar desde el backend */
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(TICKETS_STORAGE_KEY);
-      if (raw) setConfig(JSON.parse(raw));
-    } catch {}
-  }, []);
+    if (!token) return;
+    getTicketsConfig(token).then(data => {
+      if (!data) return;
+      setConfig(prev => ({
+        cliente: data.clienteJson ? JSON.parse(data.clienteJson) : prev.cliente,
+        cocina: data.cocinaJson ? JSON.parse(data.cocinaJson) : prev.cocina,
+      }));
+      if (data.paperSize === '58mm' || data.paperSize === '80mm') setPaper(data.paperSize);
+    }).catch(() => triggerToast('Error al cargar el diseño de tickets.', 'error'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   const blocks = config[side];
   const selected = blocks.find(b => b.id === selectedId) ?? null;
@@ -142,12 +153,20 @@ export default function TicketEditor() {
     setOverIndex(null);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!token) { triggerToast('Sesión expirada.', 'error'); return; }
+    setSaving(true);
     try {
-      localStorage.setItem(TICKETS_STORAGE_KEY, JSON.stringify(config));
+      await updateTicketsConfig(token, {
+        clienteJson: JSON.stringify(config.cliente),
+        cocinaJson: JSON.stringify(config.cocina),
+        paperSize: paper,
+      });
       triggerToast('Diseño del ticket guardado.', 'success');
     } catch {
       triggerToast('No se pudo guardar el diseño.', 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -216,13 +235,17 @@ export default function TicketEditor() {
     }, 60);
   };
 
-  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selected) return;
-    const reader = new FileReader();
-    reader.onload = () => updateBlock(selected.id, { imgSource: 'uploaded', imgUrl: String(reader.result) });
-    reader.readAsDataURL(file);
     if (fileRef.current) fileRef.current.value = '';
+    if (!file || !selected) return;
+    try {
+      const resized = await resizeImageToBlob(file, 600, 600, 0.9);
+      const subida = await subirImagenProducto(resized);
+      updateBlock(selected.id, { imgSource: 'uploaded', imgUrl: subida.url });
+    } catch {
+      triggerToast('Error al subir la imagen.', 'error');
+    }
   };
 
   return (
@@ -271,9 +294,9 @@ export default function TicketEditor() {
       className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center">
       <RotateCcw className="h-4 w-4" />
     </button>
-    <button onClick={handleSave}
-      className="flex items-center gap-1.5 text-xs font-bold text-slate-900 bg-white hover:bg-slate-100 px-4 py-2 rounded-lg leading-none transition-colors ml-1">
-      <Save className="h-3.5 w-3.5" /> Guardar
+    <button onClick={handleSave} disabled={saving}
+      className="flex items-center gap-1.5 text-xs font-bold text-slate-900 bg-white hover:bg-slate-100 px-4 py-2 rounded-lg leading-none transition-colors ml-1 disabled:opacity-60">
+      <Save className="h-3.5 w-3.5" /> {saving ? 'Guardando...' : 'Guardar'}
     </button>
   </div>
 </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   Search,
@@ -31,12 +31,9 @@ import {
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useCarta } from "@/context/CartaContext";
-import { useBanners } from "@/context/BannersContext";
 import { useBusiness } from "@/context/BusinessContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { useApp } from "@/context/AppContext";
-import { useRedesSociales } from "@/context/RedesSocialesContext";
-import { useHorarios } from "@/context/HorariosContext";
 import { useProductos } from "@/hooks/productos/useProductos";
 import { useCategorias } from "@/hooks/categorias/useCategorias";
 import { Toggle, Modal, Button, Input, Select } from "@/components/ui";
@@ -67,6 +64,10 @@ import {
   subirImagenProducto,
   eliminarImagenProductoCloudflare,
 } from "@/lib/uploadImagen";
+import { getSucursalById, getSucursales, updateSucursal } from "@/lib/api/sucursales";
+import { getConfiguracion, updateConfiguracion } from "@/lib/api/configuracion";
+import { getBanners } from "@/lib/api/banners";
+import type { BannerDto } from "@/types/banners";
 
 const CATEGORY_ICON_BG: Record<string, string> = {
   Entradas: "bg-emerald-100 text-emerald-700",
@@ -113,7 +114,7 @@ export default function ProductosTab({
   onGoToBanners,
 }: ProductosTabProps) {
   const { data: session } = useSession();
-  const sucursalId = session?.user?.sucursalId ?? undefined;
+  const [resolvedSucursalId, setResolvedSucursalId] = useState<number | null>(null);
 
   const {
     productos,
@@ -122,7 +123,7 @@ export default function ProductosTab({
     editarProducto,
     toggleDisponible,
     eliminarProducto,
-  } = useProductos(sucursalId);
+  } = useProductos(resolvedSucursalId);
 
   const {
     categorias,
@@ -132,14 +133,73 @@ export default function ProductosTab({
   } = useCategorias();
 
   const { carta, toggleCartaActive } = useCarta();
-  const { banners } = useBanners();
-  const activeBanners = banners.filter((b) => b.active);
-  const { business, updateBusiness } = useBusiness();
-  const { redes } = useRedesSociales();
-  const socialLinks = buildSocialLinks(redes);
-  const { horarios } = useHorarios();
+  const [banners, setBanners] = useState<BannerDto[]>([]);
+  const activeBanners = banners.filter((b) => b.activo);
+  const { business } = useBusiness();
   const { isCollapsed } = useSidebar();
   const { triggerToast } = useApp();
+
+  const [sucursalNombre, setSucursalNombre] = useState("");
+  const [sucursalDireccion, setSucursalDireccion] = useState("");
+  const [sucursalTelefono, setSucursalTelefono] = useState("");
+  const [sucursalLogo, setSucursalLogo] = useState("");
+  const [redesState, setRedesState] = useState({ instagram: "", facebook: "", tiktok: "", sitio: "", reviewsLink: "" });
+  const [horariosState, setHorariosState] = useState({
+    zonaHoraria: "Peru (Lima)", tipoNegocio: "Restaurante", descripcionCompleta: "", numeroPedidos: "",
+    schedule: { lun: { enabled: true, ranges: [{ from: "09:00", to: "22:00" }] }, mar: { enabled: true, ranges: [{ from: "09:00", to: "22:00" }] }, mie: { enabled: true, ranges: [{ from: "09:00", to: "22:00" }] }, jue: { enabled: true, ranges: [{ from: "09:00", to: "22:00" }] }, vie: { enabled: true, ranges: [{ from: "09:00", to: "22:00" }] }, sab: { enabled: true, ranges: [{ from: "09:00", to: "22:00" }] }, dom: { enabled: false, ranges: [{ from: "09:00", to: "22:00" }] } } as Record<string, { enabled: boolean; ranges: { from: string; to: string }[] }>,
+  });
+  const socialLinks = buildSocialLinks(redesState);
+  const [sucursales, setSucursales] = useState<{ id: number; nombre: string }[]>([]);
+
+  const isSuperAdmin = session?.user?.role === "superadmin";
+
+  const loadSucursalData = useCallback(async (sId: number) => {
+    const token = session?.accessToken;
+    if (!token) return;
+    getSucursalById(token, sId).then((s) => {
+      setSucursalNombre(s.nombre);
+      setSucursalDireccion(s.direccion ?? "");
+      setSucursalTelefono(s.telefono ?? "");
+    }).catch(() => {});
+    getConfiguracion(token, sId).then((c) => {
+      setSucursalLogo(c.logoUrl ?? "");
+      setRedesState({
+        instagram: c.instagram ?? "",
+        facebook: c.facebook ?? "",
+        tiktok: c.tiktok ?? "",
+        sitio: c.sitioWeb ?? "",
+        reviewsLink: c.reviewsLink ?? "",
+      });
+      setHorariosState({
+        zonaHoraria: c.zonaHoraria ?? "Peru (Lima)",
+        tipoNegocio: c.tipoNegocio ?? "Restaurante",
+        descripcionCompleta: c.descripcionCompleta ?? "",
+        numeroPedidos: c.whatsappPedidos ?? "",
+        schedule: c.horariosJson ? JSON.parse(c.horariosJson) : {},
+      });
+    }).catch(() => {});
+    getBanners(token, sId).then(setBanners).catch(() => {});
+  }, [session?.accessToken]);
+
+  useEffect(() => {
+    const token = session?.accessToken;
+    if (!token) return;
+
+    getSucursales(token).then((lista) => {
+      const activas = lista.filter((s) => s.activo);
+      setSucursales(activas.map((s) => ({ id: s.id, nombre: s.nombre })));
+
+      const sId = session?.user?.sucursalId ?? activas[0]?.id;
+      if (!sId) return;
+      setResolvedSucursalId(sId);
+      loadSucursalData(sId);
+    }).catch(() => {});
+  }, [session?.accessToken, session?.user?.sucursalId]);
+
+  const handleSucursalChange = (nuevoId: number) => {
+    setResolvedSucursalId(nuevoId);
+    loadSucursalData(nuevoId);
+  };
 
   const [featuredIds, setFeaturedIds] = useState<Set<number>>(new Set());
 
@@ -191,7 +251,7 @@ export default function ProductosTab({
   const logoInputRef = useRef<HTMLInputElement>(null);
   const productImageRef = useRef<HTMLInputElement>(null);
   const [showBusinessForm, setShowBusinessForm] = useState(false);
-  const [businessForm, setBusinessForm] = useState(business);
+  const [bizForm, setBizForm] = useState({ name: "", address: "", telefono: "" });
 
   // Imagen del producto: se sube a Cloudflare recién al dar "Guardar", no al seleccionarla.
   // Así el usuario puede cambiarla/quitarla varias veces sin gastar subidas/borrados de sobra.
@@ -199,12 +259,39 @@ export default function ProductosTab({
   const [guardando, setGuardando] = useState(false);
   const originalImagenUrlRef = useRef<string>("");
 
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => updateBusiness({ logo: reader.result as string });
-    reader.readAsDataURL(file);
+    const token = session?.accessToken;
+    if (!token || !resolvedSucursalId) return;
+
+    try {
+      triggerToast("Subiendo logo...", "info");
+      const blob = await resizeImageToBlob(file, 400, 400, 0.8);
+      const subida = await subirImagenProducto(blob);
+
+      let igv = 18;
+      let moneda = "S/.";
+      try {
+        const c = await getConfiguracion(token, resolvedSucursalId);
+        igv = c.igvPorcentaje;
+        moneda = c.monedaSimbolo;
+        if (c.logoUrl) {
+          const idAnterior = extractCloudflareImageId(c.logoUrl);
+          if (idAnterior) eliminarImagenProductoCloudflare(idAnterior);
+        }
+      } catch { /* primera vez */ }
+
+      await updateConfiguracion(token, resolvedSucursalId, {
+        igvPorcentaje: igv,
+        monedaSimbolo: moneda,
+        logoUrl: subida.url,
+      });
+      setSucursalLogo(subida.url);
+      triggerToast("Logo actualizado.", "success");
+    } catch {
+      triggerToast("No se pudo subir el logo.", "error");
+    }
     e.target.value = "";
   };
 
@@ -230,13 +317,28 @@ export default function ProductosTab({
   };
 
   const openBusinessForm = () => {
-    setBusinessForm(business);
+    setBizForm({ name: sucursalNombre, address: sucursalDireccion, telefono: sucursalTelefono });
     setShowBusinessForm(true);
   };
-  const submitBusinessForm = () => {
-    updateBusiness(businessForm);
-    setShowBusinessForm(false);
-    triggerToast("Información del negocio actualizada.", "success");
+  const submitBusinessForm = async () => {
+    const token = session?.accessToken;
+    if (!token || !resolvedSucursalId) return;
+
+    try {
+      await updateSucursal(token, resolvedSucursalId, {
+        nombre: bizForm.name.trim(),
+        direccion: bizForm.address.trim() || null,
+        telefono: bizForm.telefono.trim() || null,
+        activo: true,
+      });
+      setSucursalNombre(bizForm.name.trim());
+      setSucursalDireccion(bizForm.address.trim());
+      setSucursalTelefono(bizForm.telefono.trim());
+      setShowBusinessForm(false);
+      triggerToast("Información del negocio actualizada.", "success");
+    } catch {
+      triggerToast("Error al guardar la información.", "error");
+    }
   };
 
   const [showNewCategory, setShowNewCategory] = useState(false);
@@ -586,10 +688,10 @@ export default function ProductosTab({
         <>
           {(() => {
             const current = activeBanners[bannerIndex % activeBanners.length];
-            return current.image ? (
+            return current.imagenUrl ? (
               <img
-                src={current.image}
-                alt={current.title || "Banner"}
+                src={current.imagenUrl}
+                alt={current.titulo || "Banner"}
                 className="absolute inset-0 h-full w-full object-cover"
               />
             ) : (
@@ -664,15 +766,17 @@ export default function ProductosTab({
     <div className="space-y-0.5">
       <p className="flex items-center gap-1 truncate">
         <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
-        {business.address || (
+        {sucursalDireccion || (
           <span className="text-slate-400 italic">
             Agrega la dirección del negocio
           </span>
         )}
-      </p>
-      <p className="flex items-center gap-1 font-mono text-[11px] text-slate-400">
-        <FileText className="h-3 w-3 shrink-0" />
-        {business.ruc ? `RUC ${business.ruc}` : "Agrega el RUC"}
+        {sucursalDireccion && sucursalTelefono && (
+          <span className="text-slate-400 mx-1">—</span>
+        )}
+        {sucursalTelefono && (
+          <span className="text-slate-500 text-xs">{sucursalTelefono}</span>
+        )}
       </p>
     </div>
   );
@@ -681,10 +785,10 @@ export default function ProductosTab({
     <div className="flex items-center gap-3">
       {socialLinks.length > 0 && <SocialLinksRow links={socialLinks} />}
       <BusinessInfoSection
-        tipoNegocio={horarios.tipoNegocio}
-        descripcionCompleta={horarios.descripcionCompleta}
-        schedule={horarios.schedule}
-        numeroPedidos={horarios.numeroPedidos}
+        tipoNegocio={horariosState.tipoNegocio}
+        descripcionCompleta={horariosState.descripcionCompleta}
+        schedule={horariosState.schedule}
+        numeroPedidos={horariosState.numeroPedidos}
         direccion={
           business.mostrarDireccionEnMenu ? business.ubicacionDireccion : ""
         }
@@ -753,7 +857,7 @@ export default function ProductosTab({
 
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={() => window.open("/menu", "_blank")}
+            onClick={() => window.open(`/menu?sucursalId=${resolvedSucursalId ?? 1}`, "_blank")}
             className="btn-secondary"
             title="Ver la carta como la ve el cliente"
           >
@@ -776,13 +880,25 @@ export default function ProductosTab({
       </div>
 
       <div className="mb-6">
+        {isSuperAdmin && sucursales.length > 0 && (
+          <div className="flex justify-end mb-3">
+            <Select
+              value={resolvedSucursalId ?? ""}
+              onChange={(e) => handleSucursalChange(Number(e.target.value))}
+            >
+              {sucursales.map((s) => (
+                <option key={s.id} value={s.id}>{s.nombre}</option>
+              ))}
+            </Select>
+          </div>
+        )}
         <ProfileHeader
           cover={cover}
-          logo={business.logo}
+          logo={sucursalLogo}
           avatarEditable
           onAvatarClick={() => logoInputRef.current?.click()}
-          name={business.name || "Configura el nombre de tu negocio"}
-          nameMuted={!business.name}
+          name={sucursalNombre || "Configura el nombre de tu negocio"}
+          nameMuted={!sucursalNombre}
           nameEditable
           onNameClick={openBusinessForm}
           subtitle={headerSubtitle}
@@ -991,7 +1107,7 @@ export default function ProductosTab({
             </Button>
             <Button
               onClick={submitBusinessForm}
-              disabled={!businessForm.name.trim()}
+              disabled={!bizForm.name.trim()}
             >
               Guardar
             </Button>
@@ -1001,32 +1117,28 @@ export default function ProductosTab({
         <div className="space-y-4">
           <Input
             label="Nombre del negocio"
-            value={businessForm.name}
+            value={bizForm.name}
             onChange={(e) =>
-              setBusinessForm((f) => ({ ...f, name: e.target.value }))
+              setBizForm((f) => ({ ...f, name: e.target.value }))
             }
             placeholder="Ej: RestoPro Perú"
             autoFocus
           />
           <Input
-            label="RUC"
-            value={businessForm.ruc}
-            onChange={(e) =>
-              setBusinessForm((f) => ({
-                ...f,
-                ruc: e.target.value.replace(/\D/g, "").slice(0, 11),
-              }))
-            }
-            placeholder="20123456789"
-            inputMode="numeric"
-          />
-          <Input
             label="Dirección"
-            value={businessForm.address}
+            value={bizForm.address}
             onChange={(e) =>
-              setBusinessForm((f) => ({ ...f, address: e.target.value }))
+              setBizForm((f) => ({ ...f, address: e.target.value }))
             }
             placeholder="Ej: Av. Larco 345, Miraflores"
+          />
+          <Input
+            label="Teléfono"
+            value={bizForm.telefono}
+            onChange={(e) =>
+              setBizForm((f) => ({ ...f, telefono: e.target.value }))
+            }
+            placeholder="Ej: 987 654 321"
           />
         </div>
       </Modal>

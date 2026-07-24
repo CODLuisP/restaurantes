@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import {
   GoogleMap, Marker, Circle, Polygon, useJsApiLoader,
 } from '@react-google-maps/api';
@@ -8,12 +9,69 @@ import {
   Map as MapIcon, Plus, Pencil, Trash2, Ban, X, Check, Undo2,
   Circle as CircleIcon, PenTool, Info, TriangleAlert,
 } from 'lucide-react';
-import { Input, Toggle } from '@/components/ui';
+import { Input, Toggle, Select } from '@/components/ui';
 import { GOOGLE_MAPS_LOADER_ID, GOOGLE_MAPS_LIBRARIES } from '@/lib/googleMapsLoader';
+import { useApp } from '@/context/AppContext';
+import { getSucursales } from '@/lib/api/sucursales';
+import { getConfiguracion, updateUbicacion } from '@/lib/api/configuracion';
 import {
-  useDeliveryZones, ZONE_COLORS,
-  type DeliveryZone, type ZoneShape, type LatLng,
-} from '@/context/DeliveryZonesContext';
+  getZonasEntrega, createZonaEntrega, updateZonaEntrega, deleteZonaEntrega,
+  addZonaExclusion, updateZonaExclusion, deleteZonaExclusion,
+} from '@/lib/api/zonasEntrega';
+import type { ZonaEntregaDto, UpsertZonaEntregaDto, ZoneShape } from '@/types/zonasEntrega';
+
+export interface LatLng {
+  lat: number;
+  lng: number;
+}
+
+interface ZoneExclusion {
+  id: number;
+  center: LatLng;
+  radiusKm: number;
+}
+
+interface DeliveryZone {
+  id: number;
+  name: string;
+  type: ZoneShape;
+  active: boolean;
+  color: string;
+  center?: LatLng;
+  radiusKm?: number;
+  path?: LatLng[];
+  shippingCost: number;
+  freeOverAmount: number | null;
+  minOrderAmount: number | null;
+  etaMinutes: number;
+  exclusions: ZoneExclusion[];
+}
+
+const ZONE_COLORS = ['#007542', '#0EA5E9', '#F59E0B', '#EC4899', '#8B5CF6', '#EF4444'];
+const DEFAULT_RESTAURANT_LOCATION: LatLng = { lat: -12.0464, lng: -77.0428 };
+
+function dtoToZone(d: ZonaEntregaDto): DeliveryZone {
+  return {
+    id: d.id, name: d.nombre, type: d.tipo, active: d.activo, color: d.color,
+    center: d.centerLat != null && d.centerLng != null ? { lat: d.centerLat, lng: d.centerLng } : undefined,
+    radiusKm: d.radiusKm ?? undefined,
+    path: d.path?.map(p => ({ lat: p.lat, lng: p.lng })),
+    shippingCost: d.shippingCost, freeOverAmount: d.freeOverAmount ?? null, minOrderAmount: d.minOrderAmount ?? null,
+    etaMinutes: d.etaMinutes,
+    exclusions: d.exclusions.map(e => ({ id: e.id, center: { lat: e.centerLat, lng: e.centerLng }, radiusKm: e.radiusKm })),
+  };
+}
+
+function toUpsertDto(payload: Omit<DeliveryZone, 'id' | 'exclusions'>): UpsertZonaEntregaDto {
+  return {
+    nombre: payload.name, tipo: payload.type, activo: payload.active, color: payload.color,
+    centerLat: payload.center?.lat ?? null, centerLng: payload.center?.lng ?? null,
+    radiusKm: payload.radiusKm ?? null,
+    path: payload.path ?? null,
+    shippingCost: payload.shippingCost, freeOverAmount: payload.freeOverAmount, minOrderAmount: payload.minOrderAmount,
+    etaMinutes: payload.etaMinutes,
+  };
+}
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 const MAP_HEIGHT = 560;
@@ -72,10 +130,10 @@ const emptyForm = (): FormState => ({
 });
 
 export default function AreasEntregaTab() {
-  const {
-    zones, restaurantLocation, setRestaurantLocation,
-    addZone, updateZone, removeZone, addExclusion, updateExclusion, removeExclusion,
-  } = useDeliveryZones();
+  const { data: session } = useSession();
+  const { triggerToast } = useApp();
+  const token = session?.accessToken;
+  const isSuperAdmin = session?.user?.role === 'superadmin';
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: GOOGLE_MAPS_LOADER_ID,
@@ -83,16 +141,126 @@ export default function AreasEntregaTab() {
     libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
+  const [sucursales, setSucursales] = useState<{ id: number; nombre: string }[]>([]);
+  const [sId, setSId] = useState<number | null>(null);
+  const [cargando, setCargando] = useState(true);
+  const [zones, setZones] = useState<DeliveryZone[]>([]);
+  const [restaurantLocation, setRestaurantLocationState] = useState<LatLng>(DEFAULT_RESTAURANT_LOCATION);
+  const ubicacionDireccionRef = useRef<string | null>(null);
+  const mostrarDireccionMenuRef = useRef(false);
+
   const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
   const [drawingPath, setDrawingPath] = useState<LatLng[] | null>(null);
   const [drawPoints, setDrawPoints] = useState<LatLng[]>([]);
-  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
-  const [addingExclusionFor, setAddingExclusionFor] = useState<string | null>(null);
+  const [selectedZoneId, setSelectedZoneId] = useState<number | null>(null);
+  const [addingExclusionFor, setAddingExclusionFor] = useState<number | null>(null);
   const [exclusionRadiusKm, setExclusionRadiusKm] = useState('1');
   const [exclusionOutsideError, setExclusionOutsideError] = useState(false);
-  const exclusionCircleRefs = useRef(new Map<string, google.maps.Circle>());
+  const exclusionCircleRefs = useRef(new Map<number, google.maps.Circle>());
+
+  useEffect(() => {
+    if (!token) return;
+    getSucursales(token).then(lista => {
+      const activas = lista.filter(s => s.activo);
+      setSucursales(activas.map(s => ({ id: s.id, nombre: s.nombre })));
+      const id = session?.user?.sucursalId ?? activas[0]?.id;
+      if (id) { setSId(id); load(id); } else setCargando(false);
+    }).catch(() => setCargando(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  const load = (id: number) => {
+    if (!token) return;
+    setCargando(true);
+    Promise.all([getConfiguracion(token, id), getZonasEntrega(token, id)])
+      .then(([config, zonasDto]) => {
+        const loc = config.ubicacionLat != null && config.ubicacionLng != null
+          ? { lat: Number(config.ubicacionLat), lng: Number(config.ubicacionLng) }
+          : DEFAULT_RESTAURANT_LOCATION;
+        setRestaurantLocationState(loc);
+        ubicacionDireccionRef.current = config.ubicacionDireccion ?? null;
+        mostrarDireccionMenuRef.current = !!config.mostrarDireccionMenu;
+        setZones(zonasDto.map(dtoToZone));
+      })
+      .catch(() => triggerToast('Error al cargar las zonas de entrega.', 'error'))
+      .finally(() => setCargando(false));
+  };
+
+  const setRestaurantLocation = async (loc: LatLng) => {
+    setRestaurantLocationState(loc);
+    if (!token || !sId) return;
+    try {
+      await updateUbicacion(token, sId, {
+        ubicacionLat: loc.lat, ubicacionLng: loc.lng,
+        ubicacionDireccion: ubicacionDireccionRef.current, mostrarDireccionMenu: mostrarDireccionMenuRef.current,
+      });
+    } catch { triggerToast('Error al guardar la ubicación del negocio.', 'error'); }
+  };
+
+  const addZone = async (payload: Omit<DeliveryZone, 'id' | 'exclusions'>) => {
+    if (!token || !sId) return;
+    try {
+      const created = await createZonaEntrega(token, sId, toUpsertDto(payload));
+      setZones(prev => [...prev, dtoToZone(created)]);
+    } catch { triggerToast('Error al crear la zona.', 'error'); }
+  };
+
+  const updateZone = async (id: number, changes: Partial<DeliveryZone>) => {
+    if (!token) return;
+    const current = zones.find(z => z.id === id);
+    if (!current) return;
+    const merged = { ...current, ...changes };
+    try {
+      const updated = await updateZonaEntrega(token, id, toUpsertDto(merged));
+      setZones(prev => prev.map(z => (z.id === id ? { ...dtoToZone(updated), exclusions: z.exclusions } : z)));
+    } catch { triggerToast('Error al actualizar la zona.', 'error'); }
+  };
+
+  const removeZone = async (id: number) => {
+    if (!token) return;
+    try {
+      await deleteZonaEntrega(token, id);
+      setZones(prev => prev.filter(z => z.id !== id));
+    } catch { triggerToast('Error al eliminar la zona.', 'error'); }
+  };
+
+  const addExclusion = async (zoneId: number, exclusion: { center: LatLng; radiusKm: number }) => {
+    if (!token) return;
+    try {
+      const created = await addZonaExclusion(token, zoneId, {
+        centerLat: exclusion.center.lat, centerLng: exclusion.center.lng, radiusKm: exclusion.radiusKm,
+      });
+      setZones(prev => prev.map(z => (z.id === zoneId
+        ? { ...z, exclusions: [...z.exclusions, { id: created.id, center: { lat: created.centerLat, lng: created.centerLng }, radiusKm: created.radiusKm }] }
+        : z)));
+    } catch { triggerToast('Error al agregar la exclusión.', 'error'); }
+  };
+
+  const updateExclusion = async (zoneId: number, exclusionId: number, changes: Partial<ZoneExclusion>) => {
+    if (!token) return;
+    const zone = zones.find(z => z.id === zoneId);
+    const current = zone?.exclusions.find(e => e.id === exclusionId);
+    if (!current) return;
+    const merged = { ...current, ...changes };
+    try {
+      const updated = await updateZonaExclusion(token, exclusionId, {
+        centerLat: merged.center.lat, centerLng: merged.center.lng, radiusKm: merged.radiusKm,
+      });
+      setZones(prev => prev.map(z => (z.id === zoneId
+        ? { ...z, exclusions: z.exclusions.map(e => (e.id === exclusionId ? { id: updated.id, center: { lat: updated.centerLat, lng: updated.centerLng }, radiusKm: updated.radiusKm } : e)) }
+        : z)));
+    } catch { triggerToast('Error al actualizar la exclusión.', 'error'); }
+  };
+
+  const removeExclusion = async (zoneId: number, exclusionId: number) => {
+    if (!token) return;
+    try {
+      await deleteZonaExclusion(token, exclusionId);
+      setZones(prev => prev.map(z => (z.id === zoneId ? { ...z, exclusions: z.exclusions.filter(e => e.id !== exclusionId) } : z)));
+    } catch { triggerToast('Error al eliminar la exclusión.', 'error'); }
+  };
 
   const nextColor = useMemo(() => ZONE_COLORS[zones.length % ZONE_COLORS.length], [zones.length]);
 
@@ -192,7 +360,7 @@ export default function AreasEntregaTab() {
     setRestaurantLocation({ lat: e.latLng.lat(), lng: e.latLng.lng() });
   };
 
-  const handleExclusionDragEnd = (zone: DeliveryZone, exclusionId: string, e: google.maps.MapMouseEvent) => {
+  const handleExclusionDragEnd = (zone: DeliveryZone, exclusionId: number, e: google.maps.MapMouseEvent) => {
     if (!e.latLng) return;
     const point = { lat: e.latLng.lat(), lng: e.latLng.lng() };
     if (!isPointInsideZone(point, zone)) {
@@ -206,8 +374,20 @@ export default function AreasEntregaTab() {
     updateExclusion(zone.id, exclusionId, { center: point });
   };
 
+  if (cargando) {
+    return <div className="py-16 text-center text-xs text-slate-400">Cargando zonas de entrega...</div>;
+  }
+
   return (
     <div className="space-y-5">
+      {isSuperAdmin && sucursales.length > 0 && (
+        <div className="flex justify-end">
+          <Select value={sId ?? ''} onChange={e => { const id = Number(e.target.value); setSId(id); load(id); }}>
+            {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+          </Select>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
