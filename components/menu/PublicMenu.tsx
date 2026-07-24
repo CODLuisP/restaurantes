@@ -41,27 +41,13 @@ import type {
 } from "@/types";
 import { Modal, Button, Input, Select } from "@/components/ui";
 import { useJsApiLoader, Autocomplete } from "@react-google-maps/api";
+import {
+  getBannersPublico, getMenuPublico, getConfiguracionPublica, getSucursalPublica, getCierresPublico,
+  type ProductoMenuPublicoDto, type CategoriaMenuPublicoDto, type BannerPublicoDto,
+} from "@/lib/api/publico";
 
-interface ProductoMenu {
-  id: number;
-  nombre: string;
-  precio: number;
-  categoriaNombre: string;
-  descripcion: string;
-  imagenUrl: string;
-  variantes: { id: number; nombre: string; precio: number }[];
-}
-
-interface CategoriaMenu {
-  id: number;
-  nombre: string;
-  orden: number;
-}
-
-interface MenuApiResponse {
-  categorias: CategoriaMenu[];
-  productos: ProductoMenu[];
-}
+type ProductoMenu = ProductoMenuPublicoDto;
+type CategoriaMenu = CategoriaMenuPublicoDto;
 
 const CATEGORY_ICON_BG: Record<string, string> = {
   Entradas: "bg-emerald-100 text-emerald-700",
@@ -88,12 +74,7 @@ function productoToCartItem(p: ProductoMenu): Product {
   };
 }
 
-interface BannerPublico {
-  imagenUrl: string;
-  gradient?: string | null;
-}
-
-const API_PUBLICA = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5004";
+type BannerPublico = BannerPublicoDto;
 
 /** Vista pública de la carta con autoservicio para clientes. */
 export default function PublicMenu({
@@ -163,20 +144,20 @@ export default function PublicMenu({
 
   /* Carga desde API pública: productos, categorías, banners, config, sucursal, cierres. */
   useEffect(() => {
-    fetch(`${API_PUBLICA}/api/publico/banners?sucursalId=${sucursalId}`).then(r => r.json()).then(setBanners).catch(() => {});
-    fetch(`${API_PUBLICA}/api/publico/menu?sucursalId=${sucursalId}`).then(r => r.json()).then((data: MenuApiResponse) => {
+    getBannersPublico(sucursalId).then(setBanners).catch(() => {});
+    getMenuPublico(sucursalId).then((data) => {
       setProductos(data.productos ?? []); setCategorias(data.categorias ?? []);
     }).catch(() => {});
-    fetch(`${API_PUBLICA}/api/publico/configuracion?sucursalId=${sucursalId}`).then(r => r.json()).then(c => {
+    getConfiguracionPublica(sucursalId).then(c => {
       setBizLogo(c.logoUrl ?? '');
       setRedes({ instagram: c.instagram ?? '', facebook: c.facebook ?? '', tiktok: c.tiktok ?? '', sitio: c.sitioWeb ?? '', reviewsLink: c.reviewsLink ?? '' });
       setHorarios({ zonaHoraria: c.zonaHoraria ?? 'Peru (Lima)', tipoNegocio: c.tipoNegocio ?? 'Restaurante', descripcionCompleta: c.descripcionCompleta ?? '', whatsappPedidos: c.whatsappPedidos ?? '', schedule: c.horariosJson ? JSON.parse(c.horariosJson) : {} });
     }).catch(() => {});
-    fetch(`${API_PUBLICA}/api/publico/sucursal?sucursalId=${sucursalId}`).then(r => r.json()).then(s => {
+    getSucursalPublica(sucursalId).then(s => {
       setBizName(s.nombre ?? '');
       setBizAddress(s.direccion ?? '');
     }).catch(() => {});
-    fetch(`${API_PUBLICA}/api/publico/cierres?sucursalId=${sucursalId}`).then(r => r.json()).then(d => setCierres(Array.isArray(d) ? d : [])).catch(() => setCierres([]));
+    getCierresPublico(sucursalId).then(d => setCierres(Array.isArray(d) ? d : [])).catch(() => setCierres([]));
   }, [sucursalId]);
 
   useEffect(() => {

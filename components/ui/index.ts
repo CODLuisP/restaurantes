@@ -11,6 +11,8 @@ export { Input, Select }                       from './Input';
 
 export { Toggle }                              from './Toggle';
 
+export { SucursalSelector }                    from './SucursalSelector';
+
 export { Modal }                               from './Modal';
 export type { ModalSize }                      from './Modal';
 

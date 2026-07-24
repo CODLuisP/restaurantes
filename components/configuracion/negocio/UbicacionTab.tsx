@@ -1,28 +1,23 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useSession } from 'next-auth/react';
 import { GoogleMap, Autocomplete, Marker, useJsApiLoader } from '@react-google-maps/api';
 import { MapPin } from 'lucide-react';
 import { GOOGLE_MAPS_LOADER_ID, GOOGLE_MAPS_LIBRARIES } from '@/lib/googleMapsLoader';
-import { Toggle, Select, Button } from '@/components/ui';
+import { Toggle, Button, SucursalSelector } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
+import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import { getConfiguracion, updateUbicacion } from '@/lib/api/configuracion';
 import { ApiError } from '@/lib/api/client';
-import { getSucursales } from '@/lib/api/sucursales';
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 const DEFAULT_CENTER = { lat: -12.0464, lng: -77.0428 };
 
 export default function UbicacionTab() {
   const { isLoaded, loadError } = useJsApiLoader({ id: GOOGLE_MAPS_LOADER_ID, googleMapsApiKey: GOOGLE_MAPS_API_KEY ?? '', libraries: GOOGLE_MAPS_LIBRARIES });
-  const { data: session } = useSession();
   const { triggerToast } = useApp();
-  const token = session?.accessToken;
-  const isSuperAdmin = session?.user?.role === 'superadmin';
+  const { token, isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
-  const [sucursales, setSucursales] = useState<{ id: number; nombre: string }[]>([]);
-  const [sId, setSId] = useState<number | null>(null);
   const [direccion, setDireccion] = useState('');
   const [mostrarDireccion, setMostrarDireccion] = useState(false);
   const [posicion, setPosicion] = useState(DEFAULT_CENTER);
@@ -30,23 +25,13 @@ export default function UbicacionTab() {
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
 
   useEffect(() => {
-    if (!token) return;
-    getSucursales(token).then(lista => {
-      const activas = lista.filter(s => s.activo);
-      setSucursales(activas.map(s => ({ id: s.id, nombre: s.nombre })));
-      const id = session?.user?.sucursalId ?? activas[0]?.id;
-      if (id) { setSId(id); load(id); }
-    }).catch(() => {});
-  }, [token]);
-
-  const load = (id: number) => {
-    if (!token) return;
-    getConfiguracion(token, id).then(c => {
+    if (!token || !sId) return;
+    getConfiguracion(token, sId).then(c => {
       setDireccion(c.ubicacionDireccion || '');
       setMostrarDireccion(!!c.mostrarDireccionMenu);
       if (c.ubicacionLat && c.ubicacionLng) setPosicion({ lat: Number(c.ubicacionLat), lng: Number(c.ubicacionLng) });
     }).catch(() => {});
-  };
+  }, [token, sId]);
 
   const handleSave = async () => {
     if (!token || !sId) return;
@@ -86,13 +71,7 @@ export default function UbicacionTab() {
 
   return (
     <div className="space-y-4">
-      {isSuperAdmin && sucursales.length > 0 && (
-        <div className="flex justify-end">
-          <Select value={sId ?? ''} onChange={e => { const id = Number(e.target.value); setSId(id); load(id); }}>
-            {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-          </Select>
-        </div>
-      )}
+      <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sId} onChange={selectSucursal} />
 
       <p className="text-sm text-slate-600">Configura la ubicación de tu negocio en el mapa.</p>
 

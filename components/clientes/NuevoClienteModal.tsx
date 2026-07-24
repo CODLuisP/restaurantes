@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Modal, Button } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
-import { CLIENTES_API } from '@/hooks/clientes/clientesApi';
+import { createCliente } from '@/lib/api/clientes';
 import type { Cliente, CreateClienteDto, CreateClienteDireccionDto, NivelCliente, TipoDocumento } from '@/types/clientes';
 
 interface NuevoClienteModalProps {
@@ -52,7 +52,7 @@ export default function NuevoClienteModal({ open, onClose, onCreated }: NuevoCli
     setDirecciones(prev => prev.map((d, i) => i === idx ? { ...d, [field]: value } : d));
 
   const handleSubmit = async () => {
-    if (!form.nombre.trim()) return;
+    if (!form.nombre.trim() || !token) return;
     setSaving(true);
     try {
       const dto: CreateClienteDto = {
@@ -65,13 +65,7 @@ export default function NuevoClienteModal({ open, onClose, onCreated }: NuevoCli
         notas: form.notas.trim() || undefined,
         direcciones: direcciones.filter(d => d.direccion?.trim()),
       };
-      const res = await fetch(CLIENTES_API.create(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(dto),
-      });
-      if (!res.ok) throw new Error();
-      const cliente: Cliente = await res.json();
+      const cliente = await createCliente(token, dto);
       triggerToast('Cliente creado correctamente', 'success');
       onCreated(cliente);
       close();

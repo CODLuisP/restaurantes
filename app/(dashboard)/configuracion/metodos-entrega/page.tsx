@@ -1,14 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Truck, Check, ArrowRight } from 'lucide-react';
-import { Toggle, Select, Button } from '@/components/ui';
+import { Toggle, Button, SucursalSelector } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
+import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import { getConfiguracion, updateConfiguracion } from '@/lib/api/configuracion';
-import { getSucursales } from '@/lib/api/sucursales';
 
 type DeliveryMethodKey = 'mesa' | 'llevar' | 'delivery';
 
@@ -37,34 +36,20 @@ const METHODS = [
 ];
 
 export default function MetodosEntregaPage() {
-  const { data: session } = useSession();
   const { triggerToast } = useApp();
-  const token = session?.accessToken;
-  const isSuperAdmin = session?.user?.role === 'superadmin';
+  const { token, isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
-  const [sucursales, setSucursales] = useState<{ id: number; nombre: string }[]>([]);
-  const [sId, setSId] = useState<number | null>(null);
   const [methods, setMethods] = useState<DeliveryMethods>(DEFAULTS);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!token) return;
-    getSucursales(token).then(lista => {
-      const activas = lista.filter(s => s.activo);
-      setSucursales(activas.map(s => ({ id: s.id, nombre: s.nombre })));
-      const id = session?.user?.sucursalId ?? activas[0]?.id;
-      if (id) { setSId(id); load(id); }
-    }).catch(() => {});
-  }, [token]);
-
-  const load = (id: number) => {
-    if (!token) return;
-    getConfiguracion(token, id).then(c => {
+    if (!token || !sId) return;
+    getConfiguracion(token, sId).then(c => {
       if (c.metodosEntregaJson) {
         try { setMethods({ ...DEFAULTS, ...JSON.parse(c.metodosEntregaJson) }); } catch { setMethods(DEFAULTS); }
       } else setMethods(DEFAULTS);
     }).catch(() => setMethods(DEFAULTS));
-  };
+  }, [token, sId]);
 
   const save = async (updated: DeliveryMethods) => {
     if (!token || !sId) return;
@@ -90,13 +75,7 @@ export default function MetodosEntregaPage() {
 
   return (
     <div className="space-y-6">
-      {isSuperAdmin && sucursales.length > 0 && (
-        <div className="flex justify-end">
-          <Select value={sId ?? ''} onChange={e => { const id = Number(e.target.value); setSId(id); load(id); }}>
-            {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-          </Select>
-        </div>
-      )}
+      <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sId} onChange={selectSucursal} />
 
       <div className="flex items-center gap-3 pb-1">
         <div className="bg-brand p-2.5 rounded-xl shrink-0"><Truck className="h-5 w-5 text-white" /></div>

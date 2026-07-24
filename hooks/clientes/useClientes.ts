@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useApp } from '@/context/AppContext';
-import { CLIENTES_API } from './clientesApi';
+import { getClientes, getClienteById } from '@/lib/api/clientes';
+import { ApiError } from '@/lib/api/client';
 import type { Cliente } from '@/types/clientes';
 
 export function useClientes(enabled: boolean = true) {
@@ -13,47 +14,39 @@ export function useClientes(enabled: boolean = true) {
   const [loading, setLoading] = useState(false);
 
   const token = session?.accessToken;
-  const sessionError = (session as any)?.error;
+  const sessionError = session?.error;
 
   const fetchClientes = useCallback(async () => {
     if (!token || sessionError) return;
     setLoading(true);
     try {
-      const res = await fetch(CLIENTES_API.getAll(), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.status === 401) { triggerToast('Sesión expirada, vuelve a iniciar sesión', 'error'); return; }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: Cliente[] = await res.json();
+      const data = await getClientes(token);
       setClientes(data);
       return data;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : '';
-      if (msg && !msg.includes('Failed to fetch')) {
-        triggerToast('Error al cargar clientes', 'error');
+      if (err instanceof ApiError && err.status === 401) {
+        triggerToast('Sesión expirada, vuelve a iniciar sesión', 'error');
+        return;
       }
+      triggerToast('Error al cargar clientes', 'error');
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, sessionError, triggerToast]);
 
   const fetchClienteById = useCallback(async (id: number): Promise<Cliente | null> => {
     if (!token) return null;
     try {
-      const res = await fetch(CLIENTES_API.getById(id), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error();
-      return await res.json();
+      return await getClienteById(token, id);
     } catch {
       triggerToast('Error al obtener el cliente', 'error');
       return null;
     }
-  }, [token]);
+  }, [token, triggerToast]);
 
   useEffect(() => {
     if (token && enabled && !sessionError) fetchClientes();
-  }, [token, enabled, sessionError]);
+  }, [token, enabled, sessionError, fetchClientes]);
 
   return { clientes, setClientes, loading, fetchClientes, fetchClienteById };
 }

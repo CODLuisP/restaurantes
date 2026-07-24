@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
 import { Wallet, Banknote, CreditCard, Smartphone, Landmark, QrCode, CheckCircle2, Settings2, ImageOff } from 'lucide-react';
-import { Toggle, Input, Select, Button } from '@/components/ui';
+import { Toggle, Input, Button, SucursalSelector } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
+import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import { getConfiguracion, updateConfiguracion } from '@/lib/api/configuracion';
-import { getSucursales } from '@/lib/api/sucursales';
 import QrPosterModal from '@/components/configuracion/metodos-pago/QrPosterModal';
 
 type MethodBrand = 'efectivo' | 'tarjeta' | 'yape' | 'plin' | 'transferencia';
@@ -28,40 +27,23 @@ const DEFAULTS: PaymentMethods = {
 };
 
 export default function MetodosPagoPage() {
-  const { data: session } = useSession();
   const { triggerToast } = useApp();
-  const token = session?.accessToken;
-  const isSuperAdmin = session?.user?.role === 'superadmin';
+  const { token, isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
-  const [sucursales, setSucursales] = useState<{ id: number; nombre: string }[]>([]);
-  const [sId, setSId] = useState<number | null>(null);
   const [methods, setMethods] = useState<PaymentMethods>(DEFAULTS);
   const [saving, setSaving] = useState(false);
   const [posterBrand, setPosterBrand] = useState<'yape' | 'plin' | null>(null);
-  const [bizName, setBizName] = useState('');
+
+  const bizName = sucursales.find(s => s.id === sId)?.nombre ?? '';
 
   useEffect(() => {
-    if (!token) return;
-    getSucursales(token).then(lista => {
-      const activas = lista.filter(s => s.activo);
-      setSucursales(activas.map(s => ({ id: s.id, nombre: s.nombre })));
-      const id = session?.user?.sucursalId ?? activas[0]?.id;
-      if (id) { setSId(id); load(id); }
-    }).catch(() => {});
-  }, [token]);
-
-  const load = (id: number) => {
-    if (!token) return;
-    getConfiguracion(token, id).then(c => {
+    if (!token || !sId) return;
+    getConfiguracion(token, sId).then(c => {
       if (c.metodosPagoJson) {
         try { setMethods({ ...DEFAULTS, ...JSON.parse(c.metodosPagoJson) }); } catch { setMethods(DEFAULTS); }
       } else setMethods(DEFAULTS);
-      getSucursales(token).then(lista => {
-        const s = lista.find(x => x.id === id);
-        if (s) setBizName(s.nombre);
-      }).catch(() => {});
     }).catch(() => setMethods(DEFAULTS));
-  };
+  }, [token, sId]);
 
   const save = async (updated: PaymentMethods) => {
     if (!token || !sId) return;
@@ -85,13 +67,7 @@ export default function MetodosPagoPage() {
 
   return (
     <div className="space-y-6">
-      {isSuperAdmin && sucursales.length > 0 && (
-        <div className="flex justify-end">
-          <Select value={sId ?? ''} onChange={e => { const id = Number(e.target.value); setSId(id); load(id); }}>
-            {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-          </Select>
-        </div>
-      )}
+      <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sId} onChange={selectSucursal} />
 
       <div className="flex items-center gap-3 pb-1">
         <div className="bg-brand p-2.5 rounded-xl shrink-0"><Wallet className="h-5 w-5 text-white" /></div>

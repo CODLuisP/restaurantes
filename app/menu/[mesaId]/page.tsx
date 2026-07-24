@@ -2,8 +2,7 @@
 
 import { use, useState, useEffect } from 'react';
 import PublicMenu from '@/components/menu/PublicMenu';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5004';
+import { getMesaPublica } from '@/lib/api/publico';
 
 export default function MenuPublicoMesa({ params }: { params: Promise<{ mesaId: string }> }) {
   const { mesaId } = use(params);
@@ -11,8 +10,7 @@ export default function MenuPublicoMesa({ params }: { params: Promise<{ mesaId: 
   const [sucursalId, setSucursalId] = useState<number | undefined>(undefined);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/publico/mesas/${mesaId}`)
-      .then(r => r.json())
+    getMesaPublica(mesaId)
       .then(data => { if (data?.sucursalId) setSucursalId(data.sucursalId); })
       .catch(() => {});
   }, [mesaId]);
