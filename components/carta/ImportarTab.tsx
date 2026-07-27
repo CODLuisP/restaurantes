@@ -167,6 +167,8 @@ export default function ImportarTab() {
         <Sparkles className="w-4 h-4 text-brand" />
         <p className="text-sm font-semibold text-slate-700">Importar con IA</p>
       </div>
+
+
       <p className="text-xs text-slate-500 mb-6">
         Sube una foto de un plato, postre o bebida y la IA sugerirá el nombre y la descripción para tu carta.
       </p>
