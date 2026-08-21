@@ -1,28 +1,20 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { MOCK_PRODUCTS, MOCK_CUSTOMERS, INITIAL_KITCHEN_ORDERS, INITIAL_SALES_HISTORY, INITIAL_ACTIVE_ORDERS } from '@/data/mockData';
+import { createContext, useContext, useState, useMemo, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
+import { MOCK_PRODUCTS, MOCK_CUSTOMERS, INITIAL_SALES_HISTORY } from '@/data/mockData';
 import type {
-  Product, Table, Piso, Customer, KitchenOrder, OrderItem, Toast, SalesHistory,
+  Product, Table, Customer, OrderItem, Toast, SalesHistory,
   CashSession, CashMovement, CashMovementType, DocType, ActiveOrder, ChargeInput,
 } from '@/types';
-
-const CAJA_KEY = 'restopro.caja';
-const CAJA_HISTORY_KEY = 'restopro.caja.history';
-const PISOS_KEY = 'restopro.pisos';
-const TABLES_KEY = 'restopro.tables';
-
-/** Combina items existentes de una mesa con los nuevos, sumando cantidades. */
-function mergeItems(existing: OrderItem[] = [], incoming: OrderItem[]): OrderItem[] {
-  const map = new Map<string, OrderItem>();
-  for (const it of existing) map.set(it.product.id, { ...it });
-  for (const it of incoming) {
-    const cur = map.get(it.product.id);
-    if (cur) cur.quantity += it.quantity;
-    else map.set(it.product.id, { ...it });
-  }
-  return Array.from(map.values());
-}
+import { useToasts } from '@/hooks/app/useToasts';
+import { useCajaTurno } from '@/hooks/app/useCajaTurno';
+import { useMesasCatalogo } from '@/hooks/mesas/useMesasCatalogo';
+import { useActiveOrders } from '@/hooks/comandero/useActiveOrders';
+import { usePedidoEvents } from '@/hooks/realtime/usePedidoEvents';
+import { pedidoLabel } from '@/components/cocina/types';
+import type { TurnoCajaDto } from '@/lib/api/turnosCaja';
+import type { PedidoDto } from '@/lib/api/pedidos';
 
 interface KpiStats {
   ventasDia: number;
@@ -34,18 +26,14 @@ interface KpiStats {
 
 interface AppContextType {
   products: Product[];
-  pisos: Piso[];
   tables: Table[];
+  mesasLoading: boolean;
   setTables: React.Dispatch<React.SetStateAction<Table[]>>;
-  /** Crea un nuevo piso/salón (p. ej. "Piso 1", "Terraza"). */
-  addPiso: (name: string) => void;
-  /** Elimina un piso; solo si no tiene mesas asignadas. */
-  removePiso: (pisoId: string) => void;
-  /** Agrega una mesa a un piso, identificada por número o letra. */
-  addTable: (pisoId: string, name: string, capacidad: number) => void;
-  /** Elimina una mesa; solo si está disponible (sin consumo pendiente). */
-  removeTable: (tableId: string) => void;
-  /** Reubica una mesa en el plano del salón. */
+  /** Admin: crea una mesa en el backend (compartida entre todos los dispositivos). */
+  addTable: (ubicacion: string, numero: string, capacidad: number) => Promise<void>;
+  /** Admin: elimina una mesa del backend; solo si está libre (sin consumo pendiente). */
+  removeTable: (tableId: string) => Promise<void>;
+  /** Reubica una mesa en el plano del salón (solo visual, no persiste en el backend). */
   moveTable: (tableId: string, x: number, y: number) => void;
   /** Une varias mesas disponibles en un solo grupo que se opera como una mesa. */
   mergeTables: (tableIds: string[]) => void;
@@ -56,7 +44,6 @@ interface AppContextType {
   addCustomer: (data: { nombre: string; telefono: string; email: string }) => void;
   /** Elimina un cliente del CRM. */
   removeCustomer: (id: string) => void;
-  kitchenOrders: KitchenOrder[];
   salesHistory: SalesHistory[];
   toasts: Toast[];
   triggerToast: (message: string, type?: Toast['type']) => void;
@@ -64,159 +51,103 @@ interface AppContextType {
   searchQuery: string;
   setSearchQuery: (q: string) => void;
   kpiStats: KpiStats;
-  /** Mozo: toma una comanda y la envía a cocina; acumula el consumo en la mesa. */
-  sendOrderToKitchen: (tableName: string, items: OrderItem[], waiter?: string) => void;
+  /** Mozo: toma (o completa) la comanda de una mesa y la envía a cocina en tiempo real. */
+  sendOrderToKitchen: (tableName: string, nombreComensal: string | undefined, items: OrderItem[]) => Promise<boolean>;
   /** Ajusta la cantidad de un ítem YA enviado de una mesa (edición post-envío). Si llega a 0, se quita. */
-  updateTableItemQty: (tableName: string, productId: string, delta: number) => void;
+  updateTableItemQty: (tableName: string, pedidoItemId: string, delta: number) => Promise<void>;
   /** Quita por completo un ítem ya enviado de una mesa. */
-  removeTableItem: (tableName: string, productId: string) => void;
-  /** Pedidos que no ocupan mesa (para llevar / delivery), pendientes de cobro. */
+  removeTableItem: (tableName: string, pedidoItemId: string) => Promise<void>;
+  /** Cancela la comanda completa de una mesa y la libera. */
+  cancelTableOrder: (tableName: string) => Promise<void>;
+  /** El mozo confirma un pedido que armó el cliente por QR — recién ahí se manda a cocina. */
+  confirmarPedidoCliente: (tableName: string) => Promise<void>;
+  /** Pedidos que no ocupan mesa (para llevar / delivery), pendientes de cobro. Vienen del backend real. */
   activeOrders: ActiveOrder[];
-  /** Crea un pedido para llevar o delivery y lo envía a cocina. */
+  activeOrdersLoading: boolean;
+  /** Crea un pedido para llevar o delivery contra el backend y lo envía a cocina en tiempo real. */
   createOrder: (
     type: 'llevar' | 'delivery',
     info: { customer: string; phone?: string; address?: string },
-    items: OrderItem[],
-    waiter?: string
-  ) => void;
-  /** Agrega ítems adicionales a un pedido de llevar/delivery ya creado (envía una comanda extra a cocina). */
-  addItemsToActiveOrder: (orderId: string, items: OrderItem[], waiter?: string) => void;
+    items: OrderItem[]
+  ) => Promise<ActiveOrder | null>;
+  /** Agrega ítems adicionales a un pedido de llevar/delivery ya creado. */
+  addItemsToActiveOrder: (orderId: string, items: OrderItem[]) => Promise<boolean>;
   /** Ajusta la cantidad de un ítem YA enviado de un pedido de llevar/delivery. Si llega a 0, se quita. */
-  updateActiveOrderItemQty: (orderId: string, productId: string, delta: number) => void;
+  updateActiveOrderItemQty: (orderId: string, pedidoItemId: string, delta: number) => Promise<void>;
   /** Quita por completo un ítem ya enviado de un pedido de llevar/delivery. */
-  removeActiveOrderItem: (orderId: string, productId: string) => void;
+  removeActiveOrderItem: (orderId: string, pedidoItemId: string) => Promise<void>;
   /** Cancela por completo un pedido de llevar/delivery activo (antes de cobrarlo). */
-  cancelActiveOrder: (orderId: string) => void;
+  cancelActiveOrder: (orderId: string) => Promise<void>;
+  /** El mozo confirma un pedido de llevar/delivery armado por el cliente — recién ahí se manda a cocina. */
+  confirmarActiveOrder: (orderId: string) => Promise<void>;
   /** Cobra un pedido para llevar / delivery (o una parte, en cuentas separadas), emite comprobante y lo cierra. */
   chargeOrder: (orderId: string, input: ChargeInput) => SalesHistory | null;
   /** Cajero: cobra el consumo de una mesa (o una parte, en cuentas separadas), emite comprobante y la libera. */
   chargeTable: (tableName: string, input: ChargeInput) => SalesHistory | null;
-  /** Cambia el estado de una mesa (reservar / liberar). No toca el consumo salvo al liberar. */
-  setTableStatus: (tableId: string, status: Table['status']) => void;
-  changeKitchenStatus: (orderId: string, nextStatus: KitchenOrder['status']) => void;
-  /** El mozo confirma la entrega de una comanda lista (la saca de la cola). */
-  dispatchOrder: (orderId: string) => void;
+  /** Reserva o libera una mesa disponible (no toca consumo). */
+  setTableStatus: (tableId: string, status: 'disponible' | 'reservada') => Promise<void>;
   /* ── Caja ── */
   cashSession: CashSession | null;
   cajaHistory: CashSession[];
+  cajaLoading: boolean;
   isCajaOpen: boolean;
+  /** ¿Hay caja abierta en el local, de cualquier cajero? Úsalo para gates de acceso (ej. mozos); `isCajaOpen` es el turno propio. */
+  sucursalCajaAbierta: boolean;
+  /** Turno abierto en el local (de cualquier cajero), con sus datos — null si no hay ninguno. */
+  sucursalTurnoActivo: TurnoCajaDto | null;
+  /** true si ese turno quedó abierto desde un día calendario anterior (se olvidaron de cerrarlo). */
+  sucursalTurnoStale: boolean;
   cajaExpectedCash: number;
-  openCaja: (openingAmount: number, by: string) => void;
-  closeCaja: (countedAmount: number, by: string) => CashSession | null;
-  addCashMovement: (type: CashMovementType, amount: number, reason: string, by: string) => void;
+  openCaja: (openingAmount: number, by: string) => Promise<void>;
+  closeCaja: (countedAmount: number, by: string) => Promise<CashSession | null>;
+  addCashMovement: (type: CashMovementType, amount: number, reason: string, by: string) => Promise<void>;
+  loadCajaHistory: (desde: string, hasta: string) => Promise<void>;
+  /** Admin: cierra un turno ajeno que quedó pendiente (stale) para desbloquear la apertura de uno nuevo. */
+  cerrarTurnoAjeno: (turnoId: number, countedAmount: number, by: string) => Promise<void>;
   addManualSale: (sale: SalesHistory) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const { data: authSession } = useSession();
+  const isMozo = authSession?.user?.role?.trim().toLowerCase() === 'mozo';
+
   const [products] = useState<Product[]>(MOCK_PRODUCTS);
-  const [pisos, setPisos] = useState<Piso[]>([]);
-  const [tables, setTables] = useState<Table[]>([]);
   const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
-  const [kitchenOrders, setKitchenOrders] = useState<KitchenOrder[]>(INITIAL_KITCHEN_ORDERS);
   const [salesHistory, setSalesHistory] = useState<SalesHistory[]>(INITIAL_SALES_HISTORY);
-  const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>(INITIAL_ACTIVE_ORDERS);
   const [docSeq, setDocSeq] = useState<Record<'Boleta' | 'Factura', number>>({ Boleta: 105, Factura: 32 });
-  const [toasts, setToasts] = useState<Toast[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [cashSession, setCashSession] = useState<CashSession | null>(null);
-  const [cajaHistory, setCajaHistory] = useState<CashSession[]>([]);
 
-  /* Hidratar caja, distribución de mesas, comandas activas y de cocina desde localStorage */
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(CAJA_KEY);
-      if (stored) setCashSession(JSON.parse(stored));
-      const storedHistory = localStorage.getItem(CAJA_HISTORY_KEY);
-      if (storedHistory) setCajaHistory(JSON.parse(storedHistory));
-      const storedPisos = localStorage.getItem(PISOS_KEY);
-      if (storedPisos) setPisos(JSON.parse(storedPisos));
-      const storedTables = localStorage.getItem(TABLES_KEY);
-      if (storedTables) setTables(JSON.parse(storedTables));
-      const storedActive = localStorage.getItem('restopro.activeOrders');
-      if (storedActive) setActiveOrders(JSON.parse(storedActive));
-      const storedKitchen = localStorage.getItem('restopro.kitchenOrders');
-      if (storedKitchen) setKitchenOrders(JSON.parse(storedKitchen));
-    } catch {
-      /* ignora datos corruptos */
+  const { toasts, triggerToast, dismissToast } = useToasts();
+  const caja = useCajaTurno(triggerToast);
+  const {
+    tables, setTables, mesasLoading, addTable, removeTable, setTableStatus,
+    sendOrderToKitchen, updateTableItemQty, removeTableItem, cancelTableOrder, closeTableAfterCharge,
+    confirmarPedidoCliente,
+  } = useMesasCatalogo(triggerToast);
+  const {
+    activeOrders, activeOrdersLoading, createActiveOrder, addItemsToActiveOrder,
+    updateActiveOrderItemQty, removeActiveOrderItem, cancelActiveOrder, closeActiveOrderAfterCharge,
+    confirmarActiveOrder,
+  } = useActiveOrders(triggerToast);
+
+  /* Aviso en vivo a todo mozo: cuando cocina marca un pedido como "listo", cualquiera puede recogerlo y servirlo. */
+  const onPedidoListoParaMozo = useCallback((pedido: PedidoDto) => {
+    if (pedido.estado === 'listo' && isMozo) {
+      triggerToast(`🔔 ${pedidoLabel(pedido)} lista para servir.`, 'info');
     }
-  }, []);
+  }, [isMozo, triggerToast]);
+  usePedidoEvents(onPedidoListoParaMozo);
 
-  /* Escuchador para sincronización en tiempo real entre pestañas (ej. pedidos de clientes) */
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      try {
-        if (e.key === TABLES_KEY) {
-          const storedTables = localStorage.getItem(TABLES_KEY);
-          if (storedTables) setTables(JSON.parse(storedTables));
-        }
-        if (e.key === 'restopro.activeOrders') {
-          const storedActive = localStorage.getItem('restopro.activeOrders');
-          if (storedActive) setActiveOrders(JSON.parse(storedActive));
-        }
-        if (e.key === 'restopro.kitchenOrders') {
-          const storedKitchen = localStorage.getItem('restopro.kitchenOrders');
-          if (storedKitchen) setKitchenOrders(JSON.parse(storedKitchen));
-        }
-      } catch {}
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
-
-  /* Persistir distribución de mesas (solo cliente) */
-  useEffect(() => {
-    try { localStorage.setItem(PISOS_KEY, JSON.stringify(pisos)); } catch {}
-  }, [pisos]);
-
-  useEffect(() => {
-    try { localStorage.setItem(TABLES_KEY, JSON.stringify(tables)); } catch {}
-  }, [tables]);
-
-  useEffect(() => {
-    try { localStorage.setItem('restopro.activeOrders', JSON.stringify(activeOrders)); } catch {}
-  }, [activeOrders]);
-
-  useEffect(() => {
-    try { localStorage.setItem('restopro.kitchenOrders', JSON.stringify(kitchenOrders)); } catch {}
-  }, [kitchenOrders]);
-
-  const persistCaja = useCallback((session: CashSession | null) => {
-    setCashSession(session);
-    try {
-      if (session) localStorage.setItem(CAJA_KEY, JSON.stringify(session));
-      else localStorage.removeItem(CAJA_KEY);
-    } catch {}
-  }, []);
-
-  const persistCajaHistory = useCallback((history: CashSession[]) => {
-    setCajaHistory(history);
-    try { localStorage.setItem(CAJA_HISTORY_KEY, JSON.stringify(history)); } catch {}
-  }, []);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setKitchenOrders(prev =>
-        prev.map(order =>
-          order.status !== 'listo' ? { ...order, elapsed: order.elapsed + 1 } : order
-        )
-      );
-    }, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const triggerToast = useCallback((message: string, type: Toast['type'] = 'success') => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, 4000);
-  }, []);
-
-  const dismissToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  }, []);
+  /* Aviso en vivo a todo mozo/admin: el cliente armó (o completó) un pedido por el menú público
+     (mesa, llevar o delivery) y hay que revisarlo/confirmarlo antes de que se mande a cocina. */
+  const onPedidoPorConfirmar = useCallback((pedido: PedidoDto) => {
+    if (pedido.estado === 'pendiente_confirmacion') {
+      triggerToast(`🔔 ${pedidoLabel(pedido)} — pedido nuevo del cliente, ve a confirmarlo.`, 'warning');
+    }
+  }, [triggerToast]);
+  usePedidoEvents(onPedidoPorConfirmar);
 
   const kpiStats = useMemo<KpiStats>(() => {
     const historicalTotal = salesHistory.reduce((sum, item) => sum + item.total, 0);
@@ -226,8 +157,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const totalVentasDia = historicalTotal + activeTablesTotal;
     const occupiedCount = tables.filter(t => t.status === 'ocupada').length;
-    const pedidosActivos =
-      kitchenOrders.filter(o => o.status !== 'listo').length + occupiedCount;
+    const pedidosActivos = occupiedCount + activeOrders.length;
     const ticketPromedio =
       totalVentasDia / (salesHistory.length + occupiedCount || 1);
 
@@ -238,7 +168,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ticketPromedio,
       clientesAtendidos: customers.length + 42,
     };
-  }, [salesHistory, tables, kitchenOrders, customers]);
+  }, [salesHistory, tables, activeOrders, customers]);
 
   /* ── CRM: alta y baja de clientes ─────────────────────────── */
   const addCustomer = useCallback((data: { nombre: string; telefono: string; email: string }) => {
@@ -261,87 +191,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     triggerToast('Cliente eliminado.', 'info');
   }, [triggerToast]);
 
-  /* ── MOZO: tomar comanda y enviarla a cocina ──────────────── */
-  const sendOrderToKitchen = useCallback(
-    (tableName: string, items: OrderItem[], waiter?: string) => {
-      if (items.length === 0) {
-        triggerToast('La comanda está vacía. Agregue platos antes de enviar.', 'warning');
-        return;
-      }
-      if (!cashSession || cashSession.status !== 'abierta') {
-        triggerToast('La caja está cerrada. No se pueden tomar pedidos hasta que se aperture.', 'error');
-        return;
-      }
-
-      const now = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
-
-      /* Comanda hacia el KDS de cocina */
-      const newKitchenOrder: KitchenOrder = {
-        id: `ko${Math.floor(200 + Math.random() * 800)}`,
-        table: tableName,
-        items: items.map(i => ({ name: i.product.name, quantity: i.quantity })),
-        status: 'pendiente',
-        time: now,
-        elapsed: 0,
-        waiter,
-      };
-      setKitchenOrders(prev => [...prev, newKitchenOrder]);
-
-      /* Acumular el consumo en la mesa (mezcla con lo ya pedido) */
-      setTables(prev =>
-        prev.map(t => {
-          if (t.name !== tableName) return t;
-          const merged = mergeItems(t.items, items);
-          const cuenta = merged.reduce((acc, i) => acc + i.product.price * i.quantity, 0);
-          return { ...t, status: 'ocupada', items: merged, cuenta, waiter: waiter ?? t.waiter };
-        })
-      );
-
-      triggerToast(`Comanda de ${tableName} enviada a cocina.`, 'success');
-    },
-    [triggerToast, cashSession]
-  );
-
-  /** Edita la comanda ya enviada de una mesa (el mozo corrige lo pedido antes de cobrar). */
-  const updateTableItemQty = useCallback(
-    (tableName: string, productId: string, delta: number) => {
-      setTables(prev =>
-        prev.map(t => {
-          if (t.name !== tableName) return t;
-          const items = (t.items ?? [])
-            .map(i => (i.product.id === productId ? { ...i, quantity: i.quantity + delta } : i))
-            .filter(i => i.quantity > 0);
-          const cuenta = items.reduce((acc, i) => acc + i.product.price * i.quantity, 0);
-          return items.length === 0
-            ? { ...t, status: 'disponible', items: [], cuenta: 0, waiter: undefined }
-            : { ...t, items, cuenta };
-        })
-      );
-    },
-    []
-  );
-
-  const removeTableItem = useCallback(
-    (tableName: string, productId: string) => {
-      setTables(prev =>
-        prev.map(t => {
-          if (t.name !== tableName) return t;
-          const items = (t.items ?? []).filter(i => i.product.id !== productId);
-          const cuenta = items.reduce((acc, i) => acc + i.product.price * i.quantity, 0);
-          return items.length === 0
-            ? { ...t, status: 'disponible', items: [], cuenta: 0, waiter: undefined }
-            : { ...t, items, cuenta };
-        })
-      );
-      triggerToast('Ítem quitado de la comanda.', 'info');
-    },
-    [triggerToast]
-  );
-
   /* ── CAJERO: cobrar el consumo de la mesa y emitir comprobante ── */
   const chargeTable = useCallback(
     (tableName: string, input: ChargeInput): SalesHistory | null => {
-      if (!cashSession || cashSession.status !== 'abierta') {
+      if (!caja.cashSession || caja.cashSession.status !== 'abierta') {
         triggerToast('No se puede cobrar: la caja está cerrada.', 'error');
         return null;
       }
@@ -384,22 +237,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       setSalesHistory(prev => [sale, ...prev]);
 
-      /* Alimentar la caja según método de pago */
-      persistCaja({
-        ...cashSession,
-        cashSales:    cashSession.cashSales    + (input.method === 'Efectivo'    ? amount : 0),
-        cardSales:    cashSession.cardSales    + (input.method === 'Tarjeta'     ? amount : 0),
-        digitalSales: cashSession.digitalSales + (input.method === 'Yape / Plin' ? amount : 0),
-        salesCount:   cashSession.salesCount + 1,
+      /* Alimentar la caja según método de pago (provisional: hasta que Cobrar registre
+         ventas reales contra el backend, esto solo refleja el mock local). */
+      caja.setCashSession(prev => prev && {
+        ...prev,
+        cashSales:    prev.cashSales    + (input.method === 'Efectivo'    ? amount : 0),
+        cardSales:    prev.cardSales    + (input.method === 'Tarjeta'     ? amount : 0),
+        digitalSales: prev.digitalSales + (input.method === 'Yape / Plin' ? amount : 0),
+        salesCount:   prev.salesCount + 1,
       });
 
-      /* Liberar la mesa solo cuando se salda la cuenta completa. */
+      /* Liberar la mesa (cierra la sesión real) solo cuando se salda la cuenta completa. */
       if (closeAfter) {
-        setTables(prev =>
-          prev.map(t =>
-            t.name === tableName ? { ...t, status: 'disponible', items: [], cuenta: 0, waiter: undefined } : t
-          )
-        );
+        closeTableAfterCharge(tableName);
       }
 
       const docLabel = comprobante ? `${input.docType} ${comprobante}` : 'Nota de venta';
@@ -409,87 +259,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       );
       return sale;
     },
-    [triggerToast, cashSession, tables, docSeq, persistCaja]
+    [triggerToast, caja.cashSession, tables, docSeq, closeTableAfterCharge]
   );
 
-  const setTableStatus = useCallback(
-    (tableId: string, status: Table['status']) => {
-      setTables(prev =>
-        prev.map(t =>
-          t.id === tableId
-            ? { ...t, status, ...(status === 'disponible' ? { items: [], cuenta: 0, waiter: undefined } : {}) }
-            : t
-        )
-      );
-      triggerToast(`Mesa marcada como ${status}.`, 'info');
-    },
-    [triggerToast]
-  );
-
-  /* ── Gestión de pisos y mesas ──────────────────────────────── */
-  const addPiso = useCallback(
-    (name: string) => {
-      const trimmed = name.trim();
-      if (!trimmed) {
-        triggerToast('Ingrese un nombre para el salón.', 'warning');
-        return;
-      }
-      const id = `piso-${Date.now().toString(36)}`;
-      setPisos(prev => [...prev, { id, name: trimmed }]);
-      triggerToast(`Salón "${trimmed}" creado.`, 'success');
-    },
-    [triggerToast]
-  );
-
-  const removePiso = useCallback(
-    (pisoId: string) => {
-      const hasTables = tables.some(t => t.pisoId === pisoId);
-      if (hasTables) {
-        triggerToast('No se puede eliminar un salón con mesas asignadas.', 'error');
-        return;
-      }
-      setPisos(prev => prev.filter(p => p.id !== pisoId));
-    },
-    [tables, triggerToast]
-  );
-
-  const addTable = useCallback(
-    (pisoId: string, name: string, capacidad: number) => {
-      const trimmed = name.trim();
-      if (!trimmed) {
-        triggerToast('Ingrese un número o letra para identificar la mesa.', 'warning');
-        return;
-      }
-      if (tables.some(t => t.pisoId === pisoId && t.name.toLowerCase() === trimmed.toLowerCase())) {
-        triggerToast(`Ya existe una mesa "${trimmed}" en este salón.`, 'warning');
-        return;
-      }
-      const id = `mesa-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
-      /* Posición por defecto: se distribuye en cuadrícula dentro del plano. */
-      const count = tables.filter(t => t.pisoId === pisoId).length;
-      const x = 24 + (count % 5) * 150;
-      const y = 24 + Math.floor(count / 5) * 160;
-      setTables(prev => [...prev, { id, pisoId, name: trimmed, capacidad, status: 'disponible', cuenta: 0, x, y }]);
-      triggerToast(`Mesa "${trimmed}" agregada.`, 'success');
-    },
-    [tables, triggerToast]
-  );
-
-  const removeTable = useCallback(
-    (tableId: string) => {
-      const table = tables.find(t => t.id === tableId);
-      if (table && table.status !== 'disponible') {
-        triggerToast('No se puede eliminar una mesa ocupada o reservada.', 'error');
-        return;
-      }
-      setTables(prev => prev.filter(t => t.id !== tableId));
-    },
-    [tables, triggerToast]
-  );
-
+  /* ── Plano de mesas: reubicar/unir (solo visual, no persiste en backend) ── */
   const moveTable = useCallback((tableId: string, x: number, y: number) => {
     setTables(prev => prev.map(t => (t.id === tableId ? { ...t, x, y } : t)));
-  }, []);
+  }, [setTables]);
 
   const mergeTables = useCallback(
     (tableIds: string[]) => {
@@ -518,7 +294,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const cap = selected.reduce((sum, t) => sum + t.capacidad, 0);
       triggerToast(`Mesas unidas — capacidad combinada de ${cap} personas.`, 'success');
     },
-    [tables, triggerToast]
+    [tables, triggerToast, setTables]
   );
 
   const unmergeTable = useCallback(
@@ -542,143 +318,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       );
       triggerToast('Mesas separadas.', 'info');
     },
-    [tables, triggerToast]
+    [tables, triggerToast, setTables]
   );
 
   /* ── Pedidos para llevar / delivery ───────────────────────── */
+  /** Crea el pedido en el backend y lo manda a cocina en tiempo real. */
   const createOrder = useCallback(
-    (
-      type: 'llevar' | 'delivery',
-      info: { customer: string; phone?: string; address?: string },
-      items: OrderItem[],
-      waiter?: string
-    ) => {
-      if (items.length === 0) {
-        triggerToast('El pedido está vacío. Agregue platos antes de enviar.', 'warning');
-        return;
-      }
-      if (!cashSession || cashSession.status !== 'abierta') {
+    async (type: 'llevar' | 'delivery', info: { customer: string; phone?: string; address?: string }, items: OrderItem[]) => {
+      // Ojo: se valida contra la caja del LOCAL (cualquier cajero), no la personal del usuario
+      // logueado — un mozo nunca abre su propia caja, pero sí puede tomar pedidos mientras
+      // el cajero/admin la tenga abierta. Ver caja.sucursalCajaAbierta.
+      if (!caja.sucursalCajaAbierta) {
         triggerToast('La caja está cerrada. No se pueden tomar pedidos hasta aperturarla.', 'error');
-        return;
+        return null;
       }
-      const now = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
-      const total = items.reduce((a, i) => a + i.product.price * i.quantity, 0);
-      const itemsCount = items.reduce((a, i) => a + i.quantity, 0);
-      const id = `${type === 'llevar' ? 'PL' : 'DL'}-${Math.floor(200 + Math.random() * 800)}`;
-
-      const order: ActiveOrder = {
-        id,
-        type,
-        customer: info.customer.trim() || (type === 'llevar' ? 'Cliente mostrador' : 'Cliente delivery'),
-        phone: info.phone,
-        address: info.address,
-        items,
-        total,
-        itemsCount,
-        waiter,
-        createdAt: now,
-      };
-      setActiveOrders(prev => [order, ...prev]);
-
-      /* Comanda hacia cocina, etiquetada por tipo */
-      const ko: KitchenOrder = {
-        id: `ko${Math.floor(200 + Math.random() * 800)}`,
-        table: type === 'llevar' ? `Llevar · ${id}` : `Delivery · ${id}`,
-        items: items.map(i => ({ name: i.product.name, quantity: i.quantity })),
-        status: 'pendiente',
-        time: now,
-        elapsed: 0,
-        waiter,
-      };
-      setKitchenOrders(prev => [...prev, ko]);
-
-      triggerToast(`Pedido ${type === 'llevar' ? 'para llevar' : 'delivery'} ${id} enviado a cocina.`, 'success');
+      return createActiveOrder(type, info, items);
     },
-    [cashSession, triggerToast]
-  );
-
-  /** Agrega ítems a un pedido de llevar/delivery ya creado (el cliente pide algo más antes de cobrar). */
-  const addItemsToActiveOrder = useCallback(
-    (orderId: string, items: OrderItem[], waiter?: string) => {
-      if (items.length === 0) {
-        triggerToast('Agregue platos antes de enviar.', 'warning');
-        return;
-      }
-      const order = activeOrders.find(o => o.id === orderId);
-      if (!order) {
-        triggerToast('El pedido ya no está disponible.', 'warning');
-        return;
-      }
-      const now = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
-      const merged = mergeItems(order.items, items);
-      const total = merged.reduce((a, i) => a + i.product.price * i.quantity, 0);
-      const itemsCount = merged.reduce((a, i) => a + i.quantity, 0);
-      setActiveOrders(prev => prev.map(o => (o.id === orderId ? { ...o, items: merged, total, itemsCount } : o)));
-
-      /* Comanda adicional hacia cocina */
-      const ko: KitchenOrder = {
-        id: `ko${Math.floor(200 + Math.random() * 800)}`,
-        table: order.type === 'llevar' ? `Llevar · ${orderId} (extra)` : `Delivery · ${orderId} (extra)`,
-        items: items.map(i => ({ name: i.product.name, quantity: i.quantity })),
-        status: 'pendiente',
-        time: now,
-        elapsed: 0,
-        waiter,
-      };
-      setKitchenOrders(prev => [...prev, ko]);
-      triggerToast(`Se agregaron platos al pedido ${orderId} y se enviaron a cocina.`, 'success');
-    },
-    [activeOrders, triggerToast]
-  );
-
-  const updateActiveOrderItemQty = useCallback(
-    (orderId: string, productId: string, delta: number) => {
-      setActiveOrders(prev =>
-        prev
-          .map(o => {
-            if (o.id !== orderId) return o;
-            const items = o.items
-              .map(i => (i.product.id === productId ? { ...i, quantity: i.quantity + delta } : i))
-              .filter(i => i.quantity > 0);
-            const total = items.reduce((a, i) => a + i.product.price * i.quantity, 0);
-            const itemsCount = items.reduce((a, i) => a + i.quantity, 0);
-            return { ...o, items, total, itemsCount };
-          })
-          .filter(o => o.id !== orderId || o.items.length > 0)
-      );
-    },
-    []
-  );
-
-  const removeActiveOrderItem = useCallback(
-    (orderId: string, productId: string) => {
-      setActiveOrders(prev =>
-        prev
-          .map(o => {
-            if (o.id !== orderId) return o;
-            const items = o.items.filter(i => i.product.id !== productId);
-            const total = items.reduce((a, i) => a + i.product.price * i.quantity, 0);
-            const itemsCount = items.reduce((a, i) => a + i.quantity, 0);
-            return { ...o, items, total, itemsCount };
-          })
-          .filter(o => o.id !== orderId || o.items.length > 0)
-      );
-      triggerToast('Ítem quitado del pedido.', 'info');
-    },
-    [triggerToast]
-  );
-
-  const cancelActiveOrder = useCallback(
-    (orderId: string) => {
-      setActiveOrders(prev => prev.filter(o => o.id !== orderId));
-      triggerToast(`Pedido ${orderId} cancelado.`, 'info');
-    },
-    [triggerToast]
+    [caja.sucursalCajaAbierta, triggerToast, createActiveOrder]
   );
 
   const chargeOrder = useCallback(
     (orderId: string, input: ChargeInput): SalesHistory | null => {
-      if (!cashSession || cashSession.status !== 'abierta') {
+      if (!caja.cashSession || caja.cashSession.status !== 'abierta') {
         triggerToast('No se puede cobrar: la caja está cerrada.', 'error');
         return null;
       }
@@ -719,16 +380,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
       setSalesHistory(prev => [sale, ...prev]);
 
-      persistCaja({
-        ...cashSession,
-        cashSales:    cashSession.cashSales    + (input.method === 'Efectivo'    ? amount : 0),
-        cardSales:    cashSession.cardSales    + (input.method === 'Tarjeta'     ? amount : 0),
-        digitalSales: cashSession.digitalSales + (input.method === 'Yape / Plin' ? amount : 0),
-        salesCount:   cashSession.salesCount + 1,
+      caja.setCashSession(prev => prev && {
+        ...prev,
+        cashSales:    prev.cashSales    + (input.method === 'Efectivo'    ? amount : 0),
+        cardSales:    prev.cardSales    + (input.method === 'Tarjeta'     ? amount : 0),
+        digitalSales: prev.digitalSales + (input.method === 'Yape / Plin' ? amount : 0),
+        salesCount:   prev.salesCount + 1,
       });
 
       if (closeAfter) {
-        setActiveOrders(prev => prev.filter(o => o.id !== orderId));
+        closeActiveOrderAfterCharge(orderId);
       }
 
       const docLabel = comprobante ? `${input.docType} ${comprobante}` : 'Nota de venta';
@@ -738,172 +399,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       );
       return sale;
     },
-    [cashSession, activeOrders, docSeq, persistCaja, triggerToast]
-  );
-
-  const changeKitchenStatus = useCallback(
-    (orderId: string, nextStatus: KitchenOrder['status']) => {
-      const order = kitchenOrders.find(o => o.id === orderId);
-      setKitchenOrders(prev =>
-        prev.map(o => (o.id === orderId ? { ...o, status: nextStatus } : o))
-      );
-      if (nextStatus === 'listo' && order) {
-        /* Aviso dirigido al mozo que tomó la comanda */
-        triggerToast(
-          `🔔 ${order.table} lista para servir${order.waiter ? ` — avisar a ${order.waiter}` : ''}.`,
-          'info'
-        );
-      } else {
-        triggerToast(`Cocina: ${orderId} marcado como ${nextStatus}.`, 'success');
-      }
-    },
-    [kitchenOrders, triggerToast]
-  );
-
-  /** El mozo confirma que ya entregó/despachó la comanda lista: sale de la cola. */
-  const dispatchOrder = useCallback(
-    (orderId: string) => {
-      const order = kitchenOrders.find(o => o.id === orderId);
-      setKitchenOrders(prev => prev.filter(o => o.id !== orderId));
-      triggerToast(`Comanda ${order?.table ?? orderId} entregada.`, 'success');
-    },
-    [kitchenOrders, triggerToast]
-  );
-
-  /* ── Caja ─────────────────────────────────────────────────── */
-
-  const isCajaOpen = cashSession?.status === 'abierta';
-
-  /* Efectivo que debería haber físicamente en caja:
-     fondo inicial + ventas en efectivo + ingresos - egresos */
-  const cajaExpectedCash = useMemo(() => {
-    if (!cashSession) return 0;
-    const movements = cashSession.movements.reduce(
-      (acc, m) => acc + (m.type === 'ingreso' ? m.amount : -m.amount),
-      0
-    );
-    return cashSession.openingAmount + cashSession.cashSales + movements;
-  }, [cashSession]);
-
-  const openCaja = useCallback(
-    (openingAmount: number, by: string) => {
-      if (cashSession?.status === 'abierta') {
-        triggerToast('Ya existe una caja abierta.', 'warning');
-        return;
-      }
-      /* Continuidad: lo que el turno anterior contó físicamente al cerrar debe
-         coincidir con el fondo de apertura de este turno. Si no coincide, el
-         dinero "desaparecido" entre un cierre y la siguiente apertura queda
-         registrado igual — así nadie puede llevarse efectivo sin que se note. */
-      const previousClosingAmount = cashSession?.status === 'cerrada' ? cashSession.countedAmount : undefined;
-      const openingDifference = previousClosingAmount !== undefined ? openingAmount - previousClosingAmount : undefined;
-
-      const session: CashSession = {
-        id: `CJ-${Date.now().toString(36).toUpperCase()}`,
-        status: 'abierta',
-        openedBy: by,
-        openedAt: new Date().toISOString(),
-        openingAmount,
-        previousClosingAmount,
-        openingDifference,
-        movements: [],
-        cashSales: 0,
-        cardSales: 0,
-        digitalSales: 0,
-        salesCount: 0,
-      };
-      persistCaja(session);
-
-      if (openingDifference && Math.abs(openingDifference) > 0.001) {
-        triggerToast(
-          `⚠️ El cierre anterior contó S/. ${previousClosingAmount!.toFixed(2)} y estás abriendo con S/. ${openingAmount.toFixed(2)} ` +
-          `(${openingDifference > 0 ? 'sobran' : 'faltan'} S/. ${Math.abs(openingDifference).toFixed(2)} entre turnos).`,
-          'warning'
-        );
-      } else {
-        triggerToast(`Caja aperturada por ${by} con fondo de S/. ${openingAmount.toFixed(2)}.`, 'success');
-      }
-    },
-    [cashSession, persistCaja, triggerToast]
-  );
-
-  const addCashMovement = useCallback(
-    (type: CashMovementType, amount: number, reason: string, by: string) => {
-      if (!cashSession || cashSession.status !== 'abierta') {
-        triggerToast('No hay caja abierta para registrar movimientos.', 'error');
-        return;
-      }
-      const movement: CashMovement = {
-        id: `MV-${Date.now().toString(36).toUpperCase()}`,
-        type,
-        amount,
-        reason,
-        time: new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-        by,
-      };
-      persistCaja({ ...cashSession, movements: [...cashSession.movements, movement] });
-      triggerToast(
-        `${type === 'ingreso' ? 'Ingreso' : 'Egreso'} de S/. ${amount.toFixed(2)} registrado en caja.`,
-        'info'
-      );
-    },
-    [cashSession, persistCaja, triggerToast]
-  );
-
-  const closeCaja = useCallback(
-    (countedAmount: number, by: string): CashSession | null => {
-      if (!cashSession || cashSession.status !== 'abierta') {
-        triggerToast('No hay caja abierta para cerrar.', 'error');
-        return null;
-      }
-      const closed: CashSession = {
-        ...cashSession,
-        status: 'cerrada',
-        closedBy: by,
-        closedAt: new Date().toISOString(),
-        countedAmount,
-        expectedAmount: cajaExpectedCash,
-        difference: countedAmount - cajaExpectedCash,
-      };
-      persistCaja(closed);
-      persistCajaHistory([closed, ...cajaHistory]);
-      const diff = closed.difference ?? 0;
-      triggerToast(
-        diff === 0
-          ? `Caja cerrada y cuadrada correctamente por ${by}.`
-          : `Caja cerrada por ${by}. ${diff > 0 ? 'Sobrante' : 'Faltante'} de S/. ${Math.abs(diff).toFixed(2)}.`,
-        diff === 0 ? 'success' : 'warning'
-      );
-      return closed;
-    },
-    [cashSession, cajaExpectedCash, cajaHistory, persistCaja, persistCajaHistory, triggerToast]
+    [caja.cashSession, activeOrders, docSeq, triggerToast, closeActiveOrderAfterCharge]
   );
 
   const addManualSale = useCallback(
     (sale: SalesHistory) => {
       setSalesHistory(prev => [sale, ...prev]);
-      if (cashSession && cashSession.status === 'abierta') {
-        persistCaja({
-          ...cashSession,
-          cashSales:    cashSession.cashSales    + (sale.paymentMethod === 'Efectivo'    ? sale.total : 0),
-          cardSales:    cashSession.cardSales    + (sale.paymentMethod === 'Tarjeta'     ? sale.total : 0),
-          digitalSales: cashSession.digitalSales + (sale.paymentMethod === 'Yape / Plin' ? sale.total : 0),
-          salesCount:   cashSession.salesCount + 1,
-        });
-      }
+      caja.setCashSession(prev => prev && prev.status === 'abierta' ? {
+        ...prev,
+        cashSales:    prev.cashSales    + (sale.paymentMethod === 'Efectivo'    ? sale.total : 0),
+        cardSales:    prev.cardSales    + (sale.paymentMethod === 'Tarjeta'     ? sale.total : 0),
+        digitalSales: prev.digitalSales + (sale.paymentMethod === 'Yape / Plin' ? sale.total : 0),
+        salesCount:   prev.salesCount + 1,
+      } : prev);
     },
-    [cashSession, persistCaja]
+    []
   );
 
   return (
     <AppContext.Provider
       value={{
         products,
-        pisos,
         tables,
+        mesasLoading,
         setTables,
-        addPiso,
-        removePiso,
         addTable,
         removeTable,
         moveTable,
@@ -912,7 +431,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         customers,
         addCustomer,
         removeCustomer,
-        kitchenOrders,
         salesHistory,
         toasts,
         triggerToast,
@@ -923,24 +441,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sendOrderToKitchen,
         updateTableItemQty,
         removeTableItem,
+        cancelTableOrder,
+        confirmarPedidoCliente,
         activeOrders,
+        activeOrdersLoading,
         createOrder,
         addItemsToActiveOrder,
         updateActiveOrderItemQty,
         removeActiveOrderItem,
         cancelActiveOrder,
+        confirmarActiveOrder,
         chargeOrder,
         chargeTable,
         setTableStatus,
-        changeKitchenStatus,
-        dispatchOrder,
-        cashSession,
-        cajaHistory,
-        isCajaOpen: !!isCajaOpen,
-        cajaExpectedCash,
-        openCaja,
-        closeCaja,
-        addCashMovement,
+        cashSession: caja.cashSession,
+        cajaHistory: caja.cajaHistory,
+        cajaLoading: caja.cajaLoading,
+        isCajaOpen: caja.isCajaOpen,
+        sucursalCajaAbierta: caja.sucursalCajaAbierta,
+        sucursalTurnoActivo: caja.sucursalTurnoActivo,
+        sucursalTurnoStale: caja.sucursalTurnoStale,
+        cajaExpectedCash: caja.cajaExpectedCash,
+        openCaja: caja.openCaja,
+        closeCaja: caja.closeCaja,
+        addCashMovement: caja.addCashMovement,
+        loadCajaHistory: caja.loadCajaHistory,
+        cerrarTurnoAjeno: caja.cerrarTurnoAjeno,
         addManualSale,
       }}
     >

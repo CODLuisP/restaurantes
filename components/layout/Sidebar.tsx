@@ -25,6 +25,7 @@ import {
 import { useSidebar } from '@/context/SidebarContext';
 import { useAuth } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
+import { useCocinaPedidos } from '@/hooks/cocina/useCocinaPedidos';
 import type { Role } from '@/types';
 
 type MenuItem = {
@@ -37,10 +38,10 @@ type MenuItem = {
 };
 
 const menuItems: MenuItem[] = [
-  { href: '/dashboard',     label: 'Dashboard',       icon: LayoutDashboard },
+  { href: '/dashboard',     label: 'Dashboard',       icon: LayoutDashboard, roles: ['admin', 'mozo', 'cajero', 'repartidor'] },
   { href: '/comandero',     label: 'Comandero',        icon: ShoppingBag,     roles: ['admin', 'mozo'] },
   { href: '/cobrar',        label: 'Cobrar',           icon: Receipt,         roles: ['admin', 'cajero'] },
-  { href: '/cocina',        label: 'Cocina',           icon: ChefHat },
+  { href: '/cocina',        label: 'Cocina',           icon: ChefHat,         roles: ['admin', 'cocinero'] },
   { href: '/despachar',     label: 'Por despachar',    icon: BellRing,        roles: ['admin', 'mozo'] },
   { href: '/caja',          label: 'Caja',             icon: Coins,           roles: ['admin', 'cajero'] },
   { href: '/gastos',        label: 'Gastos',           icon: Wallet,          roles: ['admin', 'cajero'] },
@@ -69,14 +70,15 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { isOpen, closeOpen, isCollapsed, toggleCollapsed } = useSidebar();
   const { currentUser } = useAuth();
-  const { kitchenOrders } = useApp();
+  const { triggerToast } = useApp();
+  const { pedidos } = useCocinaPedidos(triggerToast);
   const isConfigRoute = pathname.startsWith('/configuracion');
   const [isConfigOpen, setIsConfigOpen] = useState(isConfigRoute);
   const canSeeConfig = !currentUser || currentUser?.role === 'admin';
 
-  /* Comandas listas por despachar (todas para admin, propias para el mozo) */
-  const readyCount = kitchenOrders.filter(
-    o => o.status === 'listo' && (currentUser?.role === 'admin' || o.waiter === currentUser?.name)
+  /* Comandas listas por despachar (todas para admin, propias para el mozo) — en vivo */
+  const readyCount = pedidos.filter(
+    p => p.estado === 'listo' && (currentUser?.role === 'admin' || p.mozoId === Number(currentUser?.id))
   ).length;
 
   const visibleItems = menuItems.filter(
@@ -233,41 +235,43 @@ export default function Sidebar() {
             </div>
           )}
 
-          {/* Playground */}
-          <div className={`border-t border-brand-hover/40 my-3 pt-3 ${isCollapsed ? 'mx-0' : ''}`}>
-            {!isCollapsed && (
-              <div className="text-[10px] uppercase font-mono tracking-wider text-white/40 px-3 mb-2">
-                PLAYGROUND
-              </div>
-            )}
-            <Link
-              href="/ui-components"
-              onClick={closeOpen}
-              title={isCollapsed ? 'Componentes UI' : undefined}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative ${
-                pathname === '/ui-components'
-                  ? 'bg-brand-hover text-white shadow-md'
-                  : 'text-white/80 hover:bg-white/5 hover:text-white'
-              }`}
-            >
-              {pathname === '/ui-components' && (
-                <div className="absolute left-0 top-3 bottom-3 w-1 bg-brand-accent rounded-r-full" />
-              )}
-              <Boxes
-                className={`h-4 w-4 shrink-0 ${
-                  pathname === '/ui-components' ? 'text-brand-accent' : 'text-white/60'
-                }`}
-              />
+          {/* Playground — solo admin */}
+          {(!currentUser || currentUser.role === 'admin') && (
+            <div className={`border-t border-brand-hover/40 my-3 pt-3 ${isCollapsed ? 'mx-0' : ''}`}>
               {!isCollapsed && (
-                <>
-                  <span className="grow text-left">Componentes UI</span>
-                  <span className="text-[9px] bg-brand-accent text-brand px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider shrink-0">
-                    Nuevo
-                  </span>
-                </>
+                <div className="text-[10px] uppercase font-mono tracking-wider text-white/40 px-3 mb-2">
+                  PLAYGROUND
+                </div>
               )}
-            </Link>
-          </div>
+              <Link
+                href="/ui-components"
+                onClick={closeOpen}
+                title={isCollapsed ? 'Componentes UI' : undefined}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative ${
+                  pathname === '/ui-components'
+                    ? 'bg-brand-hover text-white shadow-md'
+                    : 'text-white/80 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                {pathname === '/ui-components' && (
+                  <div className="absolute left-0 top-3 bottom-3 w-1 bg-brand-accent rounded-r-full" />
+                )}
+                <Boxes
+                  className={`h-4 w-4 shrink-0 ${
+                    pathname === '/ui-components' ? 'text-brand-accent' : 'text-white/60'
+                  }`}
+                />
+                {!isCollapsed && (
+                  <>
+                    <span className="grow text-left">Componentes UI</span>
+                    <span className="text-[9px] bg-brand-accent text-brand px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider shrink-0">
+                      Nuevo
+                    </span>
+                  </>
+                )}
+              </Link>
+            </div>
+          )}
         </nav>
 
         {/* Footer */}

@@ -72,7 +72,8 @@ export default function LoginForm() {
       return;
     }
 
-    router.push('/dashboard');
+    // El middleware decide a dónde ir según el rol (ej. cocinero → /carta, resto → /dashboard).
+    router.push('/');
     router.refresh();
   };
 

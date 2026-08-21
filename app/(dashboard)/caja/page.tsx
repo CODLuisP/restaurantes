@@ -1,40 +1,26 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Wallet, Lock, Unlock, ArrowDownCircle, ArrowUpCircle, CreditCard,
-  Smartphone, Coins, Calculator, AlertTriangle, CheckCircle2, ShieldAlert, Clock, History,
+  Smartphone, Coins, Calculator, AlertTriangle, CheckCircle2, ShieldAlert, Clock, History, Info,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
+import { Button } from '@/components/ui';
 import { useAuth } from '@/context/AuthContext';
-import { Modal, Button, Input, Select } from '@/components/ui';
+import { StatCard, Row } from '@/components/caja/CajaCards';
+import HistorialView from '@/components/caja/HistorialView';
+import CajaModals from '@/components/caja/CajaModals';
+import TurnoStaleWarning from '@/components/caja/TurnoStaleWarning';
+import CerrarTurnoAjenoModal from '@/components/caja/CerrarTurnoAjenoModal';
+import { money, fmtTime, fmtDate, todayStr, daysAgoStr, type QuickRange, type View } from '@/components/caja/types';
 import type { CashMovementType, CashSession } from '@/types';
-
-const money = (n: number) => `S/. ${n.toFixed(2)}`;
-const fmtTime = (iso?: string) =>
-  iso ? new Date(iso).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }) : '—';
-const fmtDate = (iso?: string) =>
-  iso ? new Date(iso).toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-/** Formato compacto para la tabla de historial: "8/7, 10:47 p. m." */
-const fmtShort = (iso?: string) => {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return `${d.getDate()}/${d.getMonth() + 1}, ${fmtTime(iso)}`;
-};
-const todayStr = () => new Date().toISOString().slice(0, 10);
-const daysAgoStr = (n: number) => {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-};
-
-type QuickRange = 'hoy' | '7d' | '30d';
-type View = 'cajas' | 'historial';
 
 export default function CajaPage() {
   const {
-    cashSession, cajaHistory, isCajaOpen, cajaExpectedCash,
-    openCaja, closeCaja, addCashMovement, triggerToast,
+    cashSession, cajaHistory, cajaLoading, isCajaOpen, cajaExpectedCash,
+    sucursalTurnoActivo, sucursalTurnoStale, cerrarTurnoAjeno,
+    openCaja, closeCaja, addCashMovement, loadCajaHistory, triggerToast,
   } = useApp();
   const { currentUser } = useAuth();
 
@@ -43,6 +29,9 @@ export default function CajaPage() {
   const [openModal, setOpenModal]   = useState(false);
   const [closeModal, setCloseModal] = useState(false);
   const [moveModal, setMoveModal]   = useState(false);
+  const [closeForeignModal, setCloseForeignModal] = useState(false);
+  const [foreignCountedInput, setForeignCountedInput] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const [openingInput, setOpeningInput] = useState('');
   const [countedInput, setCountedInput] = useState('');
@@ -53,8 +42,14 @@ export default function CajaPage() {
   const [fromDate, setFromDate] = useState(daysAgoStr(30));
   const [toDate, setToDate]     = useState(todayStr());
 
+  /* Trae el historial real del backend cuando se abre la pestaña o cambia el rango de fechas */
+  useEffect(() => {
+    if (view === 'historial') loadCajaHistory(fromDate, toDate);
+  }, [view, fromDate, toDate, loadCajaHistory]);
+
   const byName = currentUser?.name ?? 'Sistema';
   const canOperate = currentUser?.role === 'admin' || currentUser?.role === 'cajero';
+  const isAdmin = currentUser?.role === 'admin';
 
   /* Guard de rol: solo admin y cajero operan la caja */
   if (!canOperate) {
@@ -89,34 +84,55 @@ export default function CajaPage() {
     setOpenModal(true);
   };
 
-  const handleOpen = () => {
+  const handleOpen = async () => {
     const amount = parseFloat(openingInput);
     if (isNaN(amount) || amount < 0) { triggerToast('Ingrese un monto de fondo válido.', 'warning'); return; }
-    openCaja(amount, byName);
+    setSaving(true);
+    await openCaja(amount, byName);
+    setSaving(false);
     setOpeningInput('');
     setOpenModal(false);
   };
 
-  const handleClose = () => {
+  const handleClose = async () => {
     const amount = parseFloat(countedInput);
     if (isNaN(amount) || amount < 0) { triggerToast('Ingrese el efectivo contado.', 'warning'); return; }
-    closeCaja(amount, byName);
+    setSaving(true);
+    await closeCaja(amount, byName);
+    setSaving(false);
     setCountedInput('');
     setCloseModal(false);
   };
 
-  const handleMovement = () => {
+  const handleCloseForeign = async () => {
+    if (!sucursalTurnoActivo) return;
+    const amount = parseFloat(foreignCountedInput);
+    if (isNaN(amount) || amount < 0) { triggerToast('Ingrese el efectivo contado.', 'warning'); return; }
+    setSaving(true);
+    await cerrarTurnoAjeno(sucursalTurnoActivo.id, amount, byName);
+    setSaving(false);
+    setForeignCountedInput('');
+    setCloseForeignModal(false);
+  };
+
+  const handleMovement = async () => {
     const amount = parseFloat(moveAmount);
     if (isNaN(amount) || amount <= 0) { triggerToast('Ingrese un monto válido.', 'warning'); return; }
     if (!moveReason.trim())           { triggerToast('Indique el motivo del movimiento.', 'warning'); return; }
-    addCashMovement(moveType, amount, moveReason.trim(), byName);
+    setSaving(true);
+    await addCashMovement(moveType, amount, moveReason.trim(), byName);
+    setSaving(false);
     setMoveAmount(''); setMoveReason(''); setMoveType('ingreso');
     setMoveModal(false);
   };
 
-  /* ── Historial: turno abierto (si existe) + turnos cerrados, filtrados por rango de fecha ── */
+  /* ── Historial: turno abierto (si existe) + turnos cerrados, filtrados por rango de fecha ──
+     `cajaHistory` (backend) ya incluye cualquier turno dentro del rango, incluido el abierto —
+     hay que sacarlo de ahí para no duplicar su id al anteponer `cashSession`. */
   const historyRows = useMemo(() => {
-    const rows: CashSession[] = isCajaOpen && cashSession ? [cashSession, ...cajaHistory] : cajaHistory;
+    const rows: CashSession[] = isCajaOpen && cashSession
+      ? [cashSession, ...cajaHistory.filter(s => s.id !== cashSession.id)]
+      : cajaHistory;
     const from = new Date(`${fromDate}T00:00:00`);
     const to   = new Date(`${toDate}T23:59:59`);
     return rows.filter(s => {
@@ -178,7 +194,11 @@ export default function CajaPage() {
         </div>
       </div>
 
-      {view === 'historial' ? (
+      {cajaLoading ? (
+        <div className="card-lg flex items-center justify-center py-20 text-xs text-slate-400">
+          Cargando estado de caja...
+        </div>
+      ) : view === 'historial' ? (
         <HistorialView
           rows={historyRows}
           fromDate={fromDate}
@@ -264,6 +284,10 @@ export default function CajaPage() {
                 <StatCard icon={<Smartphone className="h-4 w-4" />}  tone="violet"  label="Yape / Plin (QR)"   value={money(cashSession.digitalSales)} />
                 <StatCard icon={<Wallet className="h-4 w-4" />}      tone="brand"   label={`Ventas Totales (${cashSession.salesCount})`} value={money(totalSales)} />
               </div>
+              <p className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                <Info className="h-3.5 w-3.5 shrink-0" />
+                Estas cifras reflejan las ventas registradas contra el sistema de cobro; si aún no está conectado, mostrarán S/. 0.00.
+              </p>
 
               {/* Efectivo esperado + movimientos */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -347,291 +371,73 @@ export default function CajaPage() {
                 </div>
               )}
 
-              {/* Apertura */}
-              <div className="card-lg p-10 text-center space-y-4 max-w-lg mx-auto">
-                <div className="mx-auto w-16 h-16 rounded-full bg-brand/10 text-brand flex items-center justify-center">
-                  <Lock className="h-8 w-8" />
+              {/* Bloqueo: turno de otro cajero sin cerrar desde un día anterior */}
+              {sucursalTurnoStale && sucursalTurnoActivo ? (
+                <TurnoStaleWarning
+                  turno={sucursalTurnoActivo}
+                  canClose={isAdmin}
+                  onCloseClick={() => setCloseForeignModal(true)}
+                />
+              ) : (
+                /* Apertura */
+                <div className="card-lg p-10 text-center space-y-4 max-w-lg mx-auto">
+                  <div className="mx-auto w-16 h-16 rounded-full bg-brand/10 text-brand flex items-center justify-center">
+                    <Lock className="h-8 w-8" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-bold text-slate-800">La caja está cerrada</h4>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Registre el fondo inicial (monto de apertura) para habilitar el cobro en el POS.
+                      Mientras la caja esté cerrada, los mozos no podrán operar.
+                    </p>
+                  </div>
+                  <Button variant="primary" size="lg" icon={<Unlock className="h-4 w-4" />} onClick={openOpenModal} className="mx-auto">
+                    Aperturar Caja
+                  </Button>
                 </div>
-                <div>
-                  <h4 className="text-lg font-bold text-slate-800">La caja está cerrada</h4>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Registre el fondo inicial (monto de apertura) para habilitar el cobro en el POS.
-                    Mientras la caja esté cerrada, los mozos no podrán operar.
-                  </p>
-                </div>
-                <Button variant="primary" size="lg" icon={<Unlock className="h-4 w-4" />} onClick={openOpenModal} className="mx-auto">
-                  Aperturar Caja
-                </Button>
-              </div>
+              )}
             </>
           )}
         </>
       )}
 
-      {/* ── Modal: Apertura ──────────────────────────────────── */}
-      <Modal
-        open={openModal}
-        onClose={() => setOpenModal(false)}
-        title="Apertura de Caja"
-        subtitle="Registre el monto de efectivo con el que inicia el turno."
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setOpenModal(false)}>Cancelar</Button>
-            <Button variant="primary" onClick={handleOpen}>Aperturar</Button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          {previousClosingAmount !== null && (
-            <div className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-2.5 text-xs">
-              <span className="text-slate-500">El cierre anterior contó físicamente</span>
-              <span className="font-mono font-bold text-slate-800">{money(previousClosingAmount)}</span>
-            </div>
-          )}
-          <Input
-            label="Fondo inicial (S/.)"
-            type="number" min="0" step="0.10" inputMode="decimal"
-            placeholder="0.00"
-            value={openingInput}
-            onChange={e => setOpeningInput(e.target.value)}
-            iconLeft={<Coins className="h-4 w-4" />}
-            autoFocus
-          />
-          {openingDiff !== null && Math.abs(openingDiff) > 0.001 && (
-            <div className={`flex items-center justify-between rounded-xl px-4 py-2.5 text-xs font-bold ${
-              openingDiff > 0 ? 'bg-amber-50 text-amber-800' : 'bg-rose-50 text-rose-700'
-            }`}>
-              <span className="flex items-center gap-1.5">
-                <AlertTriangle className="h-4 w-4" />
-                {openingDiff > 0 ? 'Sobran' : 'Faltan'} respecto al cierre anterior
-              </span>
-              <span className="font-mono">{money(Math.abs(openingDiff))}</span>
-            </div>
-          )}
-          <p className="text-[11px] text-slate-500">
-            Responsable de apertura: <strong>{byName}</strong>
-          </p>
-        </div>
-      </Modal>
+      <CajaModals
+        openModal={openModal}
+        setOpenModal={setOpenModal}
+        openingInput={openingInput}
+        setOpeningInput={setOpeningInput}
+        previousClosingAmount={previousClosingAmount}
+        openingDiff={openingDiff}
+        onOpen={handleOpen}
+        moveModal={moveModal}
+        setMoveModal={setMoveModal}
+        moveType={moveType}
+        setMoveType={setMoveType}
+        moveAmount={moveAmount}
+        setMoveAmount={setMoveAmount}
+        moveReason={moveReason}
+        setMoveReason={setMoveReason}
+        onMovement={handleMovement}
+        closeModal={closeModal}
+        setCloseModal={setCloseModal}
+        countedInput={countedInput}
+        setCountedInput={setCountedInput}
+        closeDiff={closeDiff}
+        cajaExpectedCash={cajaExpectedCash}
+        cashSession={cashSession}
+        onClose={handleClose}
+        saving={saving}
+        byName={byName}
+      />
 
-      {/* ── Modal: Movimiento ────────────────────────────────── */}
-      <Modal
-        open={moveModal}
-        onClose={() => setMoveModal(false)}
-        title="Movimiento de Caja"
-        subtitle="Registre un ingreso o egreso de efectivo (propinas, compras, retiros...)."
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setMoveModal(false)}>Cancelar</Button>
-            <Button variant="primary" onClick={handleMovement}>Registrar</Button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <Select label="Tipo de movimiento" value={moveType} onChange={e => setMoveType(e.target.value as CashMovementType)}>
-            <option value="ingreso">Ingreso (entra efectivo)</option>
-            <option value="egreso">Egreso (sale efectivo)</option>
-          </Select>
-          <Input
-            label="Monto (S/.)"
-            type="number" min="0" step="0.10" inputMode="decimal"
-            placeholder="0.00"
-            value={moveAmount}
-            onChange={e => setMoveAmount(e.target.value)}
-          />
-          <Input
-            label="Motivo"
-            placeholder="Ej. Compra de hielo, retiro parcial, propina..."
-            value={moveReason}
-            onChange={e => setMoveReason(e.target.value)}
-          />
-        </div>
-      </Modal>
-
-      {/* ── Modal: Cierre ────────────────────────────────────── */}
-      <Modal
-        open={closeModal}
-        onClose={() => setCloseModal(false)}
-        title="Cierre de Caja (Arqueo)"
-        subtitle="Cuente el efectivo físico en caja y regístrelo para cuadrar el turno."
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setCloseModal(false)}>Cancelar</Button>
-            <Button variant="danger" onClick={handleClose}>Confirmar Cierre</Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <div className="bg-slate-50 rounded-xl p-4 space-y-2">
-            <Row label="Efectivo esperado (sistema)" value={money(cajaExpectedCash)} />
-            <Row label="Ventas con tarjeta" value={money(cashSession?.cardSales ?? 0)} />
-            <Row label="Ventas Yape / Plin" value={money(cashSession?.digitalSales ?? 0)} />
-          </div>
-          <Input
-            label="Efectivo contado físicamente (S/.)"
-            type="number" min="0" step="0.10" inputMode="decimal"
-            placeholder="0.00"
-            value={countedInput}
-            onChange={e => setCountedInput(e.target.value)}
-            iconLeft={<Calculator className="h-4 w-4" />}
-            autoFocus
-          />
-          {countedInput !== '' && (
-            <div className={`flex items-center justify-between rounded-xl px-4 py-2.5 text-xs font-bold ${
-              closeDiff === 0 ? 'bg-emerald-50 text-emerald-800'
-              : closeDiff > 0 ? 'bg-amber-50 text-amber-800'
-              : 'bg-rose-50 text-rose-700'
-            }`}>
-              <span className="flex items-center gap-1.5">
-                {closeDiff === 0 ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
-                {closeDiff === 0 ? 'Caja cuadrada' : closeDiff > 0 ? 'Sobrante' : 'Faltante'}
-              </span>
-              <span className="font-mono">{money(Math.abs(closeDiff))}</span>
-            </div>
-          )}
-          <p className="text-[11px] text-slate-400">
-            Este monto quedará como sugerencia de apertura para el siguiente turno.
-          </p>
-        </div>
-      </Modal>
+      <CerrarTurnoAjenoModal
+        open={closeForeignModal}
+        onClose={() => setCloseForeignModal(false)}
+        turno={sucursalTurnoActivo}
+        countedInput={foreignCountedInput}
+        setCountedInput={setForeignCountedInput}
+        onConfirm={handleCloseForeign}
+        saving={saving}
+      />
     </div>
-  );
-}
-
-/* ── Historial ────────────────────────────────────────────────── */
-
-function HistorialView({
-  rows, fromDate, toDate, onFromDate, onToDate, activeQuick, onQuickRange,
-}: {
-  rows: CashSession[];
-  fromDate: string;
-  toDate: string;
-  onFromDate: (v: string) => void;
-  onToDate: (v: string) => void;
-  activeQuick: QuickRange | null;
-  onQuickRange: (r: QuickRange) => void;
-}) {
-  return (
-    <div className="space-y-4">
-      {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex bg-slate-100 rounded-xl p-1">
-          {(['hoy', '7d', '30d'] as QuickRange[]).map(r => (
-            <button
-              key={r}
-              onClick={() => onQuickRange(r)}
-              className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${
-                activeQuick === r ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {r === 'hoy' ? 'Hoy' : r === '7d' ? '7 días' : '30 días'}
-            </button>
-          ))}
-        </div>
-        <input type="date" value={fromDate} onChange={e => onFromDate(e.target.value)} className="input px-3 py-2 text-xs" />
-        <span className="text-slate-400 text-xs">—</span>
-        <input type="date" value={toDate} onChange={e => onToDate(e.target.value)} className="input px-3 py-2 text-xs" />
-        <select className="input px-3 py-2 text-xs ml-auto" defaultValue="todas">
-          <option value="todas">Todas las cajas</option>
-          <option value="principal">Caja principal</option>
-        </select>
-      </div>
-
-      {/* Tabla */}
-      <div className="card-lg overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-slate-100 text-[10px] uppercase font-bold text-slate-400 tracking-wide">
-              <th className="text-left px-5 py-3">Apertura</th>
-              <th className="text-left px-5 py-3">Cierre</th>
-              <th className="text-left px-5 py-3">Caja</th>
-              <th className="text-left px-5 py-3">Responsable</th>
-              <th className="text-right px-5 py-3">Sistema</th>
-              <th className="text-right px-5 py-3">Conteo</th>
-              <th className="text-right px-5 py-3">Diferencia</th>
-              <th className="text-left px-5 py-3">Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="text-center text-slate-400 italic py-10">
-                  No hay turnos de caja en este rango de fechas.
-                </td>
-              </tr>
-            ) : (
-              rows.map(s => {
-                const diff = s.difference ?? null;
-                return (
-                  <tr key={s.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60 transition-colors">
-                    <td className="px-5 py-3 font-medium text-slate-700 whitespace-nowrap">{fmtShort(s.openedAt)}</td>
-                    <td className="px-5 py-3 text-slate-500 whitespace-nowrap">{s.closedAt ? fmtShort(s.closedAt) : '—'}</td>
-                    <td className="px-5 py-3 text-brand font-semibold whitespace-nowrap">Caja principal</td>
-                    <td className="px-5 py-3 text-slate-700 whitespace-nowrap">{s.openedBy}</td>
-                    <td className="px-5 py-3 text-right font-mono text-slate-700 whitespace-nowrap">
-                      {money(s.status === 'abierta' ? s.openingAmount + s.cashSales : s.expectedAmount ?? 0)}
-                    </td>
-                    <td className="px-5 py-3 text-right font-mono text-slate-700 whitespace-nowrap">
-                      {s.countedAmount !== undefined ? money(s.countedAmount) : '—'}
-                    </td>
-                    <td className={`px-5 py-3 text-right font-mono font-bold whitespace-nowrap ${
-                      diff === null ? 'text-slate-300' : diff === 0 ? 'text-emerald-600' : diff > 0 ? 'text-amber-600' : 'text-rose-600'
-                    }`}>
-                      {diff === null ? '—' : `${diff > 0 ? '+' : diff < 0 ? '−' : ''}${money(Math.abs(diff))}`}
-                    </td>
-                    <td className="px-5 py-3 whitespace-nowrap">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                        s.status === 'abierta' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
-                      }`}>
-                        {s.status === 'abierta' ? 'Abierta' : 'Cerrada'}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-[11px] text-slate-400">Tocá un cierre para ver el arqueo completo e imprimirlo.</p>
-    </div>
-  );
-}
-
-/* ── Subcomponentes ─────────────────────────────────────────── */
-
-function Row({ label, value, col }: { label: string; value: string; col?: boolean }) {
-  if (col) {
-    return (
-      <div>
-        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wide block">{label}</span>
-        <span className="text-sm font-semibold text-slate-800">{value}</span>
-      </div>
-    );
-  }
-  return (
-    <div className="flex justify-between items-center">
-      <span className="text-slate-500">{label}</span>
-      <span className="font-mono font-semibold text-slate-700">{value}</span>
-    </div>
-  );
-}
-
-const TONES: Record<string, string> = {
-  emerald: 'bg-emerald-50 text-emerald-600',
-  sky:     'bg-sky-50 text-sky-600',
-  violet:  'bg-violet-50 text-violet-600',
-  brand:   'bg-brand/10 text-brand',
-};
-
-function StatCard({ icon, tone, label, value }: { icon: React.ReactNode; tone: string; label: string; value: string }) {
-  return (
-    <div className="card p-4 space-y-2">
-      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${TONES[tone]}`}>{icon}</div>
-      <div>
-        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wide">{label}</p>
-        <p className="text-lg font-mono font-bold text-slate-800">{value}</p>
-      </div>
-    </div>
-  );
-}
+  );}

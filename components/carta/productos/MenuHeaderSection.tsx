@@ -47,7 +47,7 @@ export default function MenuHeaderSection({
   const [sucursalLogo, setSucursalLogo] = useState("");
   const [redesState, setRedesState] = useState({ instagram: "", facebook: "", tiktok: "", sitio: "", reviewsLink: "" });
   const [horariosState, setHorariosState] = useState({
-    zonaHoraria: "Peru (Lima)", tipoNegocio: "Restaurante", descripcionCompleta: "", numeroPedidos: "",
+    zonaHoraria: "Peru (Lima)", tipoNegocio: "Restaurante", descripcionCorta: "", descripcionCompleta: "", numeroPedidos: "",
     schedule: {
       lun: { enabled: true, ranges: [{ from: "09:00", to: "22:00" }] },
       mar: { enabled: true, ranges: [{ from: "09:00", to: "22:00" }] },
@@ -82,6 +82,7 @@ export default function MenuHeaderSection({
       setHorariosState({
         zonaHoraria: c.zonaHoraria ?? "Peru (Lima)",
         tipoNegocio: c.tipoNegocio ?? "Restaurante",
+        descripcionCorta: c.descripcionCorta ?? "",
         descripcionCompleta: c.descripcionCompleta ?? "",
         numeroPedidos: c.whatsappPedidos ?? "",
         schedule: c.horariosJson ? JSON.parse(c.horariosJson) : {},
@@ -267,6 +268,7 @@ export default function MenuHeaderSection({
       {socialLinks.length > 0 && <SocialLinksRow links={socialLinks} />}
       <BusinessInfoSection
         tipoNegocio={horariosState.tipoNegocio}
+        descripcionCorta={horariosState.descripcionCorta}
         descripcionCompleta={horariosState.descripcionCompleta}
         schedule={horariosState.schedule}
         numeroPedidos={horariosState.numeroPedidos}

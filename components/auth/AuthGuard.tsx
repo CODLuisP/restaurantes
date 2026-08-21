@@ -15,7 +15,7 @@ import { Spinner } from '@/components/ui';
  */
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const { currentUser, ready, logout } = useAuth();
-  const { isCajaOpen } = useApp();
+  const { sucursalCajaAbierta } = useApp();
   const router = useRouter();
 
   useEffect(() => {
@@ -35,7 +35,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   if (!currentUser) return null;
 
   /* Bloqueo del mozo cuando la caja está cerrada */
-  if (currentUser.role === 'mozo' && !isCajaOpen) {
+  if (currentUser.role === 'mozo' && !sucursalCajaAbierta) {
     return (
       <div className="py-12 flex items-center justify-center p-4">
         <div className="card-lg max-w-md w-full p-8 text-center space-y-5 animate-section">

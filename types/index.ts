@@ -15,20 +15,23 @@ export interface OrderItem {
   quantity: number;
 }
 
-export interface Piso {
-  id: string;
-  name: string;
-}
-
 export interface Table {
   id: string;
   name: string;
-  pisoId: string;
+  /** Salón/zona del local (viene del backend, texto libre). Vacío = sin salón asignado. */
+  ubicacion: string;
   capacidad: number;
   status: 'disponible' | 'ocupada' | 'reservada';
   cuenta: number;
   items?: OrderItem[];
   waiter?: string;
+  /** Ids del backend (RestaurantesAPI) detrás del consumo actual de la mesa: sesión + pedido. */
+  sesionMesaId?: number;
+  pedidoId?: number;
+  /** Estado del pedido activo — "pendiente_confirmacion" significa que lo armó el cliente por QR y falta que el mozo lo confirme. */
+  pedidoEstado?: string;
+  /** Nombre del comensal/representante de mesa, opcional — si no se da, se identifica por el número de mesa. */
+  nombreCliente?: string;
   /** Posición en el plano del salón (px desde la esquina sup. izq. del lienzo). */
   x?: number;
   y?: number;
@@ -99,6 +102,8 @@ export interface CashMovement {
 
 export interface CashSession {
   id: string;
+  /** Id numérico del turno en el backend (RestaurantesAPI), cuando la sesión ya está conectada. */
+  turnoId?: number;
   status: 'abierta' | 'cerrada';
   openedBy: string;
   openedAt: string;
@@ -163,6 +168,11 @@ export type OrderType = 'mesa' | 'llevar' | 'delivery';
 export interface ActiveOrder {
   id: string;
   type: 'llevar' | 'delivery';
+  /** Ids del backend (RestaurantesAPI) que respaldan este pedido: sesión de mesa + pedido. */
+  sesionMesaId?: number;
+  pedidoId?: number;
+  /** Estado del pedido — "pendiente_confirmacion" significa que lo armó el cliente por el menú público y falta que el mozo lo confirme. */
+  pedidoEstado?: string;
   customer: string;
   phone?: string;
   address?: string;      // solo delivery

@@ -7,13 +7,14 @@ import { DAY_LABELS, DAY_ORDER, isOpenNow, normalizeSchedule, type DayKey, type 
 
 export interface BusinessInfoSectionProps {
   tipoNegocio: string;
+  descripcionCorta?: string;
   descripcionCompleta: string;
   schedule?: Partial<Record<DayKey, Partial<DaySchedule>>>;
   numeroPedidos: string;
   direccion: string;
 }
 
-export function BusinessInfoSection({ tipoNegocio, descripcionCompleta, schedule, numeroPedidos, direccion }: BusinessInfoSectionProps) {
+export function BusinessInfoSection({ tipoNegocio, descripcionCorta, descripcionCompleta, schedule, numeroPedidos, direccion }: BusinessInfoSectionProps) {
   const [open, setOpen] = useState(false);
   const normalizedSchedule = normalizeSchedule(schedule);
   const openNow = isOpenNow(normalizedSchedule);
@@ -44,6 +45,10 @@ export function BusinessInfoSection({ tipoNegocio, descripcionCompleta, schedule
             <p className="flex items-start gap-1.5 text-sm text-slate-600">
               <MapPin className="h-4 w-4 shrink-0 mt-0.5 text-slate-400" /> {direccion}
             </p>
+          )}
+
+          {descripcionCorta?.trim() && (
+            <p className="text-sm font-semibold text-slate-800">{descripcionCorta}</p>
           )}
 
           {descripcionCompleta.trim() && (

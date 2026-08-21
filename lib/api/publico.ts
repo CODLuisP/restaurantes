@@ -35,6 +35,7 @@ export interface ConfiguracionPublicaDto {
   reviewsLink?: string | null;
   zonaHoraria?: string | null;
   tipoNegocio?: string | null;
+  descripcionCorta?: string | null;
   descripcionCompleta?: string | null;
   whatsappPedidos?: string | null;
   horariosJson?: string | null;
@@ -52,7 +53,41 @@ export interface CierrePublicoDto {
 }
 
 export interface MesaPublicaDto {
+  mesaId?: number;
   sucursalId?: number;
+  numero?: number;
+  capacidad?: number;
+  estado?: string;
+  tieneSesionActiva?: boolean;
+}
+
+export interface CrearPedidoClienteItemDto {
+  productoId?: number;
+  varianteId?: number;
+  comboId?: number;
+  cantidad: number;
+  notas?: string;
+}
+
+export interface CrearPedidoClienteDto {
+  /** "local" (mesa, requiere mesaToken) | "para_llevar" | "delivery". */
+  tipo: 'local' | 'para_llevar' | 'delivery';
+  /** Requerido si tipo === "local". */
+  mesaToken?: string;
+  /** Requerido si tipo !== "local". */
+  sucursalId?: number;
+  nombreCliente?: string;
+  numComensales?: number;
+  /** Requeridos si tipo === "delivery". */
+  telefono?: string;
+  direccion?: string;
+  referencia?: string;
+  items: CrearPedidoClienteItemDto[];
+}
+
+export interface PedidoPublicoDto {
+  id: number;
+  estado: string;
 }
 
 export function getBannersPublico(sucursalId: number) {
@@ -77,4 +112,10 @@ export function getCierresPublico(sucursalId: number) {
 
 export function getMesaPublica(mesaId: string) {
   return apiFetch<MesaPublicaDto>(`/api/publico/mesas/${mesaId}`);
+}
+
+/** El cliente hace su pedido escaneando el QR de su mesa. Queda "pendiente_confirmacion"
+ *  hasta que el mozo lo confirme desde el Comandero — recién ahí pasa a Cocina. */
+export function crearPedidoPublico(dto: CrearPedidoClienteDto) {
+  return apiFetch<PedidoPublicoDto>('/api/publico/pedidos', { method: 'POST', body: dto });
 }
