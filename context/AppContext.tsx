@@ -12,6 +12,7 @@ import { useCajaTurno } from '@/hooks/app/useCajaTurno';
 import { useMesasCatalogo } from '@/hooks/mesas/useMesasCatalogo';
 import { useActiveOrders } from '@/hooks/comandero/useActiveOrders';
 import { usePedidoEvents } from '@/hooks/realtime/usePedidoEvents';
+import { useMesaEvents, type MesaEvent } from '@/hooks/realtime/useMesaEvents';
 import { pedidoLabel } from '@/components/cocina/types';
 import type { TurnoCajaDto } from '@/lib/api/turnosCaja';
 import type { PedidoDto } from '@/lib/api/pedidos';
@@ -35,10 +36,10 @@ interface AppContextType {
   removeTable: (tableId: string) => Promise<void>;
   /** Reubica una mesa en el plano del salón (solo visual, no persiste en el backend). */
   moveTable: (tableId: string, x: number, y: number) => void;
-  /** Une varias mesas disponibles en un solo grupo que se opera como una mesa. */
-  mergeTables: (tableIds: string[]) => void;
-  /** Separa un grupo de mesas unidas. */
-  unmergeTable: (groupId: string) => void;
+  /** Une varias mesas disponibles en un solo grupo que se opera como una mesa (persiste en backend). */
+  mergeTables: (tableIds: string[]) => Promise<void>;
+  /** Separa un grupo de mesas unidas (persiste en backend). */
+  unmergeTable: (groupId: string) => Promise<void>;
   customers: Customer[];
   /** Registra un nuevo cliente en el CRM. */
   addCustomer: (data: { nombre: string; telefono: string; email: string }) => void;
@@ -112,6 +113,7 @@ const AppContext = createContext<AppContextType | null>(null);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const { data: authSession } = useSession();
   const isMozo = authSession?.user?.role?.trim().toLowerCase() === 'mozo';
+  const isAdmin = authSession?.user?.role?.trim().toLowerCase() === 'admin';
 
   const [products] = useState<Product[]>(MOCK_PRODUCTS);
   const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
@@ -123,6 +125,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const caja = useCajaTurno(triggerToast);
   const {
     tables, setTables, mesasLoading, addTable, removeTable, setTableStatus,
+    mergeTables: mergeTablesBackend, unmergeTable: unmergeTableBackend,
     sendOrderToKitchen, updateTableItemQty, removeTableItem, cancelTableOrder, closeTableAfterCharge,
     confirmarPedidoCliente,
   } = useMesasCatalogo(triggerToast);
@@ -148,6 +151,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [triggerToast]);
   usePedidoEvents(onPedidoPorConfirmar);
+
+  /* Aviso en vivo al admin: un mozo agregó, eliminó o unió/separó mesas del salón. */
+  const onMesaEventoParaAdmin = useCallback((event: MesaEvent) => {
+    if (!isAdmin) return;
+    switch (event.type) {
+      case 'creada':
+        triggerToast(`🔔 Se agregó la Mesa ${event.mesa.numero}.`, 'info');
+        break;
+      case 'eliminada':
+        triggerToast('🔔 Se eliminó una mesa del salón.', 'info');
+        break;
+      case 'grupo':
+        triggerToast(
+          event.mesas.some(m => m.grupoId)
+            ? `🔔 Se unieron ${event.mesas.length} mesas.`
+            : '🔔 Se separó un grupo de mesas.',
+          'info'
+        );
+        break;
+    }
+  }, [isAdmin, triggerToast]);
+  useMesaEvents(onMesaEventoParaAdmin);
 
   const kpiStats = useMemo<KpiStats>(() => {
     const historicalTotal = salesHistory.reduce((sum, item) => sum + item.total, 0);
@@ -267,8 +292,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setTables(prev => prev.map(t => (t.id === tableId ? { ...t, x, y } : t)));
   }, [setTables]);
 
+  /* Unir/separar mesas persiste en el backend (grupoId real) y se notifica en vivo por WebSocket;
+     acá solo se reacomoda la posición en el plano tras confirmarse (eso sí es puramente visual). */
   const mergeTables = useCallback(
-    (tableIds: string[]) => {
+    async (tableIds: string[]) => {
       if (tableIds.length < 2) {
         triggerToast('Selecciona al menos dos mesas para unir.', 'warning');
         return;
@@ -278,7 +305,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         triggerToast('Solo se pueden unir mesas disponibles (sin consumo).', 'error');
         return;
       }
-      const groupId = `grp-${Date.now().toString(36)}`;
+      await mergeTablesBackend(tableIds);
       /* Ordena de izq. a der. y las alinea en fila para que se vean como una sola mesa. */
       const ordered = [...selected].sort((a, b) => (a.x ?? 0) - (b.x ?? 0));
       const bx = ordered[0].x ?? 24;
@@ -287,18 +314,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setTables(prev =>
         prev.map(t =>
           rowIndex.has(t.id)
-            ? { ...t, groupId, x: bx + rowIndex.get(t.id)! * 74, y: by }
+            ? { ...t, x: bx + rowIndex.get(t.id)! * 74, y: by }
             : t
         )
       );
-      const cap = selected.reduce((sum, t) => sum + t.capacidad, 0);
-      triggerToast(`Mesas unidas — capacidad combinada de ${cap} personas.`, 'success');
     },
-    [tables, triggerToast, setTables]
+    [tables, triggerToast, setTables, mergeTablesBackend]
   );
 
   const unmergeTable = useCallback(
-    (groupId: string) => {
+    async (groupId: string) => {
       const group = tables
         .filter(t => t.groupId === groupId)
         .sort((a, b) => (a.x ?? 0) - (b.x ?? 0));
@@ -309,16 +334,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const bx = group[0]?.x ?? 24;
       const by = group[0]?.y ?? 24;
       const idx = new Map(group.map((t, i) => [t.id, i]));
+      await unmergeTableBackend(groupId);
       setTables(prev =>
         prev.map(t =>
-          t.groupId === groupId
-            ? { ...t, groupId: undefined, x: bx + idx.get(t.id)! * 100, y: by }
+          idx.has(t.id)
+            ? { ...t, x: bx + idx.get(t.id)! * 100, y: by }
             : t
         )
       );
-      triggerToast('Mesas separadas.', 'info');
     },
-    [tables, triggerToast, setTables]
+    [tables, triggerToast, setTables, unmergeTableBackend]
   );
 
   /* ── Pedidos para llevar / delivery ───────────────────────── */

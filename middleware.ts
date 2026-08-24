@@ -9,6 +9,17 @@ function esRutaPublica(pathname: string) {
 // El cocinero solo opera Cocina y ve el Menú Digital (sin editar nada, ver carta/page.tsx).
 const RUTAS_COCINERO = ['/cocina', '/carta'];
 
+// El Dashboard ejecutivo es solo para admin; cada otro rol aterriza en su propia pantalla operativa.
+function rutaPorDefectoDeRol(role: string | undefined) {
+  switch (role) {
+    case 'cocinero': return '/carta';
+    case 'mozo': return '/comandero';
+    case 'cajero': return '/cobrar';
+    case 'repartidor': return '/carta';
+    default: return '/dashboard';
+  }
+}
+
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const autenticado = !!req.auth;
@@ -19,7 +30,7 @@ export default auth((req) => {
 
   if (autenticado) {
     const role = req.auth?.user?.role;
-    const rutaPorDefecto = role === 'cocinero' ? '/carta' : '/dashboard';
+    const rutaPorDefecto = rutaPorDefectoDeRol(role);
 
     if (pathname === '/') {
       return NextResponse.redirect(new URL(rutaPorDefecto, req.nextUrl.origin));
@@ -36,6 +47,11 @@ export default auth((req) => {
 
     // Cocina (KDS) es solo para quien prepara los platos y el admin.
     if (pathname === '/cocina' && role !== 'admin' && role !== 'cocinero') {
+      return NextResponse.redirect(new URL(rutaPorDefecto, req.nextUrl.origin));
+    }
+
+    // Dashboard ejecutivo (KPIs, ventas) es solo para admin.
+    if (pathname === '/dashboard' && role !== 'admin') {
       return NextResponse.redirect(new URL(rutaPorDefecto, req.nextUrl.origin));
     }
   }

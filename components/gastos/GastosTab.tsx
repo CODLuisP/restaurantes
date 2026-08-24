@@ -5,7 +5,6 @@ import {
   Plus, Pencil, Ban, Wallet, CalendarClock, AlertTriangle, Search,
 } from 'lucide-react';
 import { useGastos, type Gasto, type GastoStatus } from '@/context/GastosContext';
-import { useApp } from '@/context/AppContext';
 import { Modal, Input, Select, Button } from '@/components/ui';
 
 const money = (n: number) => `S/. ${n.toFixed(2)}`;
@@ -35,7 +34,6 @@ const emptyForm = () => ({
 
 export default function GastosTab() {
   const { gastos, categorias, proveedores, addGasto, updateGasto, anularGasto } = useGastos();
-  const { triggerToast } = useApp();
 
   const [rangeMode, setRangeMode] = useState<RangeMode>('30dias');
   const [dateFrom, setDateFrom] = useState(daysAgoStr(29));
@@ -120,17 +118,14 @@ export default function GastosTab() {
 
     if (editingId) {
       updateGasto(editingId, payload);
-      triggerToast('Gasto actualizado.', 'success');
     } else {
       addGasto(payload);
-      triggerToast('Gasto registrado.', 'success');
     }
     closeForm();
   };
 
   const handleAnular = (g: Gasto) => {
     anularGasto(g.id);
-    triggerToast(`Gasto "${g.description}" anulado.`, 'info');
   };
 
   const statusBadge = (status: GastoStatus, isVencido: boolean) => {

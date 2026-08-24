@@ -22,21 +22,25 @@ import {
   ProfileHeader,
   type ProfileTab,
 } from "@/components/menu/ProfileHeader";
-import type {
-  OrderItem
-} from "@/types";
-import { Modal, Button, Input, Select } from "@/components/ui";
+import type { OrderItem } from "@/types";
 import { useCheckoutForm } from "@/hooks/menu/useCheckoutForm";
 import { usePlaceOrder } from "@/hooks/menu/usePlaceOrder";
 import CheckoutModal from "@/components/menu/publico/CheckoutModal";
 import OrderSuccessModal from "@/components/menu/publico/OrderSuccessModal";
 import PublicCategory from "@/components/menu/publico/PublicCategory";
-import PublicProductCard from "@/components/menu/publico/PublicProductCard";
-import { CATEGORY_ICON_BG, productoToCartItem, type ProductoMenu, type CategoriaMenu, type BannerPublico } from "@/components/menu/publico/types";
-import { useJsApiLoader, Autocomplete } from "@react-google-maps/api";
 import {
-  getBannersPublico, getMenuPublico, getConfiguracionPublica, getSucursalPublica, getCierresPublico,
-  type ProductoMenuPublicoDto, type CategoriaMenuPublicoDto, type BannerPublicoDto,
+  CATEGORY_ICON_BG,
+  productoToCartItem,
+  type ProductoMenu,
+  type CategoriaMenu,
+  type BannerPublico,
+} from "@/components/menu/publico/types";
+import {
+  getBannersPublico,
+  getMenuPublico,
+  getConfiguracionPublica,
+  getSucursalPublica,
+  getCierresPublico,
 } from "@/lib/api/publico";
 
 /** Vista pública de la carta con autoservicio para clientes. */
@@ -52,12 +56,27 @@ export default function PublicMenu({
   const [productos, setProductos] = useState<ProductoMenu[]>([]);
   const [categorias, setCategorias] = useState<CategoriaMenu[]>([]);
   const [banners, setBanners] = useState<BannerPublico[]>([]);
-  const [bizName, setBizName] = useState('');
-  const [bizAddress, setBizAddress] = useState('');
-  const [bizLogo, setBizLogo] = useState('');
-  const [redes, setRedes] = useState({ instagram: '', facebook: '', tiktok: '', sitio: '', reviewsLink: '' });
-  const [horarios, setHorarios] = useState({ zonaHoraria: 'Peru (Lima)', tipoNegocio: 'Restaurante', descripcionCorta: '', descripcionCompleta: '', whatsappPedidos: '', schedule: {} as Record<string, any> });
-  const [cierres, setCierres] = useState<{ motivo: string; desde: string; hasta: string }[]>([]);
+  const [bizName, setBizName] = useState("");
+  const [bizAddress, setBizAddress] = useState("");
+  const [bizLogo, setBizLogo] = useState("");
+  const [redes, setRedes] = useState({
+    instagram: "",
+    facebook: "",
+    tiktok: "",
+    sitio: "",
+    reviewsLink: "",
+  });
+  const [horarios, setHorarios] = useState({
+    zonaHoraria: "Peru (Lima)",
+    tipoNegocio: "Restaurante",
+    descripcionCorta: "",
+    descripcionCompleta: "",
+    whatsappPedidos: "",
+    schedule: {} as Record<string, any>,
+  });
+  const [cierres, setCierres] = useState<
+    { motivo: string; desde: string; hasta: string }[]
+  >([]);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState("todos");
@@ -72,29 +91,48 @@ export default function PublicMenu({
 
   /* Formulario de checkout (datos del cliente, comprobante y pago) */
   const form = useCheckoutForm(mesaLabel);
-  const {
-    orderType, custName, custPhone, custEmail, custAddress, tableNum,
-    docType, ruc, razonSocial, paymentMethod, paymentScreenshot,
-    setPaymentScreenshot, setFormError, setCustName, setCustPhone, setCustEmail,
-    setCustAddress, setRuc, setRazonSocial, setPaymentMethod, setDocType,
-  } = form;
+  const { paymentMethod } = form;
 
   /* Carga desde API pública: productos, categorías, banners, config, sucursal, cierres. */
   useEffect(() => {
-    getBannersPublico(sucursalId).then(setBanners).catch(() => {});
-    getMenuPublico(sucursalId).then((data) => {
-      setProductos(data.productos ?? []); setCategorias(data.categorias ?? []);
-    }).catch(() => {});
-    getConfiguracionPublica(sucursalId).then(c => {
-      setBizLogo(c.logoUrl ?? '');
-      setRedes({ instagram: c.instagram ?? '', facebook: c.facebook ?? '', tiktok: c.tiktok ?? '', sitio: c.sitioWeb ?? '', reviewsLink: c.reviewsLink ?? '' });
-      setHorarios({ zonaHoraria: c.zonaHoraria ?? 'Peru (Lima)', tipoNegocio: c.tipoNegocio ?? 'Restaurante', descripcionCorta: c.descripcionCorta ?? '', descripcionCompleta: c.descripcionCompleta ?? '', whatsappPedidos: c.whatsappPedidos ?? '', schedule: c.horariosJson ? JSON.parse(c.horariosJson) : {} });
-    }).catch(() => {});
-    getSucursalPublica(sucursalId).then(s => {
-      setBizName(s.nombre ?? '');
-      setBizAddress(s.direccion ?? '');
-    }).catch(() => {});
-    getCierresPublico(sucursalId).then(d => setCierres(Array.isArray(d) ? d : [])).catch(() => setCierres([]));
+    getBannersPublico(sucursalId)
+      .then(setBanners)
+      .catch(() => {});
+    getMenuPublico(sucursalId)
+      .then((data) => {
+        setProductos(data.productos ?? []);
+        setCategorias(data.categorias ?? []);
+      })
+      .catch(() => {});
+    getConfiguracionPublica(sucursalId)
+      .then((c) => {
+        setBizLogo(c.logoUrl ?? "");
+        setRedes({
+          instagram: c.instagram ?? "",
+          facebook: c.facebook ?? "",
+          tiktok: c.tiktok ?? "",
+          sitio: c.sitioWeb ?? "",
+          reviewsLink: c.reviewsLink ?? "",
+        });
+        setHorarios({
+          zonaHoraria: c.zonaHoraria ?? "Peru (Lima)",
+          tipoNegocio: c.tipoNegocio ?? "Restaurante",
+          descripcionCorta: c.descripcionCorta ?? "",
+          descripcionCompleta: c.descripcionCompleta ?? "",
+          whatsappPedidos: c.whatsappPedidos ?? "",
+          schedule: c.horariosJson ? JSON.parse(c.horariosJson) : {},
+        });
+      })
+      .catch(() => {});
+    getSucursalPublica(sucursalId)
+      .then((s) => {
+        setBizName(s.nombre ?? "");
+        setBizAddress(s.direccion ?? "");
+      })
+      .catch(() => {});
+    getCierresPublico(sucursalId)
+      .then((d) => setCierres(Array.isArray(d) ? d : []))
+      .catch(() => setCierres([]));
   }, [sucursalId]);
 
   useEffect(() => {
@@ -113,13 +151,13 @@ export default function PublicMenu({
 
   const activeBanners = banners;
 
-  const cierreActivo = cierres.find(c => {
+  const cierreActivo = cierres.find((c) => {
     const ahora = new Date();
     return new Date(c.desde) <= ahora && new Date(c.hasta) >= ahora;
   });
 
   const allCategories = useMemo(() => {
-    return categorias.sort((a, b) => a.orden - b.orden).map(c => c.nombre);
+    return categorias.sort((a, b) => a.orden - b.orden).map((c) => c.nombre);
   }, [categorias]);
 
   const availableItems = useMemo(() => productos, [productos]);
@@ -175,7 +213,9 @@ export default function PublicMenu({
       const existing = prev.find((i) => i.product.id === String(product.id));
       if (existing) {
         return prev.map((i) =>
-          i.product.id === String(product.id) ? { ...i, quantity: i.quantity + 1 } : i,
+          i.product.id === String(product.id)
+            ? { ...i, quantity: i.quantity + 1 }
+            : i,
         );
       }
       return [...prev, { product: productoToCartItem(product), quantity: 1 }];
@@ -293,13 +333,10 @@ export default function PublicMenu({
     <div className="space-y-0.5">
       {bizAddress && (
         <p className="flex items-center gap-1 truncate">
-          <MapPin className="h-3 w-3 shrink-0 text-slate-400" />{" "}
-          {bizAddress}
+          <MapPin className="h-3 w-3 shrink-0 text-slate-400" /> {bizAddress}
         </p>
       )}
-      {!bizAddress && (
-        <p>Restaurante · Carta del Día</p>
-      )}
+      {!bizAddress && <p>Restaurante · Carta del Día</p>}
     </div>
   );
 
@@ -313,7 +350,7 @@ export default function PublicMenu({
         descripcionCompleta={horarios.descripcionCompleta}
         schedule={horarios.schedule}
         numeroPedidos={horarios.whatsappPedidos}
-          direccion={bizAddress}
+        direccion={bizAddress}
       />
     </div>
   );
@@ -337,9 +374,12 @@ export default function PublicMenu({
           <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3">
             <CalendarOff className="h-5 w-5 text-amber-600 shrink-0" />
             <div>
-              <p className="text-sm font-semibold text-amber-800">{cierreActivo.motivo}</p>
+              <p className="text-sm font-semibold text-amber-800">
+                {cierreActivo.motivo}
+              </p>
               <p className="text-[11px] text-amber-600">
-                {new Date(cierreActivo.desde).toLocaleString('es-PE')} — {new Date(cierreActivo.hasta).toLocaleString('es-PE')}
+                {new Date(cierreActivo.desde).toLocaleString("es-PE")} —{" "}
+                {new Date(cierreActivo.hasta).toLocaleString("es-PE")}
               </p>
             </div>
           </div>
@@ -460,4 +500,3 @@ export default function PublicMenu({
     </div>
   );
 }
-

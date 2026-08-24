@@ -4,7 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import type { Table, OrderItem, Toast } from '@/types';
 import { ApiError } from '@/lib/api/client';
-import { createMesa, deleteMesa, getMesasEstado, setMesaEstado, type MesaEstadoDto, type MesaEstado } from '@/lib/api/mesas';
+import {
+  createMesa, deleteMesa, getMesasEstado, setMesaEstado, unirMesas, separarGrupoMesas,
+  type MesaEstadoDto, type MesaEstado,
+} from '@/lib/api/mesas';
 import {
   getPedidoBySesion, crearPedido, agregarItemsPedido,
   actualizarItemPedido, eliminarItemPedido, cancelarPedido, confirmarPedido, type PedidoDto,
@@ -12,6 +15,7 @@ import {
 import { crearSesionMesa, cerrarSesionMesa } from '@/lib/api/sesionesMesa';
 import { usePedidoEvents } from '@/hooks/realtime/usePedidoEvents';
 import { useSesionCerradaEvents, type SesionCerradaPayload } from '@/hooks/realtime/useSesionCerradaEvents';
+import { useMesaEvents } from '@/hooks/realtime/useMesaEvents';
 
 const ESTADO_TO_STATUS: Record<MesaEstado, Table['status']> = {
   libre: 'disponible',
@@ -49,6 +53,7 @@ function mesaEstadoToTable(mesa: MesaEstadoDto, pedido: PedidoDto | null): Table
     ubicacion: mesa.ubicacion ?? '',
     capacidad: mesa.capacidad,
     status: ESTADO_TO_STATUS[mesa.estado],
+    groupId: mesa.grupoId ?? undefined,
     cuenta,
     items,
     waiter: pedido?.mozoNombre ?? undefined,
@@ -88,8 +93,8 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
         return mesas.map((m, i) => {
           const built = mesaEstadoToTable(m, pedidos[i]);
           const local = prevById.get(built.id);
-          // x/y/groupId son puramente decorativos (unir mesas en el plano) y no vienen del backend.
-          return local ? { ...built, x: local.x, y: local.y, groupId: local.groupId } : built;
+          // x/y son puramente decorativos (posición en el plano) y no vienen del backend.
+          return local ? { ...built, x: local.x, y: local.y } : built;
         });
       });
     } catch {
@@ -112,6 +117,11 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
     if (payload.mesaId != null) loadMesas();
   }, [loadMesas]);
   useSesionCerradaEvents(handleSesionCerrada);
+
+  /* Tiempo real: alta/baja/cambio de mesa o unión/separación de grupo (por cualquier mozo/admin
+     de la sucursal) refresca el tablero al instante en todos los dispositivos conectados. */
+  const handleMesaEvent = useCallback(() => { loadMesas(); }, [loadMesas]);
+  useMesaEvents(handleMesaEvent);
 
   const addTable = useCallback(
     async (ubicacion: string, numero: string, capacidad: number) => {
@@ -285,9 +295,40 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
     [token, tables]
   );
 
+  /** Une 2+ mesas libres en un solo grupo (persiste en el backend y se notifica en vivo). */
+  const mergeTables = useCallback(
+    async (tableIds: string[]) => {
+      if (!token) { triggerToast('Sesión expirada.', 'error'); return; }
+      if (tableIds.length < 2) { triggerToast('Selecciona al menos 2 mesas para unir.', 'warning'); return; }
+      try {
+        await unirMesas(token, tableIds.map(Number));
+        await loadMesas();
+        triggerToast('Mesas unidas.', 'success');
+      } catch (err) {
+        triggerToast(err instanceof ApiError ? err.message : 'No se pudieron unir las mesas.', 'error');
+      }
+    },
+    [token, triggerToast, loadMesas]
+  );
+
+  /** Separa un grupo de mesas unidas, dejándolas sueltas de nuevo. */
+  const unmergeTable = useCallback(
+    async (groupId: string) => {
+      if (!token) { triggerToast('Sesión expirada.', 'error'); return; }
+      try {
+        await separarGrupoMesas(token, groupId);
+        await loadMesas();
+        triggerToast('Mesas separadas.', 'info');
+      } catch (err) {
+        triggerToast(err instanceof ApiError ? err.message : 'No se pudieron separar las mesas.', 'error');
+      }
+    },
+    [token, triggerToast, loadMesas]
+  );
+
   return {
     tables, setTables, mesasLoading,
-    addTable, removeTable, setTableStatus,
+    addTable, removeTable, setTableStatus, mergeTables, unmergeTable,
     sendOrderToKitchen, updateTableItemQty, removeTableItem, cancelTableOrder, closeTableAfterCharge,
     confirmarPedidoCliente,
   };

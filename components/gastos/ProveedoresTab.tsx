@@ -3,11 +3,9 @@
 import { useState } from 'react';
 import { Truck, Plus, Trash2 } from 'lucide-react';
 import { useGastos } from '@/context/GastosContext';
-import { useApp } from '@/context/AppContext';
 
 export default function ProveedoresTab() {
   const { proveedores, gastos, addProveedor, removeProveedor } = useGastos();
-  const { triggerToast } = useApp();
   const [name, setName] = useState('');
 
   const handleAdd = () => {
@@ -15,12 +13,10 @@ export default function ProveedoresTab() {
     if (!trimmed) return;
     addProveedor(trimmed);
     setName('');
-    triggerToast(`Proveedor "${trimmed}" agregado.`, 'success');
   };
 
-  const handleRemove = (id: string, proveedorName: string) => {
+  const handleRemove = (id: string) => {
     removeProveedor(id);
-    triggerToast(`Proveedor "${proveedorName}" eliminado.`, 'info');
   };
 
   return (
@@ -62,7 +58,7 @@ export default function ProveedoresTab() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => handleRemove(p.id, p.name)}
+                  onClick={() => handleRemove(p.id)}
                   className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
                   aria-label={`Eliminar ${p.name}`}
                 >

@@ -11,6 +11,7 @@ export interface MesaDto {
   estado: MesaEstado;
   ubicacion?: string | null;
   token: string;
+  grupoId?: string | null;
 }
 
 export interface CreateMesaDto {
@@ -32,6 +33,7 @@ export interface MesaEstadoDto {
   capacidad: number;
   estado: MesaEstado;
   ubicacion?: string | null;
+  grupoId?: string | null;
   sesionId?: number | null;
   nombreCliente?: string | null;
   numComensales?: number | null;
@@ -54,4 +56,14 @@ export function createMesa(token: string, dto: CreateMesaDto) {
 
 export function deleteMesa(token: string, id: number) {
   return apiFetch<void>(`/api/mesas/${id}`, { token, method: 'DELETE' });
+}
+
+/** Une 2+ mesas libres en un grupo (comparten grupoId) — se operan como una sola en el plano. */
+export function unirMesas(token: string, mesaIds: number[]) {
+  return apiFetch<MesaDto[]>('/api/mesas/grupo', { token, method: 'POST', body: { mesaIds } });
+}
+
+/** Separa un grupo de mesas unidas, dejándolas sueltas de nuevo. */
+export function separarGrupoMesas(token: string, grupoId: string) {
+  return apiFetch<MesaDto[]>(`/api/mesas/grupo/${grupoId}`, { token, method: 'DELETE' });
 }

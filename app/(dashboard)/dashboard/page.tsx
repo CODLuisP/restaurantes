@@ -1,7 +1,8 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { DollarSign, TrendingUp, ShoppingCart, Utensils, Users, FileText, Sparkles } from 'lucide-react';
+import { DollarSign, TrendingUp, ShoppingCart, Utensils, Users, FileText, Sparkles, ShieldAlert } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
 
 /* Recharts es pesado y solo corre en cliente — se carga aparte del bundle inicial. */
@@ -11,7 +12,20 @@ const RevenueChart = dynamic(() => import('@/components/dashboard/RevenueChart')
 });
 
 export default function DashboardPage() {
+  const { currentUser } = useAuth();
   const { kpiStats, salesHistory, triggerToast } = useApp();
+
+  if (currentUser?.role !== 'admin') {
+    return (
+      <div className="card-lg max-w-md mx-auto my-16 p-8 text-center space-y-3 animate-section">
+        <div className="mx-auto w-14 h-14 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center">
+          <ShieldAlert className="h-7 w-7" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-800">Acceso restringido</h3>
+        <p className="text-xs text-slate-500">Solo el <strong>administrador</strong> puede ver el dashboard ejecutivo.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5 animate-section">

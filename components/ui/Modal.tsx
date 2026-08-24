@@ -58,7 +58,7 @@ export function Modal({
     <div
       ref={overlayRef}
       onClick={e => { if (closeOnOverlayClick && e.target === overlayRef.current) onClose(); }}
-      className={`fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex ${fullHeight ? 'items-stretch' : 'items-center'} justify-center p-4 sm:p-6`}
+      className={`fixed inset-0 bg-black/60 z-50 flex ${fullHeight ? 'items-stretch' : 'items-center'} justify-center p-4 sm:p-6`}
     >
       <div className={`card-lg w-full ${SIZE_CLASSES[size]} ${fullHeight ? 'h-full flex flex-col' : 'max-h-[90vh] flex flex-col'} overflow-hidden shadow-2xl`}>
         {/* Header */}

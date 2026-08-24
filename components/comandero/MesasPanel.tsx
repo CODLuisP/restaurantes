@@ -33,7 +33,7 @@ export default function MesasPanel({ onTakeOrder }: { onTakeOrder: (name: string
 
   const canTakeOrder = currentUser?.role === 'admin' || currentUser?.role === 'mozo';
   const canCharge    = currentUser?.role === 'admin' || currentUser?.role === 'cajero';
-  const canManage    = currentUser?.role === 'admin';
+  const canManage    = currentUser?.role === 'admin' || currentUser?.role === 'mozo';
 
   const salones = Array.from(new Set(tables.map(t => t.ubicacion || SIN_SALON))).sort();
 

@@ -38,7 +38,7 @@ type MenuItem = {
 };
 
 const menuItems: MenuItem[] = [
-  { href: '/dashboard',     label: 'Dashboard',       icon: LayoutDashboard, roles: ['admin', 'mozo', 'cajero', 'repartidor'] },
+  { href: '/dashboard',     label: 'Dashboard',       icon: LayoutDashboard, roles: ['admin'] },
   { href: '/comandero',     label: 'Comandero',        icon: ShoppingBag,     roles: ['admin', 'mozo'] },
   { href: '/cobrar',        label: 'Cobrar',           icon: Receipt,         roles: ['admin', 'cajero'] },
   { href: '/cocina',        label: 'Cocina',           icon: ChefHat,         roles: ['admin', 'cocinero'] },

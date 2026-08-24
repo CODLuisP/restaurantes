@@ -3,11 +3,9 @@
 import { useState } from 'react';
 import { Tags, Plus, Trash2 } from 'lucide-react';
 import { useGastos } from '@/context/GastosContext';
-import { useApp } from '@/context/AppContext';
 
 export default function CategoriasTab() {
   const { categorias, gastos, addCategoria, removeCategoria } = useGastos();
-  const { triggerToast } = useApp();
   const [name, setName] = useState('');
 
   const handleAdd = () => {
@@ -15,12 +13,10 @@ export default function CategoriasTab() {
     if (!trimmed) return;
     addCategoria(trimmed);
     setName('');
-    triggerToast(`Categoría "${trimmed}" agregada.`, 'success');
   };
 
-  const handleRemove = (id: string, categoriaName: string) => {
+  const handleRemove = (id: string) => {
     removeCategoria(id);
-    triggerToast(`Categoría "${categoriaName}" eliminada.`, 'info');
   };
 
   return (
@@ -62,7 +58,7 @@ export default function CategoriasTab() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => handleRemove(c.id, c.name)}
+                  onClick={() => handleRemove(c.id)}
                   className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
                   aria-label={`Eliminar ${c.name}`}
                 >
