@@ -41,6 +41,8 @@ export interface Chargeable {
   kind: OrderType;
   ref: string;            // nombre de mesa o id de pedido
   label: string;
+  /** Id de la sesión de mesa en el backend — requerido para registrar la venta real. */
+  sesionMesaId?: number;
   customer?: string;
   phone?: string;
   address?: string;

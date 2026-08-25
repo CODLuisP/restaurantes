@@ -159,6 +159,8 @@ export interface ChargeInput {
   itemsCount?: number;
   /** Si true (por defecto), libera la mesa / cierra el pedido tras cobrar. En cuentas separadas se pasa false hasta el último pago. */
   closeAfter?: boolean;
+  /** Ítems reales (id de pedido_item del backend + cantidad) que cubre este cobro — obligatorio para registrar la venta real. */
+  chargeItems: { pedidoItemId: number; cantidad: number }[];
 }
 
 /* Canal / tipo de pedido */

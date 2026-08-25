@@ -49,12 +49,14 @@ export default function CobrarPage() {
       .filter(t => t.status === 'ocupada' && t.cuenta > 0)
       .map(t => ({
         key: `mesa-${t.id}`, kind: 'mesa' as const, ref: t.name, label: t.name,
+        sesionMesaId: t.sesionMesaId,
         waiter: t.waiter, items: t.items ?? [], total: t.cuenta,
         itemsCount: (t.items ?? []).reduce((s, i) => s + i.quantity, 0),
         pedidoEstado: t.pedidoEstado,
       })),
     ...activeOrders.map(o => ({
       key: `${o.type}-${o.id}`, kind: o.type, ref: o.id, label: o.id,
+      sesionMesaId: o.sesionMesaId,
       customer: o.customer, phone: o.phone, address: o.address, waiter: o.waiter,
       items: o.items, total: o.total, itemsCount: o.itemsCount, time: o.createdAt,
       pedidoEstado: o.pedidoEstado,

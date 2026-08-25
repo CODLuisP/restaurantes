@@ -16,6 +16,22 @@ import { useMesaEvents, type MesaEvent } from '@/hooks/realtime/useMesaEvents';
 import { pedidoLabel } from '@/components/cocina/types';
 import type { TurnoCajaDto } from '@/lib/api/turnosCaja';
 import type { PedidoDto } from '@/lib/api/pedidos';
+import { crearVenta } from '@/lib/api/ventas';
+import { ApiError } from '@/lib/api/client';
+
+/** Boleta/Factura/Nota de venta (UI) → ticket/boleta/factura (backend). */
+const DOC_TYPE_TO_BACKEND: Record<DocType, string> = {
+  'Boleta': 'boleta',
+  'Factura': 'factura',
+  'Nota de venta': 'ticket',
+};
+
+/** Efectivo/Yape-Plin/Tarjeta (UI) → efectivo/yape/tarjeta (backend). */
+const PAYMENT_TO_BACKEND: Record<string, string> = {
+  'Efectivo': 'efectivo',
+  'Yape / Plin': 'yape',
+  'Tarjeta': 'tarjeta',
+};
 
 interface KpiStats {
   ventasDia: number;
@@ -81,10 +97,10 @@ interface AppContextType {
   cancelActiveOrder: (orderId: string) => Promise<void>;
   /** El mozo confirma un pedido de llevar/delivery armado por el cliente — recién ahí se manda a cocina. */
   confirmarActiveOrder: (orderId: string) => Promise<void>;
-  /** Cobra un pedido para llevar / delivery (o una parte, en cuentas separadas), emite comprobante y lo cierra. */
-  chargeOrder: (orderId: string, input: ChargeInput) => SalesHistory | null;
-  /** Cajero: cobra el consumo de una mesa (o una parte, en cuentas separadas), emite comprobante y la libera. */
-  chargeTable: (tableName: string, input: ChargeInput) => SalesHistory | null;
+  /** Cobra un pedido para llevar / delivery (o una parte, en cuentas separadas) registrando la venta real en el backend. */
+  chargeOrder: (orderId: string, input: ChargeInput) => Promise<SalesHistory | null>;
+  /** Cajero: cobra el consumo de una mesa (o una parte, en cuentas separadas) registrando la venta real en el backend. */
+  chargeTable: (tableName: string, input: ChargeInput) => Promise<SalesHistory | null>;
   /** Reserva o libera una mesa disponible (no toca consumo). */
   setTableStatus: (tableId: string, status: 'disponible' | 'reservada') => Promise<void>;
   /* ── Caja ── */
@@ -114,11 +130,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const { data: authSession } = useSession();
   const isMozo = authSession?.user?.role?.trim().toLowerCase() === 'mozo';
   const isAdmin = authSession?.user?.role?.trim().toLowerCase() === 'admin';
+  const token = authSession?.accessToken;
+  const cajeroId = authSession?.user?.id ? Number(authSession.user.id) : undefined;
 
   const [products] = useState<Product[]>(MOCK_PRODUCTS);
   const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
   const [salesHistory, setSalesHistory] = useState<SalesHistory[]>(INITIAL_SALES_HISTORY);
-  const [docSeq, setDocSeq] = useState<Record<'Boleta' | 'Factura', number>>({ Boleta: 105, Factura: 32 });
   const [searchQuery, setSearchQuery] = useState('');
 
   const { toasts, triggerToast, dismissToast } = useToasts();
@@ -126,12 +143,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const {
     tables, setTables, mesasLoading, addTable, removeTable, setTableStatus,
     mergeTables: mergeTablesBackend, unmergeTable: unmergeTableBackend,
-    sendOrderToKitchen, updateTableItemQty, removeTableItem, cancelTableOrder, closeTableAfterCharge,
+    sendOrderToKitchen, updateTableItemQty, removeTableItem, cancelTableOrder,
     confirmarPedidoCliente,
   } = useMesasCatalogo(triggerToast);
   const {
     activeOrders, activeOrdersLoading, createActiveOrder, addItemsToActiveOrder,
-    updateActiveOrderItemQty, removeActiveOrderItem, cancelActiveOrder, closeActiveOrderAfterCharge,
+    updateActiveOrderItemQty, removeActiveOrderItem, cancelActiveOrder,
     confirmarActiveOrder,
   } = useActiveOrders(triggerToast);
 
@@ -216,11 +233,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     triggerToast('Cliente eliminado.', 'info');
   }, [triggerToast]);
 
-  /* ── CAJERO: cobrar el consumo de la mesa y emitir comprobante ── */
+  /* ── CAJERO: cobrar el consumo de la mesa (venta real contra el backend) ──
+     El backend calcula subtotal/IGV desde los ítems reales del pedido, marca la sesión
+     pagada y libera la mesa automáticamente cuando se cubre todo lo pendiente (soporta
+     cuentas divididas por ítem) — acá solo se arma el DTO y se refleja el resultado. */
   const chargeTable = useCallback(
-    (tableName: string, input: ChargeInput): SalesHistory | null => {
-      if (!caja.cashSession || caja.cashSession.status !== 'abierta') {
+    async (tableName: string, input: ChargeInput): Promise<SalesHistory | null> => {
+      if (!caja.cashSession || caja.cashSession.status !== 'abierta' || !caja.cashSession.turnoId) {
         triggerToast('No se puede cobrar: la caja está cerrada.', 'error');
+        return null;
+      }
+      if (!token || !cajeroId) {
+        triggerToast('Sesión expirada.', 'error');
         return null;
       }
       const table = tables.find(t => t.name === tableName);
@@ -228,63 +252,66 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         triggerToast('La mesa no tiene consumo pendiente por cobrar.', 'warning');
         return null;
       }
+      if (!table.sesionMesaId) {
+        triggerToast('Esta mesa no tiene una sesión activa en el sistema.', 'error');
+        return null;
+      }
+      if (input.chargeItems.length === 0) {
+        triggerToast('Selecciona al menos un ítem para cobrar.', 'warning');
+        return null;
+      }
 
       const amount = input.amount ?? table.cuenta;
       const itemsCount = input.itemsCount ?? (table.items ?? []).reduce((sum, i) => sum + i.quantity, 0);
-      const closeAfter = input.closeAfter !== false;
 
-      /* Nº de comprobante solo para boleta/factura; la nota de venta no lo lleva. */
-      let comprobante: string | undefined;
-      if (input.docType === 'Boleta' || input.docType === 'Factura') {
-        const seq = (docSeq[input.docType] ?? 0) + 1;
-        const serie = input.docType === 'Boleta' ? 'B001' : 'F001';
-        comprobante = `${serie}-${String(seq).padStart(6, '0')}`;
-        setDocSeq(prev => ({ ...prev, [input.docType as 'Boleta' | 'Factura']: seq }));
+      try {
+        const venta = await crearVenta(token, {
+          sesionMesaId: table.sesionMesaId,
+          cajeroId,
+          turnoId: caja.cashSession.turnoId,
+          items: input.chargeItems.map(i => ({ pedidoItemId: i.pedidoItemId, cantidad: i.cantidad })),
+          descuento: 0,
+          propina: 0,
+          metodoPago: PAYMENT_TO_BACKEND[input.method],
+          montoRecibido: input.received ?? null,
+          tipoComprobante: DOC_TYPE_TO_BACKEND[input.docType],
+          tipoDoc: input.customerDoc ? (input.customerDoc.type === 'RUC' ? 'ruc' : 'dni') : null,
+          numDoc: input.customerDoc?.number ?? null,
+          razonSocial: input.customerDoc?.name ?? null,
+        });
+
+        const sale: SalesHistory = {
+          id: String(venta.id),
+          time: new Date(venta.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+          itemsCount,
+          paymentMethod: input.method,
+          total: venta.total,
+          table: tableName,
+          docType: input.docType,
+          // El comprobanteId real (Nº de boleta/factura ante SUNAT) todavía no se emite — ver /api/emitir-comprobante.
+          comprobante: venta.comprobanteId ?? undefined,
+          waiter: table.waiter,
+          cashier: input.cashier,
+          customerDoc: input.customerDoc,
+          received: input.received,
+          change: venta.vuelto ?? undefined,
+        };
+
+        setSalesHistory(prev => [sale, ...prev]);
+        await caja.refreshResumen();
+
+        const docLabel = input.docType === 'Nota de venta' ? 'Nota de venta' : `${input.docType} (pendiente de N° SUNAT)`;
+        triggerToast(
+          `Cobro de S/. ${amount.toFixed(2)} (${input.method}). ${docLabel}${venta.tipo === 'split' ? ' · cuenta parcial' : ''}.`,
+          'success'
+        );
+        return sale;
+      } catch (err) {
+        triggerToast(err instanceof ApiError ? err.message : 'No se pudo registrar el cobro.', 'error');
+        return null;
       }
-
-      const change = input.received != null ? Math.max(0, input.received - amount) : undefined;
-
-      const sale: SalesHistory = {
-        id: `S-${Math.floor(100 + Math.random() * 900)}`,
-        time: new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-        itemsCount,
-        paymentMethod: input.method,
-        total: amount,
-        table: tableName,
-        docType: input.docType,
-        comprobante,
-        waiter: table.waiter,
-        cashier: input.cashier,
-        customerDoc: input.customerDoc,
-        received: input.received,
-        change,
-      };
-
-      setSalesHistory(prev => [sale, ...prev]);
-
-      /* Alimentar la caja según método de pago (provisional: hasta que Cobrar registre
-         ventas reales contra el backend, esto solo refleja el mock local). */
-      caja.setCashSession(prev => prev && {
-        ...prev,
-        cashSales:    prev.cashSales    + (input.method === 'Efectivo'    ? amount : 0),
-        cardSales:    prev.cardSales    + (input.method === 'Tarjeta'     ? amount : 0),
-        digitalSales: prev.digitalSales + (input.method === 'Yape / Plin' ? amount : 0),
-        salesCount:   prev.salesCount + 1,
-      });
-
-      /* Liberar la mesa (cierra la sesión real) solo cuando se salda la cuenta completa. */
-      if (closeAfter) {
-        closeTableAfterCharge(tableName);
-      }
-
-      const docLabel = comprobante ? `${input.docType} ${comprobante}` : 'Nota de venta';
-      triggerToast(
-        `Cobro de S/. ${amount.toFixed(2)} (${input.method}). ${docLabel}${closeAfter ? '' : ' · cuenta parcial'}.`,
-        'success'
-      );
-      return sale;
     },
-    [triggerToast, caja.cashSession, tables, docSeq, closeTableAfterCharge]
+    [triggerToast, caja.cashSession, caja.refreshResumen, tables, token, cajeroId]
   );
 
   /* ── Plano de mesas: reubicar/unir (solo visual, no persiste en backend) ── */
@@ -362,10 +389,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [caja.sucursalCajaAbierta, triggerToast, createActiveOrder]
   );
 
+  /** Igual que chargeTable pero para pedidos llevar/delivery — misma venta real de backend,
+   *  la sesión detrás del pedido (sesionMesaId) no tiene mesa física asociada. */
   const chargeOrder = useCallback(
-    (orderId: string, input: ChargeInput): SalesHistory | null => {
-      if (!caja.cashSession || caja.cashSession.status !== 'abierta') {
+    async (orderId: string, input: ChargeInput): Promise<SalesHistory | null> => {
+      if (!caja.cashSession || caja.cashSession.status !== 'abierta' || !caja.cashSession.turnoId) {
         triggerToast('No se puede cobrar: la caja está cerrada.', 'error');
+        return null;
+      }
+      if (!token || !cajeroId) {
+        triggerToast('Sesión expirada.', 'error');
         return null;
       }
       const order = activeOrders.find(o => o.id === orderId);
@@ -373,58 +406,64 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         triggerToast('El pedido ya no está disponible.', 'warning');
         return null;
       }
+      if (!order.sesionMesaId) {
+        triggerToast('Este pedido no tiene una sesión activa en el sistema.', 'error');
+        return null;
+      }
+      if (input.chargeItems.length === 0) {
+        triggerToast('Selecciona al menos un ítem para cobrar.', 'warning');
+        return null;
+      }
 
       const amount = input.amount ?? order.total;
       const itemsCount = input.itemsCount ?? order.itemsCount;
-      const closeAfter = input.closeAfter !== false;
 
-      let comprobante: string | undefined;
-      if (input.docType === 'Boleta' || input.docType === 'Factura') {
-        const seq = (docSeq[input.docType] ?? 0) + 1;
-        const serie = input.docType === 'Boleta' ? 'B001' : 'F001';
-        comprobante = `${serie}-${String(seq).padStart(6, '0')}`;
-        setDocSeq(prev => ({ ...prev, [input.docType as 'Boleta' | 'Factura']: seq }));
+      try {
+        const venta = await crearVenta(token, {
+          sesionMesaId: order.sesionMesaId,
+          cajeroId,
+          turnoId: caja.cashSession.turnoId,
+          items: input.chargeItems.map(i => ({ pedidoItemId: i.pedidoItemId, cantidad: i.cantidad })),
+          descuento: 0,
+          propina: 0,
+          metodoPago: PAYMENT_TO_BACKEND[input.method],
+          montoRecibido: input.received ?? null,
+          tipoComprobante: DOC_TYPE_TO_BACKEND[input.docType],
+          tipoDoc: input.customerDoc ? (input.customerDoc.type === 'RUC' ? 'ruc' : 'dni') : null,
+          numDoc: input.customerDoc?.number ?? null,
+          razonSocial: input.customerDoc?.name ?? null,
+        });
+
+        const sale: SalesHistory = {
+          id: String(venta.id),
+          time: new Date(venta.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+          itemsCount,
+          paymentMethod: input.method,
+          total: venta.total,
+          table: order.type === 'llevar' ? `Para llevar (${order.id})` : `Delivery (${order.id})`,
+          docType: input.docType,
+          comprobante: venta.comprobanteId ?? undefined,
+          waiter: order.waiter,
+          cashier: input.cashier,
+          customerDoc: input.customerDoc,
+          received: input.received,
+          change: venta.vuelto ?? undefined,
+        };
+        setSalesHistory(prev => [sale, ...prev]);
+        await caja.refreshResumen();
+
+        const docLabel = input.docType === 'Nota de venta' ? 'Nota de venta' : `${input.docType} (pendiente de N° SUNAT)`;
+        triggerToast(
+          `Cobro de ${order.id} · S/. ${amount.toFixed(2)} (${input.method}). ${docLabel}${venta.tipo === 'split' ? ' · cuenta parcial' : ''}.`,
+          'success'
+        );
+        return sale;
+      } catch (err) {
+        triggerToast(err instanceof ApiError ? err.message : 'No se pudo registrar el cobro.', 'error');
+        return null;
       }
-
-      const change = input.received != null ? Math.max(0, input.received - amount) : undefined;
-
-      const sale: SalesHistory = {
-        id: `S-${Math.floor(100 + Math.random() * 900)}`,
-        time: new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-        itemsCount,
-        paymentMethod: input.method,
-        total: amount,
-        table: order.type === 'llevar' ? `Para llevar (${order.id})` : `Delivery (${order.id})`,
-        docType: input.docType,
-        comprobante,
-        waiter: order.waiter,
-        cashier: input.cashier,
-        customerDoc: input.customerDoc,
-        received: input.received,
-        change,
-      };
-      setSalesHistory(prev => [sale, ...prev]);
-
-      caja.setCashSession(prev => prev && {
-        ...prev,
-        cashSales:    prev.cashSales    + (input.method === 'Efectivo'    ? amount : 0),
-        cardSales:    prev.cardSales    + (input.method === 'Tarjeta'     ? amount : 0),
-        digitalSales: prev.digitalSales + (input.method === 'Yape / Plin' ? amount : 0),
-        salesCount:   prev.salesCount + 1,
-      });
-
-      if (closeAfter) {
-        closeActiveOrderAfterCharge(orderId);
-      }
-
-      const docLabel = comprobante ? `${input.docType} ${comprobante}` : 'Nota de venta';
-      triggerToast(
-        `Cobro de ${order.id} · S/. ${amount.toFixed(2)} (${input.method}). ${docLabel}${closeAfter ? '' : ' · cuenta parcial'}.`,
-        'success'
-      );
-      return sale;
     },
-    [caja.cashSession, activeOrders, docSeq, triggerToast, closeActiveOrderAfterCharge]
+    [caja.cashSession, caja.refreshResumen, activeOrders, triggerToast, token, cajeroId]
   );
 
   const addManualSale = useCallback(

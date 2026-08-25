@@ -207,6 +207,22 @@ export function useCajaTurno(triggerToast: (message: string, type?: Toast['type'
     [token, cashSession, triggerToast]
   );
 
+  /** Refresca cashSales/cardSales/digitalSales/salesCount/expectedAmount con el resumen real
+   *  del backend — se llama tras registrar una venta real (Cobrar) para reflejarla en caja. */
+  const refreshResumen = useCallback(async () => {
+    if (!token || !cashSession?.turnoId) return;
+    const resumen = await getResumenTurno(token, cashSession.turnoId).catch(() => null);
+    if (!resumen) return;
+    setCashSession(prev => prev && {
+      ...prev,
+      cashSales: resumen.totalEfectivo,
+      cardSales: resumen.totalTarjeta,
+      digitalSales: resumen.totalYape + resumen.totalPlin + resumen.totalOtro,
+      salesCount: resumen.cantidadVentas,
+      expectedAmount: resumen.efectivoEsperado,
+    });
+  }, [token, cashSession?.turnoId]);
+
   const closeCaja = useCallback(
     async (countedAmount: number, by: string): Promise<CashSession | null> => {
       if (!token || !cashSession?.turnoId || cashSession.status !== 'abierta') {
@@ -260,6 +276,6 @@ export function useCajaTurno(triggerToast: (message: string, type?: Toast['type'
     cajaHistory, cajaLoading, sucursalCajaAbierta,
     sucursalTurnoActivo, sucursalTurnoStale,
     isCajaOpen, cajaExpectedCash,
-    openCaja, closeCaja, addCashMovement, loadCajaHistory, cerrarTurnoAjeno,
+    openCaja, closeCaja, addCashMovement, loadCajaHistory, cerrarTurnoAjeno, refreshResumen,
   };
 }

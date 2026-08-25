@@ -92,6 +92,12 @@ export default function ChargePanel({
     if (method === 'Efectivo' && receivedNum != null && receivedNum < amountDue) {
       return 'El efectivo recibido es menor al monto a cobrar.';
     }
+    if (splitMode === 'equal') {
+      return 'Partes iguales aún no está disponible — usa Pago único o Por ítems.';
+    }
+    if (!selected.sesionMesaId) {
+      return 'Esta cuenta no tiene una sesión activa en el sistema; no se puede cobrar.';
+    }
     return null;
   };
   const validationError = validate();
@@ -148,11 +154,12 @@ export default function ChargePanel({
       amount: amountDue,
       itemsCount: itemsCountForCharge,
       closeAfter: willCloseAfter,
+      chargeItems: chargingItems.map(i => ({ pedidoItemId: Number(i.product.id), cantidad: i.quantity })),
     };
 
     const sale = selected.kind === 'mesa'
-      ? chargeTable(selected.ref, input)
-      : chargeOrder(selected.ref, input);
+      ? await chargeTable(selected.ref, input)
+      : await chargeOrder(selected.ref, input);
     if (!sale) return;
 
     if (sale.change != null && sale.change > 0) {
