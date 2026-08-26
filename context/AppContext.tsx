@@ -141,13 +141,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const { toasts, triggerToast, dismissToast } = useToasts();
   const caja = useCajaTurno(triggerToast);
   const {
-    tables, setTables, mesasLoading, addTable, removeTable, setTableStatus,
+    tables, setTables, mesasLoading, loadMesas, addTable, removeTable, setTableStatus,
     mergeTables: mergeTablesBackend, unmergeTable: unmergeTableBackend,
     sendOrderToKitchen, updateTableItemQty, removeTableItem, cancelTableOrder,
     confirmarPedidoCliente,
   } = useMesasCatalogo(triggerToast);
   const {
-    activeOrders, activeOrdersLoading, createActiveOrder, addItemsToActiveOrder,
+    activeOrders, activeOrdersLoading, loadActiveOrders, createActiveOrder, addItemsToActiveOrder,
     updateActiveOrderItemQty, removeActiveOrderItem, cancelActiveOrder,
     confirmarActiveOrder,
   } = useActiveOrders(triggerToast);
@@ -298,7 +298,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         };
 
         setSalesHistory(prev => [sale, ...prev]);
-        await caja.refreshResumen();
+        /* Refresca la mesa (cuenta/ítems restantes) tanto si quedó parcialmente cobrada como si se
+           cerró del todo — sin esto, un cobro "por ítems" parcial deja el tablero desactualizado y
+           permite reintentar cobrar ítems que el backend ya facturó (error 400). */
+        await Promise.all([loadMesas(), caja.refreshResumen()]);
 
         const docLabel = input.docType === 'Nota de venta' ? 'Nota de venta' : `${input.docType} (pendiente de N° SUNAT)`;
         triggerToast(
@@ -311,7 +314,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return null;
       }
     },
-    [triggerToast, caja.cashSession, caja.refreshResumen, tables, token, cajeroId]
+    [triggerToast, caja.cashSession, caja.refreshResumen, tables, token, cajeroId, loadMesas]
   );
 
   /* ── Plano de mesas: reubicar/unir (solo visual, no persiste en backend) ── */
@@ -450,7 +453,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           change: venta.vuelto ?? undefined,
         };
         setSalesHistory(prev => [sale, ...prev]);
-        await caja.refreshResumen();
+        /* Igual que en chargeTable: refresca el pedido (ítems/total restantes) sin importar si
+           quedó parcialmente cobrado o se cerró del todo. */
+        await Promise.all([loadActiveOrders(), caja.refreshResumen()]);
 
         const docLabel = input.docType === 'Nota de venta' ? 'Nota de venta' : `${input.docType} (pendiente de N° SUNAT)`;
         triggerToast(
@@ -463,7 +468,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return null;
       }
     },
-    [caja.cashSession, caja.refreshResumen, activeOrders, triggerToast, token, cajeroId]
+    [caja.cashSession, caja.refreshResumen, activeOrders, triggerToast, token, cajeroId, loadActiveOrders]
   );
 
   const addManualSale = useCallback(

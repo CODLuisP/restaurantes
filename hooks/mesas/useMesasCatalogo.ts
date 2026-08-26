@@ -13,6 +13,7 @@ import {
   actualizarItemPedido, eliminarItemPedido, cancelarPedido, confirmarPedido, type PedidoDto,
 } from '@/lib/api/pedidos';
 import { crearSesionMesa, cerrarSesionMesa } from '@/lib/api/sesionesMesa';
+import { getVentasBySesion, cantidadFacturadaPorItem, restarFacturado } from '@/lib/api/ventas';
 import { usePedidoEvents } from '@/hooks/realtime/usePedidoEvents';
 import { useSesionCerradaEvents, type SesionCerradaPayload } from '@/hooks/realtime/useSesionCerradaEvents';
 import { useMesaEvents } from '@/hooks/realtime/useMesaEvents';
@@ -44,8 +45,8 @@ function mapPedidoItems(pedido: PedidoDto | null): OrderItem[] {
     }));
 }
 
-function mesaEstadoToTable(mesa: MesaEstadoDto, pedido: PedidoDto | null): Table {
-  const items = mapPedidoItems(pedido);
+function mesaEstadoToTable(mesa: MesaEstadoDto, pedido: PedidoDto | null, facturado: Map<string, number>): Table {
+  const items = restarFacturado(mapPedidoItems(pedido), facturado);
   const cuenta = items.reduce((a, i) => a + i.product.price * i.quantity, 0);
   return {
     id: String(mesa.mesaId),
@@ -85,13 +86,15 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
     try {
       const mesas = await getMesasEstado(token, sucursalId);
       setMesasEstado(mesas);
-      const pedidos = await Promise.all(
-        mesas.map(m => (m.sesionId ? getPedidoBySesion(token, m.sesionId).catch(() => null) : Promise.resolve(null)))
-      );
+      const [pedidos, ventasPorSesion] = await Promise.all([
+        Promise.all(mesas.map(m => (m.sesionId ? getPedidoBySesion(token, m.sesionId).catch(() => null) : Promise.resolve(null)))),
+        Promise.all(mesas.map(m => (m.sesionId ? getVentasBySesion(token, m.sesionId).catch(() => []) : Promise.resolve([])))),
+      ]);
       setTables(prev => {
         const prevById = new Map(prev.map(t => [t.id, t]));
         return mesas.map((m, i) => {
-          const built = mesaEstadoToTable(m, pedidos[i]);
+          const facturado = cantidadFacturadaPorItem(ventasPorSesion[i]);
+          const built = mesaEstadoToTable(m, pedidos[i], facturado);
           const local = prevById.get(built.id);
           // x/y son puramente decorativos (posición en el plano) y no vienen del backend.
           return local ? { ...built, x: local.x, y: local.y } : built;
@@ -327,7 +330,7 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
   );
 
   return {
-    tables, setTables, mesasLoading,
+    tables, setTables, mesasLoading, loadMesas,
     addTable, removeTable, setTableStatus, mergeTables, unmergeTable,
     sendOrderToKitchen, updateTableItemQty, removeTableItem, cancelTableOrder, closeTableAfterCharge,
     confirmarPedidoCliente,

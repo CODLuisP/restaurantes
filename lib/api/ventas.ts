@@ -84,3 +84,26 @@ export function getVentas(token: string, params: { sucursalId?: number; fechaIni
 export function setVentaComprobante(token: string, id: number, comprobanteId: string) {
   return apiFetch<void>(`/api/ventas/${id}/comprobante`, { token, method: 'PUT', body: comprobanteId });
 }
+
+/** Cuánto de cada ítem del pedido (por pedidoItemId) ya se facturó en ventas previas de la sesión
+ *  — necesario para cuentas divididas: un ítem ya cobrado no debe volver a ofrecerse ni sumar al total. */
+export function cantidadFacturadaPorItem(ventas: VentaDto[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const venta of ventas) {
+    for (const item of venta.items) {
+      const key = String(item.pedidoItemId);
+      map.set(key, (map.get(key) ?? 0) + item.cantidad);
+    }
+  }
+  return map;
+}
+
+/** Descuenta lo ya facturado de cada ítem — filtra a 0 los que ya se cobraron por completo. */
+export function restarFacturado<T extends { product: { id: string }; quantity: number }>(
+  items: T[],
+  facturado: Map<string, number>
+): T[] {
+  return items
+    .map(i => ({ ...i, quantity: i.quantity - (facturado.get(i.product.id) ?? 0) }))
+    .filter(i => i.quantity > 0);
+}

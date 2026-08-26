@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/pedidos';
 import { usePedidoEvents } from '@/hooks/realtime/usePedidoEvents';
 import { useSesionCerradaEvents, type SesionCerradaPayload } from '@/hooks/realtime/useSesionCerradaEvents';
+import { getVentasBySesion, cantidadFacturadaPorItem, restarFacturado } from '@/lib/api/ventas';
 
 /** Ítems del pedido → OrderItem, usando el id de la FILA (pedido_item) como product.id
  *  para que actualizar/quitar un ítem ya enviado apunte al recurso correcto del backend. */
@@ -35,15 +36,15 @@ function mapPedidoItems(pedido: PedidoDto | null): OrderItem[] {
     }));
 }
 
-function pedidoToFields(pedido: PedidoDto) {
-  const items = mapPedidoItems(pedido);
+function pedidoToFields(pedido: PedidoDto, facturado: Map<string, number> = new Map()) {
+  const items = restarFacturado(mapPedidoItems(pedido), facturado);
   const total = items.reduce((a, it) => a + it.product.price * it.quantity, 0);
   const itemsCount = items.reduce((a, it) => a + it.quantity, 0);
   return { items, total, itemsCount, pedidoId: pedido.id, pedidoEstado: pedido.estado };
 }
 
-function sesionPedidoToActiveOrder(sesion: SesionMesaDto, pedido: PedidoDto | null): ActiveOrder {
-  const { items, total, itemsCount, pedidoEstado } = pedidoToFields(pedido ?? { id: 0, sesionMesaId: sesion.id, origen: '', estado: '', createdAt: '', items: [] });
+function sesionPedidoToActiveOrder(sesion: SesionMesaDto, pedido: PedidoDto | null, facturado: Map<string, number> = new Map()): ActiveOrder {
+  const { items, total, itemsCount, pedidoEstado } = pedidoToFields(pedido ?? { id: 0, sesionMesaId: sesion.id, origen: '', estado: '', createdAt: '', items: [] }, facturado);
   return {
     id: String(pedido?.id ?? `sesion-${sesion.id}`),
     type: sesion.tipo === 'delivery' ? 'delivery' : 'llevar',
@@ -83,8 +84,13 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
         getSesionesActivas(token, 'delivery', sucursalId),
       ]);
       const sesiones = [...llevar, ...delivery];
-      const pedidos = await Promise.all(sesiones.map(s => getPedidoBySesion(token, s.id).catch(() => null)));
-      setActiveOrders(sesiones.map((s, i) => sesionPedidoToActiveOrder(s, pedidos[i])));
+      const [pedidos, ventasPorSesion] = await Promise.all([
+        Promise.all(sesiones.map(s => getPedidoBySesion(token, s.id).catch(() => null))),
+        Promise.all(sesiones.map(s => getVentasBySesion(token, s.id).catch(() => []))),
+      ]);
+      setActiveOrders(sesiones.map((s, i) =>
+        sesionPedidoToActiveOrder(s, pedidos[i], cantidadFacturadaPorItem(ventasPorSesion[i]))
+      ));
     } catch {
       triggerToast('No se pudieron cargar los pedidos para llevar/delivery.', 'error');
     } finally {
@@ -259,7 +265,7 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
   );
 
   return {
-    activeOrders, activeOrdersLoading,
+    activeOrders, activeOrdersLoading, loadActiveOrders,
     createActiveOrder, addItemsToActiveOrder, updateActiveOrderItemQty,
     removeActiveOrderItem, cancelActiveOrder, closeActiveOrderAfterCharge, confirmarActiveOrder,
   };
