@@ -42,6 +42,10 @@ import {
   getSucursalPublica,
   getCierresPublico,
 } from "@/lib/api/publico";
+import {
+  DEFAULT_METODOS_PAGO, DEFAULT_METODOS_ENTREGA, parseMetodosPago, parseMetodosEntrega,
+  type MetodosPago, type MetodosEntrega,
+} from "@/lib/config/metodos";
 
 /** Vista pública de la carta con autoservicio para clientes. */
 export default function PublicMenu({
@@ -77,6 +81,8 @@ export default function PublicMenu({
   const [cierres, setCierres] = useState<
     { motivo: string; desde: string; hasta: string }[]
   >([]);
+  const [metodosPago, setMetodosPago] = useState<MetodosPago>(DEFAULT_METODOS_PAGO);
+  const [metodosEntrega, setMetodosEntrega] = useState<MetodosEntrega>(DEFAULT_METODOS_ENTREGA);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState("todos");
@@ -122,6 +128,8 @@ export default function PublicMenu({
           whatsappPedidos: c.whatsappPedidos ?? "",
           schedule: c.horariosJson ? JSON.parse(c.horariosJson) : {},
         });
+        setMetodosPago(parseMetodosPago(c.metodosPagoJson));
+        setMetodosEntrega(parseMetodosEntrega(c.metodosEntregaJson));
       })
       .catch(() => {});
     getSucursalPublica(sucursalId)
@@ -488,6 +496,8 @@ export default function PublicMenu({
         onPlaceOrder={handleConfirmOrder}
         submitting={submitting}
         mesaLabel={mesaLabel}
+        metodosPago={metodosPago}
+        metodosEntrega={metodosEntrega}
       />
 
       <OrderSuccessModal

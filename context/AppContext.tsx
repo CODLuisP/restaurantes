@@ -9,6 +9,8 @@ import type {
 } from '@/types';
 import { useToasts } from '@/hooks/app/useToasts';
 import { useCajaTurno } from '@/hooks/app/useCajaTurno';
+import { useNegocioConfig } from '@/hooks/app/useNegocioConfig';
+import type { MetodosPago, MetodosEntrega } from '@/lib/config/metodos';
 import { useMesasCatalogo } from '@/hooks/mesas/useMesasCatalogo';
 import { useActiveOrders } from '@/hooks/comandero/useActiveOrders';
 import { usePedidoEvents } from '@/hooks/realtime/usePedidoEvents';
@@ -43,6 +45,15 @@ interface KpiStats {
 
 interface AppContextType {
   products: Product[];
+  /** Métodos de pago/entrega habilitados y % de IGV configurados en /configuracion — Cobrar,
+   *  Comandero y el menú público deben respetarlos en vez de mostrar siempre todo. */
+  metodosPago: MetodosPago;
+  metodosEntrega: MetodosEntrega;
+  igvPorcentaje: number;
+  negocioConfigLoading: boolean;
+  /** Refresca métodos de pago/entrega e IGV desde el backend — se llama tras guardar cambios
+   *  en /configuracion para que Cobrar/Comandero los reflejen sin tener que recargar la sesión. */
+  refreshNegocioConfig: () => Promise<void>;
   tables: Table[];
   mesasLoading: boolean;
   setTables: React.Dispatch<React.SetStateAction<Table[]>>;
@@ -140,6 +151,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const { toasts, triggerToast, dismissToast } = useToasts();
   const caja = useCajaTurno(triggerToast);
+  const { metodosPago, metodosEntrega, igvPorcentaje, negocioConfigLoading, refreshNegocioConfig } = useNegocioConfig();
   const {
     tables, setTables, mesasLoading, loadMesas, addTable, removeTable, setTableStatus,
     mergeTables: mergeTablesBackend, unmergeTable: unmergeTableBackend,
@@ -489,6 +501,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider
       value={{
         products,
+        metodosPago,
+        metodosEntrega,
+        igvPorcentaje,
+        negocioConfigLoading,
+        refreshNegocioConfig,
         tables,
         mesasLoading,
         setTables,

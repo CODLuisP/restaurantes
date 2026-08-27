@@ -24,6 +24,7 @@ export default function ComanderoPage() {
     confirmarPedidoCliente,
     activeOrders, activeOrdersLoading, createOrder, addItemsToActiveOrder, updateActiveOrderItemQty,
     removeActiveOrderItem, cancelActiveOrder, confirmarActiveOrder,
+    metodosEntrega,
   } = useApp();
   const { currentUser } = useAuth();
   const canTakeOrder = currentUser?.role === 'admin' || currentUser?.role === 'mozo';
@@ -247,11 +248,12 @@ export default function ComanderoPage() {
     (activeTab === 'llevar' && (isCreatingNew || !!editingOrderId)) ||
     (activeTab === 'delivery' && (isCreatingNew || !!editingOrderId));
 
+  /* Solo se ofrecen los canales habilitados en /configuracion/metodos-entrega. */
   const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
     { id: 'todas',    label: 'Todas',       icon: <ClipboardList className="h-3.5 w-3.5" /> },
-    { id: 'mesa',     label: 'En mesa',     icon: <Grid className="h-3.5 w-3.5" /> },
-    { id: 'llevar',   label: 'Para llevar', icon: <ShoppingBag className="h-3.5 w-3.5" /> },
-    { id: 'delivery', label: 'Delivery',    icon: <Bike className="h-3.5 w-3.5" /> },
+    ...(metodosEntrega.mesa.enabled     ? [{ id: 'mesa' as const,     label: 'En mesa',     icon: <Grid className="h-3.5 w-3.5" /> }] : []),
+    ...(metodosEntrega.llevar.enabled   ? [{ id: 'llevar' as const,   label: 'Para llevar', icon: <ShoppingBag className="h-3.5 w-3.5" /> }] : []),
+    ...(metodosEntrega.delivery.enabled ? [{ id: 'delivery' as const, label: 'Delivery',    icon: <Bike className="h-3.5 w-3.5" /> }] : []),
   ];
 
   /* ── VISTA DIVIDIDA (SPLIT-SCREEN) PARA CREACIÓN / EDICIÓN ── */

@@ -1,10 +1,12 @@
 'use client';
 
+import { useEffect } from 'react';
 import { Autocomplete } from '@react-google-maps/api';
 import { Check, Upload, X } from 'lucide-react';
 import { Modal, Button, Input, Select } from '@/components/ui';
 import type { OrderItem } from '@/types';
 import type { CheckoutForm } from '@/hooks/menu/useCheckoutForm';
+import { DEFAULT_METODOS_PAGO, DEFAULT_METODOS_ENTREGA, type MetodosPago, type MetodosEntrega } from '@/lib/config/metodos';
 
 interface CheckoutModalProps {
   open: boolean;
@@ -16,11 +18,14 @@ interface CheckoutModalProps {
   onPlaceOrder: () => void;
   submitting?: boolean;
   mesaLabel?: string;
+  metodosPago?: MetodosPago;
+  metodosEntrega?: MetodosEntrega;
 }
 
 /** Checkout del menú público: tipo de pedido, datos del cliente, comprobante y pago. */
 export default function CheckoutModal({
   open, onClose, form, cart, cartTotal, onUpdateCartQty, onPlaceOrder, submitting, mesaLabel,
+  metodosPago = DEFAULT_METODOS_PAGO, metodosEntrega = DEFAULT_METODOS_ENTREGA,
 }: CheckoutModalProps) {
   const {
     orderType, setOrderType, custName, setCustName, custPhone, setCustPhone,
@@ -29,6 +34,40 @@ export default function CheckoutModal({
     paymentMethod, setPaymentMethod, paymentScreenshot, setPaymentScreenshot,
     formError, setFormError, autocompleteRef, isLoaded, handlePlaceChanged,
   } = form;
+
+  const canMesa = !!mesaLabel && metodosEntrega.mesa.enabled;
+  const canLlevar = metodosEntrega.llevar.enabled;
+  const canDelivery = metodosEntrega.delivery.enabled;
+
+  const paymentOptions = [
+    { id: 'Efectivo' as const, enabled: metodosPago.efectivo.enabled, label: orderType === 'delivery' ? 'Pago Contra entrega (Efectivo)' : 'Pagar en Caja / Mostrador' },
+    { id: 'Tarjeta' as const, enabled: metodosPago.tarjeta.enabled, label: 'Pago con Tarjeta' },
+    { id: 'Yape / Plin' as const, enabled: metodosPago.yape.enabled || metodosPago.plin.enabled, label: 'Yape / Plin (Pago anticipado)' },
+  ].filter(p => p.enabled);
+
+  /* Si el tipo de pedido o el método de pago seleccionados quedan deshabilitados (o la config
+     recién carga), cae a la primera opción disponible en vez de dejar algo que ya no se acepta.
+     Depende también de `orderType`: si el destino al que cae también termina deshabilitado
+     (ej. se desactivan Llevar y Delivery a la vez), este mismo efecto se vuelve a evaluar en
+     vez de quedarse atascado en un tipo que ya nadie ofrece. */
+  const enabledOrderTypes = [
+    ...(canMesa ? (['mesa'] as const) : []),
+    ...(canLlevar ? (['llevar'] as const) : []),
+    ...(canDelivery ? (['delivery'] as const) : []),
+  ];
+  useEffect(() => {
+    if (enabledOrderTypes.length > 0 && !enabledOrderTypes.includes(orderType)) {
+      setOrderType(enabledOrderTypes[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canMesa, canLlevar, canDelivery, orderType]);
+
+  useEffect(() => {
+    if (paymentOptions.length > 0 && !paymentOptions.some(p => p.id === paymentMethod)) {
+      setPaymentMethod(paymentOptions[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentOptions.map(p => p.id).join(',')]);
 
   /** Adjunta el comprobante de pago (Yape/Plin) como imagen en base64. */
   const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,7 +96,7 @@ export default function CheckoutModal({
             >
               Atrás
             </Button>
-            <Button className="flex-1 py-3" onClick={onPlaceOrder} disabled={submitting}>
+            <Button className="flex-1 py-3" onClick={onPlaceOrder} disabled={submitting || enabledOrderTypes.length === 0}>
               {submitting ? 'Enviando...' : 'Confirmar y Enviar'}
             </Button>
           </div>
@@ -67,6 +106,12 @@ export default function CheckoutModal({
           {formError && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl animate-section">
               {formError}
+            </div>
+          )}
+
+          {enabledOrderTypes.length === 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold rounded-xl">
+              No hay ningún canal de entrega disponible en este momento. Contacta al local directamente.
             </div>
           )}
 
@@ -98,58 +143,64 @@ export default function CheckoutModal({
             </div>
           </div>
 
-          {/* Tipo de Pedido */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-600">
-              ¿Cómo deseas recibir tu pedido?
-            </label>
-            <div className={`grid gap-2 ${mesaLabel ? 'grid-cols-3' : 'grid-cols-2'}`}>
-              {mesaLabel && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOrderType("mesa");
-                    setFormError("");
-                  }}
-                  className={`py-2 px-3 text-xs font-bold rounded-xl border text-center transition-all cursor-pointer ${
-                    orderType === "mesa"
-                      ? "border-brand bg-brand/5 text-brand font-bold"
-                      : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-                  }`}
-                >
-                  Comer Aquí
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  setOrderType("llevar");
-                  setFormError("");
-                }}
-                className={`py-2 px-3 text-xs font-bold rounded-xl border text-center transition-all cursor-pointer ${
-                  orderType === "llevar"
-                    ? "border-brand bg-brand/5 text-brand font-bold"
-                    : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-                }`}
-              >
-                Llevar / Recoger
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setOrderType("delivery");
-                  setFormError("");
-                }}
-                className={`py-2 px-3 text-xs font-bold rounded-xl border text-center transition-all cursor-pointer ${
-                  orderType === "delivery"
-                    ? "border-brand bg-brand/5 text-brand font-bold"
-                    : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-                }`}
-              >
-                Delivery
-              </button>
+          {/* Tipo de Pedido — solo los canales habilitados en Configuración → Métodos de entrega */}
+          {(canMesa || canLlevar || canDelivery) && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-600">
+                ¿Cómo deseas recibir tu pedido?
+              </label>
+              <div className={`grid gap-2 ${{ 1: 'grid-cols-1', 2: 'grid-cols-2', 3: 'grid-cols-3' }[[canMesa, canLlevar, canDelivery].filter(Boolean).length as 1 | 2 | 3]}`}>
+                {canMesa && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOrderType("mesa");
+                      setFormError("");
+                    }}
+                    className={`py-2 px-3 text-xs font-bold rounded-xl border text-center transition-all cursor-pointer ${
+                      orderType === "mesa"
+                        ? "border-brand bg-brand/5 text-brand font-bold"
+                        : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    Comer Aquí
+                  </button>
+                )}
+                {canLlevar && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOrderType("llevar");
+                      setFormError("");
+                    }}
+                    className={`py-2 px-3 text-xs font-bold rounded-xl border text-center transition-all cursor-pointer ${
+                      orderType === "llevar"
+                        ? "border-brand bg-brand/5 text-brand font-bold"
+                        : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    Llevar / Recoger
+                  </button>
+                )}
+                {canDelivery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOrderType("delivery");
+                      setFormError("");
+                    }}
+                    className={`py-2 px-3 text-xs font-bold rounded-xl border text-center transition-all cursor-pointer ${
+                      orderType === "delivery"
+                        ? "border-brand bg-brand/5 text-brand font-bold"
+                        : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    Delivery
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Campos del cliente */}
           <div className="space-y-3">
@@ -270,14 +321,13 @@ export default function CheckoutModal({
               value={paymentMethod}
               onChange={(e) => setPaymentMethod(e.target.value as any)}
             >
-              <option value="Efectivo">
-                {orderType === "delivery"
-                  ? "Pago Contra entrega (Efectivo)"
-                  : "Pagar en Caja / Mostrador"}
-              </option>
-              <option value="Tarjeta">Pago con Tarjeta</option>
-              <option value="Yape / Plin">Yape / Plin (Pago anticipado)</option>
+              {paymentOptions.map(p => (
+                <option key={p.id} value={p.id}>{p.label}</option>
+              ))}
             </Select>
+            {paymentOptions.length === 0 && (
+              <p className="text-[11px] text-rose-500">No hay métodos de pago habilitados por el momento.</p>
+            )}
 
             {paymentMethod === "Yape / Plin" && (
               <div className="p-4 bg-linear-to-br from-indigo-50 to-blue-50 border border-indigo-150 rounded-xl space-y-3.5 animate-section">

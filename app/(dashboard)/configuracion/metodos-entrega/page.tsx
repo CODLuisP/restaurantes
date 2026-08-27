@@ -8,20 +8,11 @@ import { Toggle, Button, SucursalSelector, Spinner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import { getConfiguracion, updateConfiguracion } from '@/lib/api/configuracion';
+import { DEFAULT_METODOS_ENTREGA, parseMetodosEntrega, type MetodosEntrega } from '@/lib/config/metodos';
 
 type DeliveryMethodKey = 'mesa' | 'llevar' | 'delivery';
-
-interface DeliveryMethods {
-  mesa: { enabled: boolean };
-  llevar: { enabled: boolean };
-  delivery: { enabled: boolean };
-}
-
-const DEFAULTS: DeliveryMethods = {
-  mesa: { enabled: true },
-  llevar: { enabled: true },
-  delivery: { enabled: false },
-};
+type DeliveryMethods = MetodosEntrega;
+const DEFAULTS = DEFAULT_METODOS_ENTREGA;
 
 const METHODS = [
   {
@@ -59,7 +50,7 @@ const METHODS = [
 ];
 
 export default function MetodosEntregaPage() {
-  const { triggerToast } = useApp();
+  const { triggerToast, refreshNegocioConfig } = useApp();
   const { token, isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
   const [methods, setMethods] = useState<DeliveryMethods>(DEFAULTS);
@@ -70,9 +61,7 @@ export default function MetodosEntregaPage() {
     if (!token || !sId) return;
     setLoading(true);
     getConfiguracion(token, sId).then(c => {
-      if (c.metodosEntregaJson) {
-        try { setMethods({ ...DEFAULTS, ...JSON.parse(c.metodosEntregaJson) }); } catch { setMethods(DEFAULTS); }
-      } else setMethods(DEFAULTS);
+      setMethods(parseMetodosEntrega(c.metodosEntregaJson));
     }).catch(() => setMethods(DEFAULTS)).finally(() => setLoading(false));
   }, [token, sId]);
 
@@ -88,6 +77,7 @@ export default function MetodosEntregaPage() {
         sitioWeb: actual.sitioWeb, reviewsLink: actual.reviewsLink,
       });
       triggerToast('Métodos de entrega guardados.', 'success');
+      refreshNegocioConfig();
     } catch { triggerToast('Error al guardar', 'error'); }
     finally { setSaving(false); }
   };

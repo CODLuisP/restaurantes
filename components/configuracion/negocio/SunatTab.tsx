@@ -1,11 +1,12 @@
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
 import { Eye, EyeOff, FileCheck2, KeyRound, Percent, Receipt, ShieldCheck, Upload, X, CheckCircle2, Trash2 } from 'lucide-react';
-import { Input, Button, Modal, Spinner } from '@/components/ui';
+import { Input, Button, Modal, Spinner, SucursalSelector } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
+import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import { getMiEmpresa, updateEmpresa, type EmpresaDto } from '@/lib/api/empresas';
+import { getConfiguracion, updateConfiguracion } from '@/lib/api/configuracion';
 
 const IGV_TYPES = [
   { id: 'Gravado', label: 'Gravado', hint: 'Operación afecta al IGV — el caso más común.' },
@@ -19,9 +20,8 @@ function SectionHeader({ icon, title, description, noBorder }: { icon?: React.Re
 }
 
 export default function SunatTab() {
-  const { data: session } = useSession();
-  const { triggerToast } = useApp();
-  const token = session?.accessToken;
+  const { triggerToast, refreshNegocioConfig } = useApp();
+  const { token, isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
   const certFileRef = useRef<HTMLInputElement>(null);
 
   const [empresa, setEmpresa] = useState<EmpresaDto | null>(null);
@@ -45,12 +45,19 @@ export default function SunatTab() {
     setLoading(true);
     getMiEmpresa(token).then(e => {
       setEmpresa(e); setSolUser(e.solUser); setSolPassword(e.solPassword);
-      setIgvTipo(e.igvTipo || 'Gravado'); setIgvPorcentaje(e.igvPorcentajeEmpresa || 18);
+      setIgvTipo(e.igvTipo || 'Gravado');
       setCertPfx(e.certificadoPfx || ''); setCertPassword(e.certificadoPassword);
       setCertFilename(e.certificadoFilename);
     }).catch(() => triggerToast('Error al cargar SUNAT.', 'error'))
     .finally(() => setLoading(false));
   }, [token]);
+
+  /* El % de IGV real que usa el motor de ventas vive en Configuracion (por sucursal), no en
+     Empresa — se carga/guarda aparte, según la sucursal seleccionada arriba. */
+  useEffect(() => {
+    if (!token || !sId) return;
+    getConfiguracion(token, sId).then(c => setIgvPorcentaje(c.igvPorcentaje || 18)).catch(() => {});
+  }, [token, sId]);
 
   const handleSave = async () => {
     if (!token || !empresa) return;
@@ -60,11 +67,21 @@ export default function SunatTab() {
         nombre: empresa.nombre, ruc: empresa.ruc, direccion: empresa.direccion,
         logoUrl: empresa.logoUrl, activo: empresa.activo,
         solUser: solUser || null, solPassword: solPassword || null,
-        igvTipo: igvTipo || null, igvPorcentajeEmpresa: igvPorcentaje || null,
+        igvTipo: igvTipo || null,
         certificadoPfx: certPfx || null, certificadoPassword: certPassword || null,
         certificadoFilename: certFilename || null,
       });
+      if (sId) {
+        const actual = await getConfiguracion(token, sId);
+        await updateConfiguracion(token, sId, {
+          igvPorcentaje, monedaSimbolo: actual.monedaSimbolo, logoUrl: actual.logoUrl,
+          instagram: actual.instagram, facebook: actual.facebook, tiktok: actual.tiktok,
+          sitioWeb: actual.sitioWeb, reviewsLink: actual.reviewsLink,
+          metodosPagoJson: actual.metodosPagoJson, metodosEntregaJson: actual.metodosEntregaJson,
+        });
+      }
       triggerToast('SUNAT guardado.', 'success');
+      refreshNegocioConfig();
     } catch { triggerToast('Error al guardar', 'error'); }
     finally { setSaving(false); }
   };
@@ -110,6 +127,7 @@ export default function SunatTab() {
 
   return (
     <div className="space-y-2">
+      <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sId} onChange={selectSucursal} />
       <SectionHeader icon={<KeyRound className="h-3.5 w-3.5 text-slate-400" />} title="Credenciales SOL" description="Usuario y clave de SUNAT Operaciones en Línea." noBorder />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input label="Usuario SOL" value={solUser} onChange={e => setSolUser(e.target.value)} placeholder="USUARIO" />
@@ -119,7 +137,7 @@ export default function SunatTab() {
         </div>
       </div>
 
-      <SectionHeader icon={<Percent className="h-3.5 w-3.5 text-slate-400" />} title="Afectación del IGV" description="Define cómo se calcula el IGV en tus comprobantes." />
+      <SectionHeader icon={<Percent className="h-3.5 w-3.5 text-slate-400" />} title="Afectación del IGV" description="Define cómo se calcula el IGV en tus comprobantes. El porcentaje aplica a la sucursal seleccionada arriba y es el que usa Cobrar al registrar cada venta." />
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {IGV_TYPES.map(t => (
           <button key={t.id} type="button" onClick={() => setIgvTipo(t.id)} className={`p-3 rounded-xl border text-left transition-colors ${igvTipo === t.id ? 'border-brand bg-brand/5' : 'border-slate-200 hover:bg-slate-50'}`}>

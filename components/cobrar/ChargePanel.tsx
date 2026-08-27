@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Ban, CheckCircle2, Divide, FileText, Loader2, MapPin, Pencil, Phone, Receipt, Users, Wallet,
 } from 'lucide-react';
@@ -18,7 +18,15 @@ export default function ChargePanel({
   onAddItems: () => void;
   onClosed: () => void;
 }) {
-  const { chargeTable, chargeOrder, triggerToast } = useApp();
+  const { chargeTable, chargeOrder, triggerToast, metodosPago, igvPorcentaje } = useApp();
+
+  /* Solo se ofrecen los métodos habilitados en /configuracion/metodos-pago. "Yape / Plin" es un
+     solo botón en esta UI, así que basta con que cualquiera de los dos esté activo. */
+  const visiblePayments = PAYMENTS.filter(p =>
+    p.id === 'Efectivo' ? metodosPago.efectivo.enabled :
+    p.id === 'Tarjeta' ? metodosPago.tarjeta.enabled :
+    metodosPago.yape.enabled || metodosPago.plin.enabled
+  );
 
   /* ── Cuentas separadas ── */
   const [splitMode, setSplitMode] = useState<SplitMode>('full');
@@ -36,6 +44,15 @@ export default function ChargePanel({
   const [method, setMethod] = useState<PaymentMethod>('Efectivo');
   const [received, setReceived] = useState('');
   const [emitting, setEmitting] = useState(false);
+
+  /* Si el método seleccionado se deshabilita (o carga la config después del primer render),
+     cae al primero disponible en vez de dejar seleccionado un método que ya no se acepta. */
+  useEffect(() => {
+    if (visiblePayments.length > 0 && !visiblePayments.some(p => p.id === method)) {
+      setMethod(visiblePayments[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visiblePayments.map(p => p.id).join(',')]);
 
   const total = selected.total;
   const started = paidEqual > 0 || paidItemIds.size > 0; // ya se cobró alguna parte
@@ -65,7 +82,7 @@ export default function ChargePanel({
     splitMode === 'equal' ? Math.max(1, Math.round(selected.itemsCount / equalParts)) :
     selected.itemsCount;
 
-  const base = round2(amountDue / 1.18);
+  const base = round2(amountDue / (1 + igvPorcentaje / 100));
   const igv = round2(amountDue - base);
 
   const receivedNum = received === '' ? null : Number(received);
@@ -79,6 +96,7 @@ export default function ChargePanel({
   const validate = (): string | null => {
     if (!isCajaOpen) return 'La caja está cerrada.';
     if (esperandoEntrega) return 'Aún no se puede cobrar: faltan platos por entregar en la mesa.';
+    if (!visiblePayments.some(p => p.id === method)) return 'Selecciona un método de pago habilitado.';
     if (amountDue <= 0) {
       return splitMode === 'items' ? 'Selecciona al menos un ítem para esta cuenta.' : 'Monto a cobrar inválido.';
     }
@@ -386,7 +404,7 @@ export default function ChargePanel({
       {/* Totales de la cuenta a cobrar */}
       <div className="space-y-1 text-xs border-t border-slate-200 pt-3">
         <div className="flex justify-between font-mono text-slate-500"><span>Op. gravada</span><span>{money(base)}</span></div>
-        <div className="flex justify-between font-mono text-slate-500"><span>IGV (18%)</span><span>{money(igv)}</span></div>
+        <div className="flex justify-between font-mono text-slate-500"><span>IGV ({igvPorcentaje}%)</span><span>{money(igv)}</span></div>
         <div className="flex justify-between font-mono font-bold text-base text-slate-800 pt-1">
           <span>{splitMode === 'full' ? 'Total' : 'A cobrar ahora'}</span><span>{money(amountDue)}</span>
         </div>
@@ -396,7 +414,7 @@ export default function ChargePanel({
       <div className="space-y-2 border-t border-slate-200 pt-3">
         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Método de pago</p>
         <div className="grid grid-cols-3 gap-1.5">
-          {PAYMENTS.map(p => (
+          {visiblePayments.map(p => (
             <button
               key={p.id}
               onClick={() => setMethod(p.id)}
@@ -408,6 +426,9 @@ export default function ChargePanel({
             </button>
           ))}
         </div>
+        {visiblePayments.length === 0 && (
+          <p className="text-[11px] text-rose-500">No hay métodos de pago habilitados — actívalos en Configuración → Métodos de pago.</p>
+        )}
 
         {/* Efectivo → vuelto */}
         {method === 'Efectivo' && (

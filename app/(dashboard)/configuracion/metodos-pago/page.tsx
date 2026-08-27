@@ -6,28 +6,15 @@ import { Toggle, Input, Button, SucursalSelector, Spinner } from '@/components/u
 import { useApp } from '@/context/AppContext';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import { getConfiguracion, updateConfiguracion } from '@/lib/api/configuracion';
+import { DEFAULT_METODOS_PAGO, parseMetodosPago, type MetodosPago } from '@/lib/config/metodos';
 import QrPosterModal from '@/components/configuracion/metodos-pago/QrPosterModal';
 
 type MethodBrand = 'efectivo' | 'tarjeta' | 'yape' | 'plin' | 'transferencia';
-
-interface PaymentMethods {
-  efectivo: { enabled: boolean };
-  tarjeta: { enabled: boolean };
-  yape: { enabled: boolean; qrImage: string; holderName: string; phone: string };
-  plin: { enabled: boolean; qrImage: string; holderName: string; phone: string };
-  transferencia: { enabled: boolean; bankName: string; accountNumber: string; cci: string };
-}
-
-const DEFAULTS: PaymentMethods = {
-  efectivo: { enabled: true },
-  tarjeta: { enabled: true },
-  yape: { enabled: false, qrImage: '', holderName: '', phone: '' },
-  plin: { enabled: false, qrImage: '', holderName: '', phone: '' },
-  transferencia: { enabled: false, bankName: '', accountNumber: '', cci: '' },
-};
+type PaymentMethods = MetodosPago;
+const DEFAULTS = DEFAULT_METODOS_PAGO;
 
 export default function MetodosPagoPage() {
-  const { triggerToast } = useApp();
+  const { triggerToast, refreshNegocioConfig } = useApp();
   const { token, isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
   const [methods, setMethods] = useState<PaymentMethods>(DEFAULTS);
@@ -41,9 +28,7 @@ export default function MetodosPagoPage() {
     if (!token || !sId) return;
     setLoading(true);
     getConfiguracion(token, sId).then(c => {
-      if (c.metodosPagoJson) {
-        try { setMethods({ ...DEFAULTS, ...JSON.parse(c.metodosPagoJson) }); } catch { setMethods(DEFAULTS); }
-      } else setMethods(DEFAULTS);
+      setMethods(parseMetodosPago(c.metodosPagoJson));
     }).catch(() => setMethods(DEFAULTS)).finally(() => setLoading(false));
   }, [token, sId]);
 
@@ -59,6 +44,7 @@ export default function MetodosPagoPage() {
         sitioWeb: actual.sitioWeb, reviewsLink: actual.reviewsLink,
       });
       triggerToast('Métodos de pago guardados.', 'success');
+      refreshNegocioConfig();
     } catch { triggerToast('Error al guardar', 'error'); }
     finally { setSaving(false); }
   };

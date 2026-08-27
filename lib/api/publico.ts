@@ -39,6 +39,9 @@ export interface ConfiguracionPublicaDto {
   descripcionCompleta?: string | null;
   whatsappPedidos?: string | null;
   horariosJson?: string | null;
+  igvPorcentaje?: number | null;
+  metodosPagoJson?: string | null;
+  metodosEntregaJson?: string | null;
 }
 
 export interface SucursalPublicaDto {

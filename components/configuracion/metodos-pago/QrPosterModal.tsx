@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Upload, Download, Printer, ImageOff, User, Phone } from 'lucide-react';
 import { Modal, Input } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
-import type { QrPaymentMethod } from '@/context/PaymentMethodsContext';
+import type { QrPaymentMethod } from '@/lib/config/metodos';
 import { resizeImageToBlob, subirImagenProducto, extractCloudflareImageId, eliminarImagenProductoCloudflare } from '@/lib/uploadImagen';
 
 type Brand = 'yape' | 'plin';
