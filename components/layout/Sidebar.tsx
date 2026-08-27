@@ -18,7 +18,6 @@ import {
   Receipt,
   Wallet,
   BellRing,
-  Bell,
   ChevronDown,
   FileText,
   type LucideIcon,
@@ -41,7 +40,6 @@ type MenuItem = {
 const menuItems: MenuItem[] = [
   { href: '/dashboard',     label: 'Dashboard',       icon: LayoutDashboard, roles: ['admin'] },
   { href: '/comandero',     label: 'Comandero',        icon: ShoppingBag,     roles: ['admin', 'mozo'] },
-  { href: '/pedidos-por-confirmar', label: 'Por confirmar', icon: Bell,       roles: ['admin', 'mozo'] },
   { href: '/cobrar',        label: 'Cobrar',           icon: Receipt,         roles: ['admin', 'cajero'] },
   { href: '/cocina',        label: 'Cocina',           icon: ChefHat,         roles: ['admin', 'cocinero'] },
   { href: '/despachar',     label: 'Por despachar',    icon: BellRing,        roles: ['admin', 'mozo'] },
@@ -128,9 +126,9 @@ export default function Sidebar() {
             const Icon = item.icon;
             const isActive = pathname === item.href;
             const isDispatch = item.href === '/despachar';
-            const isPendingConfirm = item.href === '/pedidos-por-confirmar';
-            const isLiveBadge = isDispatch || isPendingConfirm;
-            const badge = isDispatch ? (readyCount || undefined) : isPendingConfirm ? (pendingConfirmCount || undefined) : item.badge;
+            const isComandero = item.href === '/comandero';
+            const isLiveBadge = isDispatch || isComandero;
+            const badge = isDispatch ? (readyCount || undefined) : isComandero ? (pendingConfirmCount || undefined) : item.badge;
             return (
               <Link
                 key={item.href}

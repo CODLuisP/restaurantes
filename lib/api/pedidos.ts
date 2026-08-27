@@ -108,3 +108,10 @@ export function cambiarEstadoPedido(token: string, pedidoId: number, estadoActua
   const query = new URLSearchParams({ estadoActual, nuevoEstado });
   return apiFetch<PedidoDto>(`/api/pedidos/${pedidoId}/estado?${query.toString()}`, { token, method: 'POST' });
 }
+
+/** Mueve UN plato individual entre columnas de Cocina (pendiente ↔ en_preparacion → listo), sin
+ *  afectar al resto de ítems del pedido. */
+export function cambiarEstadoItemPedido(token: string, itemId: number, estadoActual: string, nuevoEstado: string) {
+  const query = new URLSearchParams({ estadoActual, nuevoEstado });
+  return apiFetch<PedidoDto>(`/api/pedidos/items/${itemId}/estado?${query.toString()}`, { token, method: 'POST' });
+}

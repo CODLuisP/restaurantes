@@ -170,8 +170,8 @@ export default function OrdersListView({
                         } ${o.pedidoEstado === 'pendiente_confirmacion' ? 'ring-2 ring-amber-400 animate-pulse' : ''}`}
                       >
                         {o.pedidoEstado === 'pendiente_confirmacion' && (
-                          <span className="absolute -top-2 -right-2 bg-amber-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
-                            Nuevo
+                          <span className="absolute -top-2 -right-2 bg-amber-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full shadow-sm whitespace-nowrap">
+                            Por Confirmar
                           </span>
                         )}
                         <div className="flex justify-between items-start gap-2">
@@ -261,8 +261,8 @@ export default function OrdersListView({
                   }`}
                 >
                   {o.pedidoEstado === 'pendiente_confirmacion' && (
-                    <span className="absolute -top-2 -right-2 bg-amber-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
-                      Nuevo
+                    <span className="absolute -top-2 -right-2 bg-amber-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full shadow-sm whitespace-nowrap">
+                      Por Confirmar
                     </span>
                   )}
                   <div className="flex justify-between items-start gap-2">
@@ -326,8 +326,8 @@ export default function OrdersListView({
                   }`}
                 >
                   {o.pedidoEstado === 'pendiente_confirmacion' && (
-                    <span className="absolute -top-2 -right-2 bg-amber-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
-                      Nuevo
+                    <span className="absolute -top-2 -right-2 bg-amber-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full shadow-sm whitespace-nowrap">
+                      Por Confirmar
                     </span>
                   )}
                   <div className="flex justify-between items-start gap-2">

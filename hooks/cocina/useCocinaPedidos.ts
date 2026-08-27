@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import type { Toast } from '@/types';
 import { ApiError } from '@/lib/api/client';
-import { getCocina, cambiarEstadoPedido, type PedidoDto } from '@/lib/api/pedidos';
+import { getCocina, cambiarEstadoPedido, cambiarEstadoItemPedido, type PedidoDto } from '@/lib/api/pedidos';
 import { usePedidoEvents } from '@/hooks/realtime/usePedidoEvents';
 
 const ESTADOS_ACTIVOS = ['pendiente', 'en_preparacion', 'listo'];
@@ -60,5 +60,20 @@ export function useCocinaPedidos(triggerToast: (message: string, type?: Toast['t
     [token, triggerToast]
   );
 
-  return { pedidos, loading, avanzarEstado };
+  /** Mueve UN plato individual entre columnas (pendiente ↔ en_preparacion → listo), sin tocar
+   *  al resto de ítems del pedido. Notifica a Comandero en vivo vía el mismo hub de SignalR. */
+  const moverItemEstado = useCallback(
+    async (itemId: number, estadoActual: string, nuevoEstado: string) => {
+      if (!token) return;
+      try {
+        // El propio evento "PedidoCambio" del hub actualiza (o quita) el pedido de la lista local.
+        await cambiarEstadoItemPedido(token, itemId, estadoActual, nuevoEstado);
+      } catch (err) {
+        triggerToast(err instanceof ApiError ? err.message : 'No se pudo actualizar el plato.', 'error');
+      }
+    },
+    [token, triggerToast]
+  );
+
+  return { pedidos, loading, avanzarEstado, moverItemEstado };
 }

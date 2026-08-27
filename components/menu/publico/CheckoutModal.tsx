@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Autocomplete } from '@react-google-maps/api';
 import { Minus, Plus, Trash2 } from 'lucide-react';
-import { Modal, Button, Input } from '@/components/ui';
+import { Modal, Button, Input, Select } from '@/components/ui';
 import type { OrderItem } from '@/types';
 import type { CheckoutForm } from '@/hooks/menu/useCheckoutForm';
 import { DEFAULT_METODOS_ENTREGA, type MetodosEntrega } from '@/lib/config/metodos';
+import { getMesasDisponiblesPublico, type MesaDisponibleDto } from '@/lib/api/publico';
 
 interface CheckoutModalProps {
   open: boolean;
@@ -18,13 +19,14 @@ interface CheckoutModalProps {
   onPlaceOrder: () => void;
   submitting?: boolean;
   mesaLabel?: string;
+  sucursalId?: number;
   metodosEntrega?: MetodosEntrega;
 }
 
 /** Checkout del menú público: tipo de pedido y datos del cliente. Comprobante y método de pago
  *  los define el mozo al confirmar el pedido, no el cliente en este paso. */
 export default function CheckoutModal({
-  open, onClose, form, cart, cartTotal, onUpdateCartQty, onPlaceOrder, submitting, mesaLabel,
+  open, onClose, form, cart, cartTotal, onUpdateCartQty, onPlaceOrder, submitting, mesaLabel, sucursalId,
   metodosEntrega = DEFAULT_METODOS_ENTREGA,
 }: CheckoutModalProps) {
   const {
@@ -55,6 +57,19 @@ export default function CheckoutModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canMesa, canLlevar, canDelivery, orderType]);
+
+  /* Sin QR de mesa (link genérico), se ofrece un selector con las mesas libres de la sucursal
+     en vez de pedirle al cliente que escriba el número a mano. */
+  const [mesasDisponibles, setMesasDisponibles] = useState<MesaDisponibleDto[]>([]);
+  const [loadingMesas, setLoadingMesas] = useState(false);
+  useEffect(() => {
+    if (!open || mesaLabel || !sucursalId || orderType !== 'mesa') return;
+    setLoadingMesas(true);
+    getMesasDisponiblesPublico(sucursalId)
+      .then(setMesasDisponibles)
+      .catch(() => setMesasDisponibles([]))
+      .finally(() => setLoadingMesas(false));
+  }, [open, mesaLabel, sucursalId, orderType]);
 
 
   return (
@@ -214,14 +229,14 @@ export default function CheckoutModal({
                 required
               />
               <Input
-                label="Teléfono / Celular *"
+                label={orderType === "mesa" ? "Teléfono / Celular (Opcional)" : "Teléfono / Celular *"}
                 placeholder="Ej. 987654321"
                 value={custPhone}
                 onChange={(e) =>
                   setCustPhone(e.target.value.replace(/\D/g, ""))
                 }
                 inputMode="tel"
-                required
+                required={orderType !== "mesa"}
               />
             </div>
 
@@ -236,17 +251,30 @@ export default function CheckoutModal({
             {/* Si es Mesa */}
             {orderType === "mesa" && (
               <div className="space-y-1">
-                <Input
-                  label="Número de Mesa *"
-                  placeholder="Ej. 5"
-                  value={tableNum}
-                  onChange={(e) => setTableNum(e.target.value.replace(/\D/g, ""))}
-                  inputMode="numeric"
-                  disabled={!!mesaLabel}
-                  required
-                />
-                {!mesaLabel && (
-                  <p className="text-[10px] text-slate-400">Escribe el número impreso en el cartelito de tu mesa. El mozo confirmará tu pedido antes de mandarlo a cocina.</p>
+                {mesaLabel ? (
+                  <Input
+                    label="Número de Mesa *"
+                    value={tableNum}
+                    disabled
+                  />
+                ) : (
+                  <>
+                    <Select
+                      label="Número de Mesa *"
+                      value={tableNum}
+                      onChange={(e) => setTableNum(e.target.value)}
+                      disabled={loadingMesas}
+                      required
+                    >
+                      <option value="">
+                        {loadingMesas ? 'Cargando mesas...' : mesasDisponibles.length === 0 ? 'No hay mesas libres' : 'Selecciona tu mesa'}
+                      </option>
+                      {mesasDisponibles.map((m) => (
+                        <option key={m.numero} value={m.numero}>Mesa {m.numero}</option>
+                      ))}
+                    </Select>
+                    <p className="text-[10px] text-slate-400">Elige la mesa donde estás sentado. El mozo confirmará tu pedido antes de mandarlo a cocina.</p>
+                  </>
                 )}
               </div>
             )}

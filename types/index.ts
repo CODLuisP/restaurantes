@@ -15,6 +15,9 @@ export interface Product {
 export interface OrderItem {
   product: Product;
   quantity: number;
+  /** Estado del plato en Cocina (pendiente/en_preparacion/listo/entregado) — solo presente en
+   *  ítems que ya vienen de un pedido real del backend, no mientras se arma el carrito. */
+  kitchenEstado?: string;
 }
 
 export interface Table {

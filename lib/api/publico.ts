@@ -64,6 +64,11 @@ export interface MesaPublicaDto {
   tieneSesionActiva?: boolean;
 }
 
+export interface MesaDisponibleDto {
+  numero: number;
+  capacidad: number;
+}
+
 export interface CrearPedidoClienteItemDto {
   productoId?: number;
   varianteId?: number;
@@ -117,6 +122,11 @@ export function getCierresPublico(sucursalId: number) {
 
 export function getMesaPublica(mesaId: string) {
   return apiFetch<MesaPublicaDto>(`/api/publico/mesas/${mesaId}`);
+}
+
+/** Mesas libres de la sucursal, para el selector del link genérico del menú (sin QR de mesa). */
+export function getMesasDisponiblesPublico(sucursalId: number) {
+  return apiFetch<MesaDisponibleDto[]>(`/api/publico/mesas?sucursalId=${sucursalId}`);
 }
 
 /** El cliente hace su pedido escaneando el QR de su mesa. Queda "pendiente_confirmacion"

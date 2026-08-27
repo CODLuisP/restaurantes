@@ -36,6 +36,7 @@ function mapPedidoItems(pedido: PedidoDto | null): OrderItem[] {
         unit: 'Porción',
       },
       quantity: i.cantidad,
+      kitchenEstado: i.estado,
     }));
 }
 
@@ -78,9 +79,11 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
   const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([]);
   const [activeOrdersLoading, setActiveOrdersLoading] = useState(true);
 
-  const loadActiveOrders = useCallback(async () => {
+  /** `silent`: recarga en segundo plano (disparada por el WebSocket) sin mostrar de nuevo el
+   *  spinner de carga completa — evita el "parpadeo" de refresco en cada evento en tiempo real. */
+  const loadActiveOrders = useCallback(async (opts?: { silent?: boolean }) => {
     if (!token) { setActiveOrdersLoading(false); return; }
-    setActiveOrdersLoading(true);
+    if (!opts?.silent) setActiveOrdersLoading(true);
     try {
       const [llevar, delivery] = await Promise.all([
         getSesionesActivas(token, 'para_llevar', sucursalId),
@@ -95,18 +98,18 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
         sesionPedidoToActiveOrder(s, pedidos[i], cantidadFacturadaPorItem(ventasPorSesion[i]))
       ));
     } catch {
-      triggerToast('No se pudieron cargar los pedidos para llevar/delivery.', 'error');
+      if (!opts?.silent) triggerToast('No se pudieron cargar los pedidos para llevar/delivery.', 'error');
     } finally {
-      setActiveOrdersLoading(false);
+      if (!opts?.silent) setActiveOrdersLoading(false);
     }
   }, [token, sucursalId, triggerToast]);
 
   useEffect(() => { loadActiveOrders(); }, [loadActiveOrders]);
 
   /* Tiempo real: cualquier pedido llevar/delivery de la sucursal que cambie refresca la lista
-     (pedidos nuevos del menú público, items agregados, cancelaciones, etc.). */
+     (pedidos nuevos del menú público, items agregados, cancelaciones, etc.) de forma silenciosa. */
   const handlePedidoEvent = useCallback((pedido: PedidoDto) => {
-    if (pedido.sesionTipo === 'para_llevar' || pedido.sesionTipo === 'delivery') loadActiveOrders();
+    if (pedido.sesionTipo === 'para_llevar' || pedido.sesionTipo === 'delivery') loadActiveOrders({ silent: true });
   }, [loadActiveOrders]);
   usePedidoEvents(handlePedidoEvent);
 

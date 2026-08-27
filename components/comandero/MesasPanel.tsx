@@ -226,8 +226,8 @@ export default function MesasPanel({ onTakeOrder }: { onTakeOrder: (name: string
                         }`}
                       >
                         {unit.pendienteConfirmacion && (
-                          <span className="absolute -top-2 -right-2 bg-amber-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10">
-                            Nuevo
+                          <span className="absolute -top-2 -right-2 bg-amber-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full shadow-sm z-10 whitespace-nowrap">
+                            Por Confirmar
                           </span>
                         )}
                         <div className="flex justify-between items-start gap-1">

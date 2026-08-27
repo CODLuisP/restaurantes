@@ -45,6 +45,7 @@ function mapPedidoItems(pedido: PedidoDto | null): OrderItem[] {
         unit: 'Porción',
       },
       quantity: i.cantidad,
+      kitchenEstado: i.estado,
     }));
 }
 
@@ -83,9 +84,11 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
   const [mesasEstado, setMesasEstado] = useState<MesaEstadoDto[]>([]);
   const [mesasLoading, setMesasLoading] = useState(true);
 
-  const loadMesas = useCallback(async () => {
+  /** `silent`: recarga en segundo plano (disparada por el WebSocket) sin mostrar de nuevo el
+   *  spinner de carga completa — evita el "parpadeo" de refresco en cada evento en tiempo real. */
+  const loadMesas = useCallback(async (opts?: { silent?: boolean }) => {
     if (!token) { setMesasLoading(false); return; }
-    setMesasLoading(true);
+    if (!opts?.silent) setMesasLoading(true);
     try {
       const mesas = await getMesasEstado(token, sucursalId);
       setMesasEstado(mesas);
@@ -104,29 +107,31 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
         });
       });
     } catch {
-      triggerToast('No se pudo cargar el listado de mesas.', 'error');
+      if (!opts?.silent) triggerToast('No se pudo cargar el listado de mesas.', 'error');
     } finally {
-      setMesasLoading(false);
+      if (!opts?.silent) setMesasLoading(false);
     }
   }, [token, sucursalId, triggerToast]);
 
   useEffect(() => { loadMesas(); }, [loadMesas]);
 
-  /* Tiempo real: cualquier pedido de tipo "local" (mesa) que cambie en la sucursal refresca el tablero. */
+  /* Tiempo real: cualquier pedido de tipo "local" (mesa) que cambie en la sucursal refresca el tablero
+     de forma silenciosa (sin el spinner de carga completa, para que se sienta como una actualización
+     en vivo y no como un refresh de la pantalla). */
   const handlePedidoEvent = useCallback((pedido: PedidoDto) => {
-    if (pedido.sesionTipo === 'local') loadMesas();
+    if (pedido.sesionTipo === 'local') loadMesas({ silent: true });
   }, [loadMesas]);
   usePedidoEvents(handlePedidoEvent);
 
   /* Tiempo real: si el cajero/admin cobra y libera una mesa desde Cobrar, el mozo la ve libre al instante. */
   const handleSesionCerrada = useCallback((payload: SesionCerradaPayload) => {
-    if (payload.mesaId != null) loadMesas();
+    if (payload.mesaId != null) loadMesas({ silent: true });
   }, [loadMesas]);
   useSesionCerradaEvents(handleSesionCerrada);
 
   /* Tiempo real: alta/baja/cambio de mesa o unión/separación de grupo (por cualquier mozo/admin
-     de la sucursal) refresca el tablero al instante en todos los dispositivos conectados. */
-  const handleMesaEvent = useCallback(() => { loadMesas(); }, [loadMesas]);
+     de la sucursal) refresca el tablero al instante en todos los dispositivos conectados, sin spinner. */
+  const handleMesaEvent = useCallback(() => { loadMesas({ silent: true }); }, [loadMesas]);
   useMesaEvents(handleMesaEvent);
 
   const addTable = useCallback(

@@ -44,7 +44,7 @@ export function usePlaceOrder({ form, cart, setCart, mesaToken, sucursalId, onSu
   const handleConfirmOrder = async () => {
     setFormError('');
     if (!custName.trim()) { setFormError('Por favor ingresa tu nombre.'); return; }
-    if (!custPhone.trim()) { setFormError('Por favor ingresa tu número telefónico.'); return; }
+    if (orderType !== 'mesa' && !custPhone.trim()) { setFormError('Por favor ingresa tu número telefónico.'); return; }
     if (orderType === 'delivery' && !custAddress.trim()) { setFormError('Por favor ingresa una dirección de entrega.'); return; }
     if (orderType === 'mesa' && !tableNum.trim()) { setFormError('Por favor ingresa tu número de mesa.'); return; }
     if (orderType === 'mesa' && !mesaToken && !sucursalId) {

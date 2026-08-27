@@ -495,6 +495,7 @@ export default function PublicMenu({
         onPlaceOrder={handleConfirmOrder}
         submitting={submitting}
         mesaLabel={mesaLabel}
+        sucursalId={sucursalId}
         metodosEntrega={metodosEntrega}
       />
 

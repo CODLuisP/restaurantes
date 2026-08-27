@@ -7,6 +7,14 @@ import type { ActiveOrder, Table } from '@/types';
 
 type BusyAction = 'cancel' | 'confirm' | null;
 
+/** Estado del plato en Cocina, reflejado en vivo (mismo hub de SignalR que usa el KDS). */
+const KITCHEN_ESTADO_LABEL: Record<string, { label: string; className: string }> = {
+  pendiente: { label: 'Pendiente', className: 'bg-rose-100 text-rose-700' },
+  en_preparacion: { label: 'Preparando', className: 'bg-amber-100 text-amber-700' },
+  listo: { label: 'Listo', className: 'bg-emerald-100 text-emerald-700' },
+  entregado: { label: 'Entregado', className: 'bg-slate-200 text-slate-600' },
+};
+
 export default function OrderDetailDrawer({
   view, onClose, canEdit, onEditTable, onEditOrder, onCancelTable, onCancelOrder, onConfirmTable, onConfirmOrder,
 }: {
@@ -137,12 +145,22 @@ export default function OrderDetailDrawer({
               <p className="text-xs text-slate-400 italic">Sin ítems registrados.</p>
             ) : (
               <div className="space-y-2">
-                {items.map(item => (
-                  <div key={item.product.id} className="flex justify-between items-center gap-2 text-xs">
-                    <span className="text-slate-700 truncate">{item.quantity}x {item.product.name}</span>
-                    <span className="font-mono font-bold text-slate-800 shrink-0">S/. {(item.product.price * item.quantity).toFixed(2)}</span>
-                  </div>
-                ))}
+                {items.map(item => {
+                  const kitchen = item.kitchenEstado ? KITCHEN_ESTADO_LABEL[item.kitchenEstado] : undefined;
+                  return (
+                    <div key={item.product.id} className="flex justify-between items-center gap-2 text-xs">
+                      <span className="text-slate-700 truncate flex items-center gap-1.5 min-w-0">
+                        <span className="truncate">{item.quantity}x {item.product.name}</span>
+                        {kitchen && (
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${kitchen.className}`}>
+                            {kitchen.label}
+                          </span>
+                        )}
+                      </span>
+                      <span className="font-mono font-bold text-slate-800 shrink-0">S/. {(item.product.price * item.quantity).toFixed(2)}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
