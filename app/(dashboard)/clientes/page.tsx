@@ -6,7 +6,7 @@ import { Search, Download, Plus, Users, Eye, Pencil, Trash2, Check, MapPin } fro
 import { useApp } from '@/context/AppContext';
 import { getSegment, SEGMENT_COLORS, SEGMENTS } from '@/components/clientes/segment';
 import { useClientes } from '@/hooks/clientes/useClientes';
-import { CLIENTES_API } from '@/hooks/clientes/clientesApi';
+import { deleteCliente } from '@/lib/api/clientes';
 import ClienteDetailModal from '@/components/clientes/ClienteDetailModal';
 import NuevoClienteModal from '@/components/clientes/NuevoClienteModal';
 import EditarClienteModal from '@/components/clientes/EditarClienteModal';
@@ -65,12 +65,9 @@ export default function ClientesPage() {
 
   const handleDelete = async (id: number) => {
     if (deleteConfirm !== id) { setDeleteConfirm(id); return; }
+    if (!token) return;
     try {
-      const res = await fetch(CLIENTES_API.delete(id), {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error();
+      await deleteCliente(token, id);
       setClientes(prev => prev.filter(c => c.id !== id));
       triggerToast('Cliente eliminado', 'success');
     } catch {

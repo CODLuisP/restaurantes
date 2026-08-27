@@ -3,19 +3,21 @@
 import { useState } from 'react';
 import { Clock, Info, MapPin } from 'lucide-react';
 import { Modal } from '@/components/ui';
-import { DAY_LABELS, DAY_ORDER, isOpenNow, type DayKey, type DaySchedule } from '@/context/HorariosContext';
+import { DAY_LABELS, DAY_ORDER, isOpenNow, normalizeSchedule, type DayKey, type DaySchedule } from '@/context/HorariosContext';
 
 export interface BusinessInfoSectionProps {
   tipoNegocio: string;
+  descripcionCorta?: string;
   descripcionCompleta: string;
-  schedule: Record<DayKey, DaySchedule>;
+  schedule?: Partial<Record<DayKey, Partial<DaySchedule>>>;
   numeroPedidos: string;
   direccion: string;
 }
 
-export function BusinessInfoSection({ tipoNegocio, descripcionCompleta, schedule, numeroPedidos, direccion }: BusinessInfoSectionProps) {
+export function BusinessInfoSection({ tipoNegocio, descripcionCorta, descripcionCompleta, schedule, numeroPedidos, direccion }: BusinessInfoSectionProps) {
   const [open, setOpen] = useState(false);
-  const openNow = isOpenNow(schedule);
+  const normalizedSchedule = normalizeSchedule(schedule);
+  const openNow = isOpenNow(normalizedSchedule);
 
   return (
     <>
@@ -45,6 +47,10 @@ export function BusinessInfoSection({ tipoNegocio, descripcionCompleta, schedule
             </p>
           )}
 
+          {descripcionCorta?.trim() && (
+            <p className="text-sm font-semibold text-slate-800">{descripcionCorta}</p>
+          )}
+
           {descripcionCompleta.trim() && (
             <p className="text-sm text-slate-600 whitespace-pre-line">{descripcionCompleta}</p>
           )}
@@ -55,7 +61,7 @@ export function BusinessInfoSection({ tipoNegocio, descripcionCompleta, schedule
             </p>
             <div className="space-y-0.5 text-xs">
               {DAY_ORDER.map(key => {
-                const d = schedule[key];
+                const d = normalizedSchedule[key];
                 return (
                   <div key={key} className="flex items-center justify-between py-0.5">
                     <span className="font-medium text-slate-700">{DAY_LABELS[key]}</span>

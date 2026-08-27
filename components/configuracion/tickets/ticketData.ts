@@ -199,5 +199,3 @@ function defaultCocina(): TicketBlock[] {
 export function defaultConfig(): TicketConfig {
   return { cliente: defaultCliente(), cocina: defaultCocina() };
 }
-
-export const TICKETS_STORAGE_KEY = 'restopro.tickets.v1';

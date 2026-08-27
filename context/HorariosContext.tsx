@@ -26,6 +26,21 @@ export function makeDefaultSchedule(): Record<DayKey, DaySchedule> {
   };
 }
 
+export function normalizeSchedule(schedule?: Partial<Record<DayKey, Partial<DaySchedule>>>): Record<DayKey, DaySchedule> {
+  const base = makeDefaultSchedule();
+
+  return DAY_ORDER.reduce((acc, key) => {
+    const day = schedule?.[key];
+    acc[key] = {
+      enabled: typeof day?.enabled === 'boolean' ? day.enabled : base[key].enabled,
+      ranges: Array.isArray(day?.ranges) && day.ranges.length > 0
+        ? day.ranges.map(range => ({ from: range?.from ?? '', to: range?.to ?? '' }))
+        : base[key].ranges.map(range => ({ ...range })),
+    };
+    return acc;
+  }, {} as Record<DayKey, DaySchedule>);
+}
+
 /** Convierte JS Date#getDay() (0 = domingo) a nuestra clave de día. */
 const JS_DAY_TO_KEY: DayKey[] = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
 
@@ -79,7 +94,7 @@ export function HorariosProvider({ children }: { children: React.ReactNode }) {
         setHorarios({
           ...DEFAULT_HORARIOS,
           ...parsed,
-          schedule: { ...DEFAULT_HORARIOS.schedule, ...(parsed.schedule ?? {}) },
+          schedule: normalizeSchedule(parsed.schedule),
         });
       }
     } catch {}

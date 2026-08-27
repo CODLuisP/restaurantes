@@ -2,10 +2,12 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5004';
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  details?: unknown;
+  constructor(message: string, status: number, details?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.details = details;
   }
 }
 
@@ -32,8 +34,15 @@ export async function apiFetch<T>(path: string, { token, headers, body, ...init 
   const data = isJson ? await res.json().catch(() => null) : null;
 
   if (!res.ok) {
-    const message = (data && (data.message as string)) || `Error ${res.status} al conectar con el servidor.`;
-    throw new ApiError(message, res.status);
+    const validationErrors = data?.errors && typeof data.errors === 'object'
+      ? Object.values(data.errors as Record<string, unknown>).flatMap(value => Array.isArray(value) ? value : [value]).join(' ')
+      : '';
+    const message = (data && typeof data.message === 'string' && data.message)
+      || (data && typeof data.detail === 'string' && data.detail)
+      || (data && typeof data.title === 'string' && data.title)
+      || validationErrors
+      || `Error ${res.status} al conectar con el servidor.`;
+    throw new ApiError(message, res.status, data);
   }
 
   return data as T;

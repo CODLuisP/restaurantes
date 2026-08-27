@@ -18,6 +18,7 @@ import {
   Receipt,
   Wallet,
   BellRing,
+  Bell,
   ChevronDown,
   FileText,
   type LucideIcon,
@@ -25,6 +26,7 @@ import {
 import { useSidebar } from '@/context/SidebarContext';
 import { useAuth } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
+import { useCocinaPedidos } from '@/hooks/cocina/useCocinaPedidos';
 import type { Role } from '@/types';
 
 type MenuItem = {
@@ -37,10 +39,11 @@ type MenuItem = {
 };
 
 const menuItems: MenuItem[] = [
-  { href: '/dashboard',     label: 'Dashboard',       icon: LayoutDashboard },
+  { href: '/dashboard',     label: 'Dashboard',       icon: LayoutDashboard, roles: ['admin'] },
   { href: '/comandero',     label: 'Comandero',        icon: ShoppingBag,     roles: ['admin', 'mozo'] },
+  { href: '/pedidos-por-confirmar', label: 'Por confirmar', icon: Bell,       roles: ['admin', 'mozo'] },
   { href: '/cobrar',        label: 'Cobrar',           icon: Receipt,         roles: ['admin', 'cajero'] },
-  { href: '/cocina',        label: 'Cocina',           icon: ChefHat },
+  { href: '/cocina',        label: 'Cocina',           icon: ChefHat,         roles: ['admin', 'cocinero'] },
   { href: '/despachar',     label: 'Por despachar',    icon: BellRing,        roles: ['admin', 'mozo'] },
   { href: '/caja',          label: 'Caja',             icon: Coins,           roles: ['admin', 'cajero'] },
   { href: '/gastos',        label: 'Gastos',           icon: Wallet,          roles: ['admin', 'cajero'] },
@@ -63,25 +66,28 @@ const configSubItems: ConfigSubItem[] = [
   { href: '/configuracion/metodos-pago',         label: 'Métodos de pago' },
   { href: '/configuracion/metodos-entrega',      label: 'Métodos de entrega' },
   { href: '/configuracion/tickets',              label: 'Tickets', badge: 'NEW' },
-  { href: '/configuracion/tracking',             label: 'Tracking' },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
   const { isOpen, closeOpen, isCollapsed, toggleCollapsed } = useSidebar();
   const { currentUser } = useAuth();
-  const { kitchenOrders } = useApp();
+  const { triggerToast, tables, activeOrders } = useApp();
+  const { pedidos } = useCocinaPedidos(triggerToast);
   const isConfigRoute = pathname.startsWith('/configuracion');
   const [isConfigOpen, setIsConfigOpen] = useState(isConfigRoute);
-  const canSeeConfig = currentUser?.role === 'admin';
+  const canSeeConfig = !currentUser || currentUser?.role === 'admin';
 
-  /* Comandas listas por despachar (todas para admin, propias para el mozo) */
-  const readyCount = kitchenOrders.filter(
-    o => o.status === 'listo' && (currentUser?.role === 'admin' || o.waiter === currentUser?.name)
-  ).length;
+  /* Comandas listas por despachar — cualquier mozo puede recogerlas y entregarlas, sin importar quién las tomó. */
+  const readyCount = pedidos.filter(p => p.estado === 'listo').length;
+
+  /* Pedidos que el propio cliente armó desde el menú digital y siguen sin confirmar — en vivo. */
+  const pendingConfirmCount =
+    tables.filter(t => t.pedidoEstado === 'pendiente_confirmacion').length +
+    activeOrders.filter(o => o.pedidoEstado === 'pendiente_confirmacion').length;
 
   const visibleItems = menuItems.filter(
-    item => !item.roles || (currentUser && item.roles.includes(currentUser.role))
+    item => !item.roles || !currentUser || item.roles.includes(currentUser.role)
   );
 
   return (
@@ -97,11 +103,15 @@ export default function Sidebar() {
         `}
       >
         {/* Brand */}
-        <div className="relative h-16 px-4 border-b border-[#306342] flex items-center gap-3 overflow-hidden shrink-0">
+        <Link
+          href="/dashboard"
+          onClick={closeOpen}
+          className="relative h-16 px-4 border-b border-[#306342] flex items-center gap-3 overflow-hidden shrink-0 group cursor-pointer"
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/33.png" alt="" className="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none" />
           <div className="absolute inset-0 bg-brand-dark/60 pointer-events-none" />
-          <div className="relative bg-white/10 p-2 rounded-xl border border-white/20 flex items-center justify-center shrink-0">
+          <div className="relative bg-white/10 p-2 rounded-xl border border-white/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
             <Store className="h-5 w-5 text-brand-accent stroke-[2]" />
           </div>
           {!isCollapsed && (
@@ -110,7 +120,7 @@ export default function Sidebar() {
               <span className="text-[10px] text-white/60 font-mono tracking-widest uppercase">Peru SaaS POS</span>
             </div>
           )}
-        </div>
+        </Link>
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
@@ -118,7 +128,9 @@ export default function Sidebar() {
             const Icon = item.icon;
             const isActive = pathname === item.href;
             const isDispatch = item.href === '/despachar';
-            const badge = isDispatch ? (readyCount || undefined) : item.badge;
+            const isPendingConfirm = item.href === '/pedidos-por-confirmar';
+            const isLiveBadge = isDispatch || isPendingConfirm;
+            const badge = isDispatch ? (readyCount || undefined) : isPendingConfirm ? (pendingConfirmCount || undefined) : item.badge;
             return (
               <Link
                 key={item.href}
@@ -141,7 +153,7 @@ export default function Sidebar() {
                     }`}
                   />
                   {/* Punto rojo cuando el sidebar está colapsado */}
-                  {isDispatch && !!badge && isCollapsed && (
+                  {isLiveBadge && !!badge && isCollapsed && (
                     <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-brand-dark" />
                   )}
                 </span>
@@ -150,7 +162,7 @@ export default function Sidebar() {
                     <span className="grow text-left truncate">{item.label}</span>
                     {badge && (
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono shrink-0 ${
-                        isDispatch
+                        isLiveBadge
                           ? 'bg-rose-500 text-white font-bold animate-pulse'
                           : isActive ? 'bg-white/15 text-white' : 'bg-black/20 text-brand-accent font-medium'
                       }`}>
@@ -230,41 +242,43 @@ export default function Sidebar() {
             </div>
           )}
 
-          {/* Playground */}
-          <div className={`border-t border-brand-hover/40 my-3 pt-3 ${isCollapsed ? 'mx-0' : ''}`}>
-            {!isCollapsed && (
-              <div className="text-[10px] uppercase font-mono tracking-wider text-white/40 px-3 mb-2">
-                PLAYGROUND
-              </div>
-            )}
-            <Link
-              href="/ui-components"
-              onClick={closeOpen}
-              title={isCollapsed ? 'Componentes UI' : undefined}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative ${
-                pathname === '/ui-components'
-                  ? 'bg-brand-hover text-white shadow-md'
-                  : 'text-white/80 hover:bg-white/5 hover:text-white'
-              }`}
-            >
-              {pathname === '/ui-components' && (
-                <div className="absolute left-0 top-3 bottom-3 w-1 bg-brand-accent rounded-r-full" />
-              )}
-              <Boxes
-                className={`h-4 w-4 shrink-0 ${
-                  pathname === '/ui-components' ? 'text-brand-accent' : 'text-white/60'
-                }`}
-              />
+          {/* Playground — solo admin */}
+          {(!currentUser || currentUser.role === 'admin') && (
+            <div className={`border-t border-brand-hover/40 my-3 pt-3 ${isCollapsed ? 'mx-0' : ''}`}>
               {!isCollapsed && (
-                <>
-                  <span className="grow text-left">Componentes UI</span>
-                  <span className="text-[9px] bg-brand-accent text-brand px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider shrink-0">
-                    Nuevo
-                  </span>
-                </>
+                <div className="text-[10px] uppercase font-mono tracking-wider text-white/40 px-3 mb-2">
+                  PLAYGROUND
+                </div>
               )}
-            </Link>
-          </div>
+              <Link
+                href="/ui-components"
+                onClick={closeOpen}
+                title={isCollapsed ? 'Componentes UI' : undefined}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative ${
+                  pathname === '/ui-components'
+                    ? 'bg-brand-hover text-white shadow-md'
+                    : 'text-white/80 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                {pathname === '/ui-components' && (
+                  <div className="absolute left-0 top-3 bottom-3 w-1 bg-brand-accent rounded-r-full" />
+                )}
+                <Boxes
+                  className={`h-4 w-4 shrink-0 ${
+                    pathname === '/ui-components' ? 'text-brand-accent' : 'text-white/60'
+                  }`}
+                />
+                {!isCollapsed && (
+                  <>
+                    <span className="grow text-left">Componentes UI</span>
+                    <span className="text-[9px] bg-brand-accent text-brand px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider shrink-0">
+                      Nuevo
+                    </span>
+                  </>
+                )}
+              </Link>
+            </div>
+          )}
         </nav>
 
         {/* Footer */}

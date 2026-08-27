@@ -2,30 +2,32 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock, Loader2, LogOut } from 'lucide-react';
+import { Lock, LogOut } from 'lucide-react';
 import { useAuth, ROLE_LABELS } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
+import { Spinner } from '@/components/ui';
 
 /**
- * Protege el área del dashboard:
+ * Protege el contenido interno del dashboard:
  *  - Sin sesión → redirige al login.
- *  - Rol "mozo" con la caja cerrada → pantalla de espera (no puede operar).
- *  - Admin / cajero siempre pueden entrar (necesitan aperturar la caja).
+ *  - Rol "mozo" con la caja cerrada → pantalla de espera en la zona de contenido.
+ *  - Admin / cajero siempre pueden entrar.
  */
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const { currentUser, ready, logout } = useAuth();
-  const { isCajaOpen } = useApp();
+  const { sucursalCajaAbierta } = useApp();
   const router = useRouter();
 
   useEffect(() => {
     if (ready && !currentUser) router.replace('/');
   }, [ready, currentUser, router]);
 
-  /* Esperando hidratación de localStorage */
+  /* Esperando hidratación de sesión de usuario en el área de contenido */
   if (!ready) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-brand-medium/3">
-        <Loader2 className="h-6 w-6 text-brand animate-spin" />
+      <div className="py-24 flex flex-col items-center justify-center gap-3">
+        <Spinner size="lg" />
+        <span className="text-xs font-semibold text-slate-400">Cargando módulo...</span>
       </div>
     );
   }
@@ -33,9 +35,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   if (!currentUser) return null;
 
   /* Bloqueo del mozo cuando la caja está cerrada */
-  if (currentUser.role === 'mozo' && !isCajaOpen) {
+  if (currentUser.role === 'mozo' && !sucursalCajaAbierta) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 bg-brand-medium/3">
+      <div className="py-12 flex items-center justify-center p-4">
         <div className="card-lg max-w-md w-full p-8 text-center space-y-5 animate-section">
           <div className="mx-auto w-16 h-16 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center border-2 border-rose-100">
             <Lock className="h-8 w-8" />
@@ -53,7 +55,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           </div>
           <button
             onClick={() => logout()}
-            className="btn-secondary w-full justify-center"
+            className="btn-secondary w-full justify-center cursor-pointer"
           >
             <LogOut className="h-3.5 w-3.5" /> Cerrar sesión
           </button>

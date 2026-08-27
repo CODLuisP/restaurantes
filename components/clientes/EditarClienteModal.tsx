@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { MapPin } from 'lucide-react';
 import { Modal, Button } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
-import { CLIENTES_API } from '@/hooks/clientes/clientesApi';
+import { updateCliente } from '@/lib/api/clientes';
 import DireccionesModal from './DireccionesModal';
 import type { Cliente, UpdateClienteDto, NivelCliente, TipoDocumento } from '@/types/clientes';
 
@@ -51,16 +51,10 @@ export default function EditarClienteModal({ cliente, open, onClose, onUpdated }
       setForm(prev => prev ? ({ ...prev, [field]: e.target.value }) : prev);
 
   const handleSubmit = async () => {
-    if (!form.nombre.trim()) return;
+    if (!form.nombre.trim() || !token) return;
     setSaving(true);
     try {
-      const res = await fetch(CLIENTES_API.update(cliente.id), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ ...form, nombre: form.nombre.trim() }),
-      });
-      if (!res.ok) throw new Error();
-      const actualizado: Cliente = await res.json();
+      const actualizado = await updateCliente(token, cliente.id, { ...form, nombre: form.nombre.trim() });
       triggerToast('Cliente actualizado', 'success');
       onUpdated(actualizado);
       onClose();

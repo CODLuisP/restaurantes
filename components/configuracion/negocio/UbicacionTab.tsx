@@ -1,169 +1,115 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { GoogleMap, Autocomplete, Marker, useJsApiLoader } from '@react-google-maps/api';
-import { MapPin, TriangleAlert } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { GOOGLE_MAPS_LOADER_ID, GOOGLE_MAPS_LIBRARIES } from '@/lib/googleMapsLoader';
-import { useBusiness } from '@/context/BusinessContext';
-import { Toggle } from '@/components/ui';
+import { Toggle, Button, SucursalSelector, Spinner } from '@/components/ui';
+import { useApp } from '@/context/AppContext';
+import { useSucursalSelector } from '@/hooks/useSucursalSelector';
+import { getConfiguracion, updateUbicacion } from '@/lib/api/configuracion';
+import { ApiError } from '@/lib/api/client';
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-
-const DEFAULT_CENTER = { lat: -12.0464, lng: -77.0428 }; // Lima, Perú
-
-interface LatLng { lat: number; lng: number }
+const DEFAULT_CENTER = { lat: -12.0464, lng: -77.0428 };
 
 export default function UbicacionTab() {
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: GOOGLE_MAPS_LOADER_ID,
-    googleMapsApiKey: GOOGLE_MAPS_API_KEY ?? '',
-    libraries: GOOGLE_MAPS_LIBRARIES,
-  });
+  const { isLoaded, loadError } = useJsApiLoader({ id: GOOGLE_MAPS_LOADER_ID, googleMapsApiKey: GOOGLE_MAPS_API_KEY ?? '', libraries: GOOGLE_MAPS_LIBRARIES });
+  const { triggerToast } = useApp();
+  const { token, isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
-  const { business, updateBusiness } = useBusiness();
-  const direccion = business.ubicacionDireccion;
-  const setDireccion = useCallback((value: string) => updateBusiness({ ubicacionDireccion: value }), [updateBusiness]);
-  const [posicion, setPosicion] = useState<LatLng | null>(null);
-  const mostrarDireccion = business.mostrarDireccionEnMenu;
-  const setMostrarDireccion = (value: boolean) => updateBusiness({ mostrarDireccionEnMenu: value });
-
+  const [direccion, setDireccion] = useState('');
+  const [mostrarDireccion, setMostrarDireccion] = useState(false);
+  const [posicion, setPosicion] = useState(DEFAULT_CENTER);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const geocoderRef = useRef<google.maps.Geocoder | null>(null);
 
-  const getGeocoder = useCallback(() => {
-    if (!geocoderRef.current && window.google) {
-      geocoderRef.current = new google.maps.Geocoder();
+  useEffect(() => {
+    if (!token || !sId) return;
+    setLoading(true);
+    getConfiguracion(token, sId).then(c => {
+      setDireccion(c.ubicacionDireccion || '');
+      setMostrarDireccion(!!c.mostrarDireccionMenu);
+      if (c.ubicacionLat && c.ubicacionLng) setPosicion({ lat: Number(c.ubicacionLat), lng: Number(c.ubicacionLng) });
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, [token, sId]);
+
+  const handleSave = async () => {
+    if (!token || !sId) return;
+    setSaving(true);
+    try {
+      await updateUbicacion(token, sId, {
+        ubicacionDireccion: direccion || null, mostrarDireccionMenu: mostrarDireccion,
+        ubicacionLat: posicion.lat, ubicacionLng: posicion.lng,
+      });
+      triggerToast('Ubicación guardada.', 'success');
+    } catch (error) {
+      triggerToast(error instanceof ApiError ? error.message : 'Error al guardar', 'error');
     }
-    return geocoderRef.current;
-  }, []);
+    finally { setSaving(false); }
+  };
 
-  const reverseGeocode = useCallback((lat: number, lng: number) => {
-    const geocoder = getGeocoder();
-    if (!geocoder) return;
-    geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-      if (status === 'OK' && results?.[0]) {
-        setDireccion(results[0].formatted_address);
-      }
-    });
-  }, [getGeocoder]);
-
-  const handleMapClick = useCallback((e: google.maps.MapMouseEvent) => {
-    if (!e.latLng) return;
-    const lat = e.latLng.lat();
-    const lng = e.latLng.lng();
-    setPosicion({ lat, lng });
-    reverseGeocode(lat, lng);
-  }, [reverseGeocode]);
-
-  const handleMarkerDragEnd = useCallback((e: google.maps.MapMouseEvent) => {
-    if (!e.latLng) return;
-    const lat = e.latLng.lat();
-    const lng = e.latLng.lng();
-    setPosicion({ lat, lng });
-    reverseGeocode(lat, lng);
-  }, [reverseGeocode]);
-
-  const handlePlaceChanged = useCallback(() => {
+  const onPlaceChanged = () => {
     const place = autocompleteRef.current?.getPlace();
     if (!place?.geometry?.location) return;
     const lat = place.geometry.location.lat();
     const lng = place.geometry.location.lng();
     setPosicion({ lat, lng });
-    setDireccion(place.formatted_address ?? place.name ?? '');
+    setDireccion(place.formatted_address || place.name || '');
+  };
+
+  const onMarkerDragEnd = useCallback((e: google.maps.MapMouseEvent) => {
+    if (!e.latLng) return;
+    const lat = e.latLng.lat(); const lng = e.latLng.lng();
+    setPosicion({ lat, lng });
+    const geocoder = new google.maps.Geocoder();
+    geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+      if (status === 'OK' && results?.[0]) setDireccion(results[0].formatted_address);
+    });
   }, []);
 
+  if (loadError) return <div className="p-6 text-rose-600 text-sm">Error al cargar Google Maps.</div>;
+
+  if (loading) {
+    return (
+      <div className="py-16 flex flex-col items-center justify-center gap-3">
+        <Spinner size="lg" />
+        <p className="text-xs font-semibold text-slate-600">Cargando ubicación y mapa...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="space-y-1">
-        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-          Dirección del negocio
-        </label>
-        {isLoaded ? (
-          <Autocomplete
-            onLoad={ac => { autocompleteRef.current = ac; }}
-            onPlaceChanged={handlePlaceChanged}
-            options={{ componentRestrictions: { country: 'pe' } }}
-          >
-            <input
-              type="text"
-              value={direccion}
-              onChange={e => setDireccion(e.target.value)}
-              placeholder="Busca tu dirección..."
-              className="input w-full px-3 py-2"
-            />
-          </Autocomplete>
-        ) : (
-          <input
-            type="text"
-            value={direccion}
-            onChange={e => setDireccion(e.target.value)}
-            placeholder="Busca tu dirección..."
-            className="input w-full px-3 py-2"
-          />
-        )}
-        <p className="text-[11px] text-slate-500">
-          Busca tu dirección o haz clic en el mapa para ubicar tu negocio
-        </p>
+    <div className="space-y-4">
+      <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sId} onChange={selectSucursal} />
+
+      <p className="text-sm text-slate-600">Configura la ubicación de tu negocio en el mapa.</p>
+
+      <div className="flex items-center justify-between py-1">
+        <div><span className="text-sm font-medium text-slate-800">Mostrar dirección en el menú</span><p className="text-[11px] text-slate-500">Los clientes verán la dirección en el menú digital.</p></div>
+        <Toggle checked={mostrarDireccion} onChange={setMostrarDireccion} />
       </div>
 
-      {direccion && (
-        <div className="flex items-start gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-          <MapPin className="h-4 w-4 text-brand shrink-0 mt-0.5" />
-          <div>
-            <p className="text-xs font-medium text-slate-800">{direccion}</p>
-            {posicion && (
-              <p className="text-[11px] text-slate-500">
-                Coordenadas: {posicion.lat.toFixed(6)}, {posicion.lng.toFixed(6)}
-              </p>
-            )}
+      {isLoaded && (
+        <div className="space-y-3">
+          <Autocomplete onLoad={a => { autocompleteRef.current = a; }} onPlaceChanged={onPlaceChanged} options={{ componentRestrictions: { country: 'pe' } }}>
+            <input type="text" value={direccion} onChange={e => setDireccion(e.target.value)} placeholder="Buscar dirección..." className="input w-full px-3 py-2" />
+          </Autocomplete>
+          <div className="rounded-xl overflow-hidden border border-slate-200">
+            <GoogleMap mapContainerStyle={{ width: '100%', height: 350 }} center={posicion} zoom={15} options={{ streetViewControl: false, mapTypeControl: false }}>
+              <Marker position={posicion} draggable onDragEnd={onMarkerDragEnd} />
+            </GoogleMap>
           </div>
         </div>
       )}
 
-      {!GOOGLE_MAPS_API_KEY ? (
-        <div className="flex items-start gap-2.5 border border-amber-200 bg-amber-50 rounded-xl px-4 py-3">
-          <TriangleAlert className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-          <p className="text-[11px] text-amber-700">
-            Falta configurar <code className="font-mono bg-amber-100 px-1 rounded">NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code>{' '}
-            en tu <code className="font-mono bg-amber-100 px-1 rounded">.env.local</code> para activar el mapa interactivo.
-          </p>
-        </div>
-      ) : loadError ? (
-        <div className="flex items-start gap-2.5 border border-rose-200 bg-rose-50 rounded-xl px-4 py-3">
-          <TriangleAlert className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
-          <p className="text-[11px] text-rose-700">
-            No se pudo cargar Google Maps. Verifica que la API key tenga habilitadas Maps JavaScript
-            API, Geocoding API y Places API.
-          </p>
-        </div>
-      ) : !isLoaded ? (
-        <div className="w-full h-64 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center">
-          <p className="text-xs text-slate-400">Cargando mapa...</p>
-        </div>
-      ) : (
-        <div className="w-full h-64 rounded-xl overflow-hidden border border-slate-200">
-          <GoogleMap
-            mapContainerClassName="w-full h-full"
-            center={posicion ?? DEFAULT_CENTER}
-            zoom={posicion ? 16 : 12}
-            onClick={handleMapClick}
-            options={{ streetViewControl: false, mapTypeControl: false }}
-          >
-            {posicion && (
-              <Marker position={posicion} draggable onDragEnd={handleMarkerDragEnd} />
-            )}
-          </GoogleMap>
-        </div>
-      )}
-
-      <div className="pt-2 border-t border-slate-100">
-        <Toggle
-          checked={mostrarDireccion}
-          onChange={setMostrarDireccion}
-          label="Mostrar dirección en el menú digital"
-          hint="Si la desactivas, la dirección se sigue usando internamente para zonas de entrega pero no se muestra públicamente."
-        />
+      <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+        <MapPin className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+        <p className="text-[11px] text-amber-700">{direccion || 'Sin dirección configurada. Busca una dirección o arrastra el marcador.'}</p>
       </div>
+
+      <div className="flex justify-end pt-2"><Button onClick={handleSave} disabled={saving}>{saving ? 'Guardando...' : 'Guardar cambios'}</Button></div>
     </div>
   );
 }

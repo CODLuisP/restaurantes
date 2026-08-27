@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { LucideIcon } from 'lucide-react';
 import { Package, Upload, Image, QrCode, Share2, Clock, CalendarClock } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 import ProductosTab from '@/components/carta/ProductosTab';
 import ImportarTab from '@/components/carta/ImportarTab';
 import BannersTab from '@/components/carta/BannersTab';
@@ -29,6 +30,8 @@ const TAB_IDS = TABS.map(t => t.id);
 export default function CartaPage() {
   const router = useRouter();
   const pathname = usePathname();
+  const { currentUser } = useAuth();
+  const readOnly = currentUser?.role === 'cocinero';
   const [tab, setTab] = useState<TabId>('carta');
 
   /* Al cargar la página, respeta el tab de la URL (?tab=...) y si no hay ninguno, lo agrega */
@@ -52,6 +55,7 @@ export default function CartaPage() {
         <h3 className="text-xl font-bold text-slate-900">Menú Digital</h3>
         <p className="text-xs text-slate-500">Gestiona los platos, importaciones, banners y la bienvenida de tu carta.</p>
       </div>
+
 
       {/* Tabs */}
       <div className="flex items-center gap-6 border-b border-slate-200 overflow-x-auto">
@@ -77,7 +81,7 @@ export default function CartaPage() {
       </div>
 
       {/* Content */}
-      <div className="mt-6">
+      <div className={`mt-4 ${readOnly ? 'pointer-events-none select-none' : ''}`} aria-disabled={readOnly}>
         {tab === 'carta' && (
           <ProductosTab onGoToImportar={() => changeTab('importar')} onGoToBanners={() => changeTab('banners')} />
         )}
@@ -86,7 +90,7 @@ export default function CartaPage() {
         {tab === 'qr' && <QrTab />}
 
         {(tab === 'redes' || tab === 'horarios' || tab === 'cierres') && (
-          <div className="card-lg p-8">
+          <div className="card-lg p-4">
             {tab === 'redes' && <RedesSocialesTab />}
             {tab === 'horarios' && <HorariosTab />}
             {tab === 'cierres' && <CierresProgramadosTab />}
