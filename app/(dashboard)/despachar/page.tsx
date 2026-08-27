@@ -67,7 +67,7 @@ export default function DespacharPage() {
               <div className="space-y-1 border-t border-slate-100 pt-2">
                 {order.items.filter(it => it.estado !== 'cancelado').map(it => (
                   <div key={it.id} className="flex justify-between text-xs font-medium text-slate-700">
-                    <span>{it.productoNombre ?? it.comboNombre ?? it.varianteNombre ?? 'Producto'}</span>
+                    <span>{it.productoNombre ? (it.varianteNombre ? `${it.productoNombre} (${it.varianteNombre})` : it.productoNombre) : it.comboNombre ?? it.varianteNombre ?? 'Producto'}</span>
                     <span className="font-mono">x{it.cantidad}</span>
                   </div>
                 ))}

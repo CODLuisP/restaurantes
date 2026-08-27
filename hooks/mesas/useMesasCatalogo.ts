@@ -14,6 +14,7 @@ import {
 } from '@/lib/api/pedidos';
 import { crearSesionMesa, cerrarSesionMesa } from '@/lib/api/sesionesMesa';
 import { getVentasBySesion, cantidadFacturadaPorItem, restarFacturado } from '@/lib/api/ventas';
+import { parseCartLineId } from '@/lib/cart/cartLineId';
 import { usePedidoEvents } from '@/hooks/realtime/usePedidoEvents';
 import { useSesionCerradaEvents, type SesionCerradaPayload } from '@/hooks/realtime/useSesionCerradaEvents';
 import { useMesaEvents } from '@/hooks/realtime/useMesaEvents';
@@ -32,7 +33,9 @@ function mapPedidoItems(pedido: PedidoDto | null): OrderItem[] {
     .map(i => ({
       product: {
         id: String(i.id),
-        name: i.productoNombre ?? i.comboNombre ?? i.varianteNombre ?? 'Producto',
+        name: i.productoNombre
+          ? (i.varianteNombre ? `${i.productoNombre} (${i.varianteNombre})` : i.productoNombre)
+          : i.comboNombre ?? i.varianteNombre ?? 'Producto',
         price: i.precioUnitario,
         category: '',
         image: '',
@@ -180,7 +183,10 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
           pedidoId = pedidoActual?.id;
         }
 
-        const itemsDto = items.map(i => ({ productoId: Number(i.product.id), cantidad: i.quantity }));
+        const itemsDto = items.map(i => {
+          const { productoId, varianteId } = parseCartLineId(i.product.id);
+          return { productoId, varianteId, cantidad: i.quantity };
+        });
         if (pedidoId) await agregarItemsPedido(token, pedidoId, itemsDto);
         else await crearPedido(token, { sesionMesaId: sesionId, mozoId, origen: 'mozo', items: itemsDto });
 

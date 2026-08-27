@@ -18,12 +18,16 @@ export const CATEGORY_ICON_BG: Record<string, string> = {
 export const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 export const LIBRARIES: ('places' | 'geometry')[] = ['places'];
 
-/** Adapta un plato del menú público al formato de producto que usa el carrito. */
-export function productoToCartItem(p: ProductoMenu): Product {
+export { cartLineId, parseCartLineId } from '@/lib/cart/cartLineId';
+import { cartLineId } from '@/lib/cart/cartLineId';
+
+/** Adapta un plato del menú público (y, si eligió una, su variante) al producto que usa el carrito. */
+export function productoToCartItem(p: ProductoMenu, varianteId?: number | null): Product {
+  const variante = varianteId ? p.variantes?.find(v => v.id === varianteId) : undefined;
   return {
-    id: String(p.id),
-    name: p.nombre,
-    price: p.precio,
+    id: cartLineId(p.id, varianteId),
+    name: variante ? `${p.nombre} (${variante.nombre})` : p.nombre,
+    price: variante ? variante.precio : p.precio,
     category: p.categoriaNombre,
     image: p.imagenUrl ?? '',
     status: 'available' as const,

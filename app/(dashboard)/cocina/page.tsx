@@ -89,7 +89,7 @@ export default function CocinaPage() {
                         <div className="space-y-1">
                           {order.items.filter(it => it.estado !== 'cancelado').map(it => (
                             <div key={it.id} className={`flex justify-between text-xs font-medium ${col.status === 'listo' ? 'text-slate-500 line-through' : 'text-slate-800'}`}>
-                              <span>{it.productoNombre ?? it.comboNombre ?? it.varianteNombre ?? 'Producto'}</span>
+                              <span>{it.productoNombre ? (it.varianteNombre ? `${it.productoNombre} (${it.varianteNombre})` : it.productoNombre) : it.comboNombre ?? it.varianteNombre ?? 'Producto'}</span>
                               <span className="font-mono">x{it.cantidad}</span>
                             </div>
                           ))}

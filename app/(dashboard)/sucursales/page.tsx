@@ -23,6 +23,9 @@ export default function SucursalesPage() {
   const { data: session } = useSession();
   const { triggerToast } = useApp();
   const token = session?.accessToken;
+  /* Solo el superadmin administra todas las sucursales de la empresa; un admin regular
+     opera fijo sobre la suya y no puede crear otras (el backend ya lo rechaza igual). */
+  const isSuperAdmin = session?.user?.role === 'superadmin';
 
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -107,7 +110,9 @@ export default function SucursalesPage() {
           <h3 className="text-xl font-bold text-slate-800">Sucursales</h3>
           <p className="text-xs text-slate-500">Administra los locales de tu negocio.</p>
         </div>
-        <Button onClick={openCreate} icon={<Plus className="h-3.5 w-3.5" />}>Agregar sucursal</Button>
+        {isSuperAdmin && (
+          <Button onClick={openCreate} icon={<Plus className="h-3.5 w-3.5" />}>Agregar sucursal</Button>
+        )}
       </div>
 
       {cargando ? (
@@ -123,7 +128,9 @@ export default function SucursalesPage() {
           <p className="text-xs text-slate-500 max-w-sm">
             Agrega el primer local de tu negocio para empezar a operar desde ahí.
           </p>
-          <Button onClick={openCreate} icon={<Plus className="h-3.5 w-3.5" />} className="mt-2">Agregar sucursal</Button>
+          {isSuperAdmin && (
+            <Button onClick={openCreate} icon={<Plus className="h-3.5 w-3.5" />} className="mt-2">Agregar sucursal</Button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">

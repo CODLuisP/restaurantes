@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { ArrowLeft, BookOpen, Plus, Search, Utensils, X } from 'lucide-react';
 import type { OrderType, Product } from '@/types';
 
@@ -16,8 +17,71 @@ interface MenuCatalogProps {
   activeCategory: string;
   setSelectedCategory: (c: string) => void;
   filteredProducts: Product[];
-  onAddToCart: (product: Product) => void;
+  onAddToCart: (product: Product, varianteId?: number | null) => void;
   onBack: () => void;
+}
+
+function ProductCard({
+  product, selectedVariantId, onSelectVariant, onAddToCart,
+}: {
+  product: Product;
+  selectedVariantId: number | null;
+  onSelectVariant: (id: number | null) => void;
+  onAddToCart: (product: Product, varianteId?: number | null) => void;
+}) {
+  const tieneVariantes = !!product.variants && product.variants.length > 0;
+  const precioEfectivo = tieneVariantes
+    ? (product.variants!.find(v => v.id === selectedVariantId)?.price ?? product.price)
+    : product.price;
+
+  return (
+    <div
+      onClick={() => { if (!tieneVariantes) onAddToCart(product); }}
+      className={`card-lg hover:shadow-md hover:-translate-y-0.5 overflow-hidden transition-all duration-200 flex flex-col group border border-slate-100/60 ${tieneVariantes ? '' : 'cursor-pointer'}`}
+    >
+      <div className="relative h-28 w-full bg-slate-100 overflow-hidden">
+        {product.image ? (
+          <img src={product.image} alt={product.name} referrerPolicy="no-referrer" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+        ) : (
+          <div className="h-full w-full flex items-center justify-center text-slate-300"><Utensils className="h-7 w-7" /></div>
+        )}
+      </div>
+      <div className="p-3 flex-grow flex flex-col justify-between">
+        <div>
+          <h5 className="text-[11px] font-bold text-slate-800 leading-tight line-clamp-2">{product.name}</h5>
+          {tieneVariantes && (
+            <div className="flex flex-wrap gap-1 mt-1.5" onClick={e => e.stopPropagation()}>
+              {product.variants!.map(v => (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => onSelectVariant(selectedVariantId === v.id ? null : v.id)}
+                  className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full transition-colors ${selectedVariantId === v.id ? 'bg-brand text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                >
+                  {v.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
+          <span className="text-[11px] font-mono font-bold text-slate-700">S/. {precioEfectivo.toFixed(2)}</span>
+          {tieneVariantes ? (
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); onAddToCart(product, selectedVariantId); }}
+              className="bg-emerald-50 hover:bg-emerald-100 p-1.5 rounded-lg text-brand shrink-0 transition-colors cursor-pointer"
+              aria-label={`Agregar ${product.name}`}
+            >
+              <Plus className="h-3 w-3 stroke-[3]" />
+            </button>
+          ) : (
+            <div className="bg-emerald-50 p-1.5 rounded-lg text-brand shrink-0"><Plus className="h-3 w-3 stroke-[3]" /></div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /** Columna izquierda del editor: buscador, categorías y grilla de platos de la carta. */
@@ -25,6 +89,20 @@ export default function MenuCatalog({
   orderType, selectedTable, editingOrderId, search, setSearch, isSearching,
   rawQuery, hasMenuProducts, categories, activeCategory, setSelectedCategory, filteredProducts, onAddToCart, onBack,
 }: MenuCatalogProps) {
+  /* Variante elegida por producto (chips) antes de agregarlo a la comanda. */
+  const [variantSelections, setVariantSelections] = useState<Record<string, number | null>>({});
+
+  /* En "Todos" se agrupa la carta completa por categoría en vez de una grilla plana. */
+  const groupedByCategory = activeCategory === 'Todos' && !isSearching
+    ? Array.from(
+        filteredProducts.reduce((acc, p) => {
+          if (!acc.has(p.category)) acc.set(p.category, []);
+          acc.get(p.category)!.push(p);
+          return acc;
+        }, new Map<string, Product[]>())
+      ).sort(([a], [b]) => a.localeCompare(b))
+    : null;
+
   return (
         <div className="flex-1 flex flex-col min-w-0 bg-white rounded-2xl border border-slate-100 p-5 shadow-sm h-full overflow-y-auto">
           {/* Header Superior del Pedido: Volver e Info */}
@@ -96,29 +174,35 @@ export default function MenuCatalog({
                 <BookOpen className="h-8 w-8 mx-auto text-slate-300" />
                 <p className="text-xs text-slate-500">No hay platos disponibles en la Carta del Día.</p>
               </div>
+            ) : groupedByCategory ? (
+              <div className="space-y-6">
+                {groupedByCategory.map(([cat, products]) => (
+                  <div key={cat}>
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide mb-3 sticky top-0 bg-white py-1">{cat}</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {products.map(product => (
+                        <ProductCard
+                          key={product.id}
+                          product={product}
+                          selectedVariantId={variantSelections[product.id] ?? null}
+                          onSelectVariant={id => setVariantSelections(prev => ({ ...prev, [product.id]: id }))}
+                          onAddToCart={onAddToCart}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredProducts.map(product => (
-                  <div
+                  <ProductCard
                     key={product.id}
-                    onClick={() => onAddToCart(product)}
-                    className="card-lg hover:shadow-md hover:-translate-y-0.5 cursor-pointer overflow-hidden transition-all duration-200 flex flex-col group border border-slate-100/60"
-                  >
-                    <div className="relative h-28 w-full bg-slate-100 overflow-hidden">
-                      {product.image ? (
-                        <img src={product.image} alt={product.name} referrerPolicy="no-referrer" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center text-slate-300"><Utensils className="h-7 w-7" /></div>
-                      )}
-                    </div>
-                    <div className="p-3 flex-grow flex flex-col justify-between">
-                      <h5 className="text-[11px] font-bold text-slate-800 leading-tight line-clamp-2">{product.name}</h5>
-                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
-                        <span className="text-[11px] font-mono font-bold text-slate-700">S/. {product.price.toFixed(2)}</span>
-                        <div className="bg-emerald-50 p-1.5 rounded-lg text-brand shrink-0"><Plus className="h-3 w-3 stroke-[3]" /></div>
-                      </div>
-                    </div>
-                  </div>
+                    product={product}
+                    selectedVariantId={variantSelections[product.id] ?? null}
+                    onSelectVariant={id => setVariantSelections(prev => ({ ...prev, [product.id]: id }))}
+                    onAddToCart={onAddToCart}
+                  />
                 ))}
               </div>
             )}

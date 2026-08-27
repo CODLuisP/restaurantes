@@ -18,6 +18,7 @@ import {
   Receipt,
   Wallet,
   BellRing,
+  Bell,
   ChevronDown,
   FileText,
   type LucideIcon,
@@ -40,6 +41,7 @@ type MenuItem = {
 const menuItems: MenuItem[] = [
   { href: '/dashboard',     label: 'Dashboard',       icon: LayoutDashboard, roles: ['admin'] },
   { href: '/comandero',     label: 'Comandero',        icon: ShoppingBag,     roles: ['admin', 'mozo'] },
+  { href: '/pedidos-por-confirmar', label: 'Por confirmar', icon: Bell,       roles: ['admin', 'mozo'] },
   { href: '/cobrar',        label: 'Cobrar',           icon: Receipt,         roles: ['admin', 'cajero'] },
   { href: '/cocina',        label: 'Cocina',           icon: ChefHat,         roles: ['admin', 'cocinero'] },
   { href: '/despachar',     label: 'Por despachar',    icon: BellRing,        roles: ['admin', 'mozo'] },
@@ -70,16 +72,19 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { isOpen, closeOpen, isCollapsed, toggleCollapsed } = useSidebar();
   const { currentUser } = useAuth();
-  const { triggerToast } = useApp();
+  const { triggerToast, tables, activeOrders } = useApp();
   const { pedidos } = useCocinaPedidos(triggerToast);
   const isConfigRoute = pathname.startsWith('/configuracion');
   const [isConfigOpen, setIsConfigOpen] = useState(isConfigRoute);
   const canSeeConfig = !currentUser || currentUser?.role === 'admin';
 
-  /* Comandas listas por despachar (todas para admin, propias para el mozo) — en vivo */
-  const readyCount = pedidos.filter(
-    p => p.estado === 'listo' && (currentUser?.role === 'admin' || p.mozoId === Number(currentUser?.id))
-  ).length;
+  /* Comandas listas por despachar — cualquier mozo puede recogerlas y entregarlas, sin importar quién las tomó. */
+  const readyCount = pedidos.filter(p => p.estado === 'listo').length;
+
+  /* Pedidos que el propio cliente armó desde el menú digital y siguen sin confirmar — en vivo. */
+  const pendingConfirmCount =
+    tables.filter(t => t.pedidoEstado === 'pendiente_confirmacion').length +
+    activeOrders.filter(o => o.pedidoEstado === 'pendiente_confirmacion').length;
 
   const visibleItems = menuItems.filter(
     item => !item.roles || !currentUser || item.roles.includes(currentUser.role)
@@ -123,7 +128,9 @@ export default function Sidebar() {
             const Icon = item.icon;
             const isActive = pathname === item.href;
             const isDispatch = item.href === '/despachar';
-            const badge = isDispatch ? (readyCount || undefined) : item.badge;
+            const isPendingConfirm = item.href === '/pedidos-por-confirmar';
+            const isLiveBadge = isDispatch || isPendingConfirm;
+            const badge = isDispatch ? (readyCount || undefined) : isPendingConfirm ? (pendingConfirmCount || undefined) : item.badge;
             return (
               <Link
                 key={item.href}
@@ -146,7 +153,7 @@ export default function Sidebar() {
                     }`}
                   />
                   {/* Punto rojo cuando el sidebar está colapsado */}
-                  {isDispatch && !!badge && isCollapsed && (
+                  {isLiveBadge && !!badge && isCollapsed && (
                     <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-brand-dark" />
                   )}
                 </span>
@@ -155,7 +162,7 @@ export default function Sidebar() {
                     <span className="grow text-left truncate">{item.label}</span>
                     {badge && (
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono shrink-0 ${
-                        isDispatch
+                        isLiveBadge
                           ? 'bg-rose-500 text-white font-bold animate-pulse'
                           : isActive ? 'bg-white/15 text-white' : 'bg-black/20 text-brand-accent font-medium'
                       }`}>

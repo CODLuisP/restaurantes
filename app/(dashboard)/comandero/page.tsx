@@ -13,6 +13,7 @@ import MenuCatalog from '@/components/comandero/MenuCatalog';
 import OrderPanel from '@/components/comandero/OrderPanel';
 import OrdersListView from '@/components/comandero/OrdersListView';
 import { GOOGLE_MAPS_API_KEY, type DetailView } from '@/components/comandero/types';
+import { cartLineId } from '@/lib/cart/cartLineId';
 import type { OrderItem, Product, OrderType } from '@/types';
 
 type TabId = 'todas' | 'mesa' | 'llevar' | 'delivery';
@@ -166,11 +167,17 @@ export default function ComanderoPage() {
     resetDraft();
   };
 
-  const handleAddToCart = (product: Product) => {
+  const handleAddToCart = (product: Product, varianteId?: number | null) => {
+    const variante = varianteId ? product.variants?.find(v => v.id === varianteId) : undefined;
+    const lineId = cartLineId(product.id, varianteId);
+    const lineProduct: Product = variante
+      ? { ...product, id: lineId, name: `${product.name} (${variante.name})`, price: variante.price }
+      : { ...product, id: lineId };
+
     setCart(prev => {
-      const existing = prev.find(i => i.product.id === product.id);
-      if (existing) return prev.map(i => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...prev, { product, quantity: 1 }];
+      const existing = prev.find(i => i.product.id === lineId);
+      if (existing) return prev.map(i => i.product.id === lineId ? { ...i, quantity: i.quantity + 1 } : i);
+      return [...prev, { product: lineProduct, quantity: 1 }];
     });
   };
 
@@ -234,13 +241,17 @@ export default function ComanderoPage() {
   const inProgressCount = busyTables.length + activeOrders.length;
 
   const cartTotal = cart.reduce((acc, i) => acc + i.product.price * i.quantity, 0);
-  const activeCategory = categories.includes(selectedCategory) ? selectedCategory : (categories[0] ?? '');
+  /* "Todos" siempre va primero: agrupa la carta completa por categoría en vez de filtrar a una sola. */
+  const tabCategories = ['Todos', ...categories];
+  const activeCategory = tabCategories.includes(selectedCategory) ? selectedCategory : 'Todos';
 
   const rawQuery = (search || searchQuery).trim();
   const query = rawQuery.toLowerCase();
   const isSearching = query.length > 0;
   const filteredProducts = menuProducts.filter(p =>
-    isSearching ? p.name.toLowerCase().includes(query) : p.category === activeCategory
+    isSearching ? p.name.toLowerCase().includes(query) :
+    activeCategory === 'Todos' ? true :
+    p.category === activeCategory
   );
 
   const isEditingOrCreate =
@@ -276,7 +287,7 @@ export default function ComanderoPage() {
           isSearching={isSearching}
           rawQuery={rawQuery}
           hasMenuProducts={menuProducts.length > 0}
-          categories={categories}
+          categories={tabCategories}
           activeCategory={activeCategory}
           setSelectedCategory={setSelectedCategory}
           filteredProducts={filteredProducts}

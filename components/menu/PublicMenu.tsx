@@ -31,6 +31,7 @@ import PublicCategory from "@/components/menu/publico/PublicCategory";
 import {
   CATEGORY_ICON_BG,
   productoToCartItem,
+  cartLineId,
   type ProductoMenu,
   type CategoriaMenu,
   type BannerPublico,
@@ -43,8 +44,8 @@ import {
   getCierresPublico,
 } from "@/lib/api/publico";
 import {
-  DEFAULT_METODOS_PAGO, DEFAULT_METODOS_ENTREGA, parseMetodosPago, parseMetodosEntrega,
-  type MetodosPago, type MetodosEntrega,
+  DEFAULT_METODOS_ENTREGA, parseMetodosEntrega,
+  type MetodosEntrega,
 } from "@/lib/config/metodos";
 
 /** Vista pública de la carta con autoservicio para clientes. */
@@ -81,7 +82,6 @@ export default function PublicMenu({
   const [cierres, setCierres] = useState<
     { motivo: string; desde: string; hasta: string }[]
   >([]);
-  const [metodosPago, setMetodosPago] = useState<MetodosPago>(DEFAULT_METODOS_PAGO);
   const [metodosEntrega, setMetodosEntrega] = useState<MetodosEntrega>(DEFAULT_METODOS_ENTREGA);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -95,9 +95,8 @@ export default function PublicMenu({
   const [isOrderSuccess, setIsOrderSuccess] = useState(false);
   const [lastPlacedOrderId, setLastPlacedOrderId] = useState("");
 
-  /* Formulario de checkout (datos del cliente, comprobante y pago) */
+  /* Formulario de checkout (datos del cliente) */
   const form = useCheckoutForm(mesaLabel);
-  const { paymentMethod } = form;
 
   /* Carga desde API pública: productos, categorías, banners, config, sucursal, cierres. */
   useEffect(() => {
@@ -128,7 +127,6 @@ export default function PublicMenu({
           whatsappPedidos: c.whatsappPedidos ?? "",
           schedule: c.horariosJson ? JSON.parse(c.horariosJson) : {},
         });
-        setMetodosPago(parseMetodosPago(c.metodosPagoJson));
         setMetodosEntrega(parseMetodosEntrega(c.metodosEntregaJson));
       })
       .catch(() => {});
@@ -216,17 +214,18 @@ export default function PublicMenu({
         ? []
         : groupedCategories.filter((g) => g.category === tab);
 
-  const addToCart = (product: ProductoMenu) => {
+  const addToCart = (product: ProductoMenu, varianteId?: number | null) => {
     setCart((prev) => {
-      const existing = prev.find((i) => i.product.id === String(product.id));
+      const lineId = cartLineId(product.id, varianteId);
+      const existing = prev.find((i) => i.product.id === lineId);
       if (existing) {
         return prev.map((i) =>
-          i.product.id === String(product.id)
+          i.product.id === lineId
             ? { ...i, quantity: i.quantity + 1 }
             : i,
         );
       }
-      return [...prev, { product: productoToCartItem(product), quantity: 1 }];
+      return [...prev, { product: productoToCartItem(product, varianteId), quantity: 1 }];
     });
   };
 
@@ -496,7 +495,6 @@ export default function PublicMenu({
         onPlaceOrder={handleConfirmOrder}
         submitting={submitting}
         mesaLabel={mesaLabel}
-        metodosPago={metodosPago}
         metodosEntrega={metodosEntrega}
       />
 
@@ -505,7 +503,6 @@ export default function PublicMenu({
         onClose={() => setIsOrderSuccess(false)}
         orderId={lastPlacedOrderId}
         orderType={form.orderType}
-        paymentMethod={paymentMethod}
       />
     </div>
   );

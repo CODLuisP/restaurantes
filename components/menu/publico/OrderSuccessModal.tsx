@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle2 } from 'lucide-react';
+import { Bell } from 'lucide-react';
 import { Modal, Button } from '@/components/ui';
 import type { OrderTypePublico } from '@/hooks/menu/useCheckoutForm';
 
@@ -9,11 +9,11 @@ interface OrderSuccessModalProps {
   onClose: () => void;
   orderId: string;
   orderType: OrderTypePublico;
-  paymentMethod: string;
 }
 
-/** Confirmación tras enviar el pedido desde el menú público. */
-export default function OrderSuccessModal({ open, onClose, orderId, orderType, paymentMethod }: OrderSuccessModalProps) {
+/** Confirmación tras enviar el pedido desde el menú público — el pedido todavía no fue a
+ *  cocina: queda esperando a que un mozo lo revise y lo confirme. */
+export default function OrderSuccessModal({ open, onClose, orderId, orderType }: OrderSuccessModalProps) {
   return (
       <Modal
         open={open}
@@ -31,18 +31,18 @@ export default function OrderSuccessModal({ open, onClose, orderId, orderType, p
         }
       >
         <div className="flex flex-col items-center justify-center text-center py-6 gap-3">
-          <div className="h-16 w-16 rounded-full bg-emerald-50 text-emerald-650 flex items-center justify-center animate-section">
-            <CheckCircle2 className="h-10 w-10" />
+          <div className="h-16 w-16 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center animate-section">
+            <Bell className="h-9 w-9" />
           </div>
           <h4 className="text-base font-extrabold text-slate-800 animate-section">
-            ¡Pedido Enviado a la Cocina!
+            ¡Pedido recibido!
           </h4>
           <p className="text-xs text-slate-500 max-w-xs animate-section">
             Tu pedido{" "}
             <strong className="text-slate-800 font-mono font-bold">
               #{orderId}
             </strong>{" "}
-            ha sido recibido correctamente y se encuentra en preparación.
+            fue registrado. En unos instantes un mozo se acercará a confirmarlo.
           </p>
           <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-[11px] text-slate-505 mt-2 space-y-1 w-full max-w-xs animate-section">
             <p>
@@ -53,12 +53,6 @@ export default function OrderSuccessModal({ open, onClose, orderId, orderType, p
                   : orderType === "llevar"
                     ? "Llevar"
                     : "Delivery"}
-              </strong>
-            </p>
-            <p>
-              Método de pago:{" "}
-              <strong className="text-slate-700 font-bold">
-                {paymentMethod}
               </strong>
             </p>
           </div>

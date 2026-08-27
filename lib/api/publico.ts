@@ -73,11 +73,13 @@ export interface CrearPedidoClienteItemDto {
 }
 
 export interface CrearPedidoClienteDto {
-  /** "local" (mesa, requiere mesaToken) | "para_llevar" | "delivery". */
+  /** "local" (mesa) | "para_llevar" | "delivery". */
   tipo: 'local' | 'para_llevar' | 'delivery';
-  /** Requerido si tipo === "local". */
+  /** Mesa vía QR (link de la propia mesa) — prioridad sobre numeroMesa si viene. */
   mesaToken?: string;
-  /** Requerido si tipo !== "local". */
+  /** Mesa vía link genérico: número de mesa escrito a mano por el cliente. Requiere sucursalId. */
+  numeroMesa?: number;
+  /** Requerido si tipo !== "local", o si tipo === "local" sin mesaToken (mesa por numeroMesa). */
   sucursalId?: number;
   nombreCliente?: string;
   numComensales?: number;

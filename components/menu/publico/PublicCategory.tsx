@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ChevronDown, Utensils } from 'lucide-react';
 import type { OrderItem } from '@/types';
 import type { ProductoMenu } from './types';
+import { cartLineId } from './types';
 import PublicProductCard from './PublicProductCard';
 
 /* ─── Sección de categoría interactiva ─── */
@@ -22,7 +23,7 @@ export default function PublicCategory({
   title: string;
   items: ProductoMenu[];
   cart: OrderItem[];
-  onAdd: (item: ProductoMenu) => void;
+  onAdd: (item: ProductoMenu, varianteId?: number | null) => void;
   onUpdateQty: (productId: string, delta: number) => void;
   collapsed: boolean;
   onToggle: () => void;
@@ -62,16 +63,18 @@ export default function PublicCategory({
         <div className="px-4 pb-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5 animate-section">
             {items.map((item) => {
-              const cartItem = cart.find((ci) => ci.product.id === String(item.id));
+              const selectedVariantId = variantSelections[item.id] ?? null;
+              const lineId = cartLineId(item.id, selectedVariantId);
+              const cartItem = cart.find((ci) => ci.product.id === lineId);
               const qty = cartItem ? cartItem.quantity : 0;
               return (
                 <PublicProductCard
                   key={item.id}
                   item={item}
                   quantity={qty}
-                  onAdd={() => onAdd(item)}
-                  onUpdateQty={(delta) => onUpdateQty(String(item.id), delta)}
-                  selectedVariantId={variantSelections[item.id] ?? null}
+                  onAdd={() => onAdd(item, selectedVariantId)}
+                  onUpdateQty={(delta) => onUpdateQty(lineId, delta)}
+                  selectedVariantId={selectedVariantId}
                   onSelectVariant={(vid) => setVariantSelections(prev => ({ ...prev, [item.id]: vid }))}
                 />
               );

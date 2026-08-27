@@ -14,6 +14,7 @@ import {
 import { usePedidoEvents } from '@/hooks/realtime/usePedidoEvents';
 import { useSesionCerradaEvents, type SesionCerradaPayload } from '@/hooks/realtime/useSesionCerradaEvents';
 import { getVentasBySesion, cantidadFacturadaPorItem, restarFacturado } from '@/lib/api/ventas';
+import { parseCartLineId } from '@/lib/cart/cartLineId';
 
 /** Ítems del pedido → OrderItem, usando el id de la FILA (pedido_item) como product.id
  *  para que actualizar/quitar un ítem ya enviado apunte al recurso correcto del backend. */
@@ -23,7 +24,9 @@ function mapPedidoItems(pedido: PedidoDto | null): OrderItem[] {
     .map(i => ({
       product: {
         id: String(i.id),
-        name: i.productoNombre ?? i.comboNombre ?? i.varianteNombre ?? 'Producto',
+        name: i.productoNombre
+          ? (i.varianteNombre ? `${i.productoNombre} (${i.varianteNombre})` : i.productoNombre)
+          : i.comboNombre ?? i.varianteNombre ?? 'Producto',
         price: i.precioUnitario,
         category: '',
         image: '',
@@ -134,7 +137,10 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
           sesionMesaId: sesion.id,
           mozoId,
           origen: 'mozo',
-          items: items.map(i => ({ productoId: Number(i.product.id), cantidad: i.quantity })),
+          items: items.map(i => {
+            const { productoId, varianteId } = parseCartLineId(i.product.id);
+            return { productoId, varianteId, cantidad: i.quantity };
+          }),
         });
         const order = sesionPedidoToActiveOrder(sesion, pedido);
         setActiveOrders(prev => [order, ...prev]);
@@ -156,7 +162,10 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
       if (!order?.pedidoId) { triggerToast('El pedido ya no está disponible.', 'warning'); return false; }
 
       try {
-        const pedido = await agregarItemsPedido(token, order.pedidoId, items.map(i => ({ productoId: Number(i.product.id), cantidad: i.quantity })));
+        const pedido = await agregarItemsPedido(token, order.pedidoId, items.map(i => {
+          const { productoId, varianteId } = parseCartLineId(i.product.id);
+          return { productoId, varianteId, cantidad: i.quantity };
+        }));
         setActiveOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...pedidoToFields(pedido) } : o));
         triggerToast('Se agregaron platos al pedido y se enviaron a cocina.', 'success');
         return true;

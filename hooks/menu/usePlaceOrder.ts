@@ -5,6 +5,7 @@ import type { OrderItem } from '@/types';
 import type { CheckoutForm } from './useCheckoutForm';
 import { crearPedidoPublico } from '@/lib/api/publico';
 import { ApiError } from '@/lib/api/client';
+import { parseCartLineId } from '@/components/menu/publico/types';
 
 interface UsePlaceOrderArgs {
   form: CheckoutForm;
@@ -19,18 +20,17 @@ interface UsePlaceOrderArgs {
 
 /**
  * Valida el checkout del menú público y crea el pedido real contra el backend con
- * origen "cliente": queda pendiente de que el mozo lo confirme desde el Comandero antes
- * de ir a cocina — así el mozo puede verificar el pago (Yape/Plin) o acercarse a la mesa
- * en vez de que cocina reciba algo sin que nadie lo sepa. Aplica igual a mesa, llevar y delivery.
+ * origen "cliente": queda "pendiente_confirmacion" hasta que un mozo lo confirme desde
+ * "Por confirmar" — recién ahí el pedido queda asignado a ese mozo y se manda a cocina.
+ * El comprobante y el método de pago se definen en ese momento, no en este formulario.
+ * Aplica igual a mesa, llevar y delivery.
  */
 export function usePlaceOrder({ form, cart, setCart, mesaToken, sucursalId, onSuccess }: UsePlaceOrderArgs) {
   const [submitting, setSubmitting] = useState(false);
 
   const {
-    orderType, custName, custPhone, custAddress, tableNum,
-    docType, ruc, razonSocial, paymentMethod, paymentScreenshot, setFormError,
-    setCustName, setCustPhone, setCustEmail, setCustAddress, setRuc,
-    setRazonSocial, setPaymentScreenshot, setPaymentMethod, setDocType,
+    orderType, custName, custPhone, custAddress, tableNum, setFormError,
+    setCustName, setCustPhone, setCustEmail, setCustAddress,
   } = form;
 
   const resetForm = () => {
@@ -39,11 +39,6 @@ export function usePlaceOrder({ form, cart, setCart, mesaToken, sucursalId, onSu
     setCustPhone('');
     setCustEmail('');
     setCustAddress('');
-    setRuc('');
-    setRazonSocial('');
-    setPaymentScreenshot('');
-    setPaymentMethod('Efectivo');
-    setDocType('Nota de venta');
   };
 
   const handleConfirmOrder = async () => {
@@ -52,16 +47,8 @@ export function usePlaceOrder({ form, cart, setCart, mesaToken, sucursalId, onSu
     if (!custPhone.trim()) { setFormError('Por favor ingresa tu número telefónico.'); return; }
     if (orderType === 'delivery' && !custAddress.trim()) { setFormError('Por favor ingresa una dirección de entrega.'); return; }
     if (orderType === 'mesa' && !tableNum.trim()) { setFormError('Por favor ingresa tu número de mesa.'); return; }
-    if (docType === 'Factura') {
-      if (ruc.trim().length !== 11) { setFormError('El RUC debe tener 11 dígitos.'); return; }
-      if (!razonSocial.trim()) { setFormError('Por favor ingresa la Razón Social.'); return; }
-    }
-    if (paymentMethod === 'Yape / Plin' && !paymentScreenshot) {
-      setFormError('Por favor adjunta la captura del pago de Yape o Plin.');
-      return;
-    }
-    if (orderType === 'mesa' && !mesaToken) {
-      setFormError('No se pudo identificar tu mesa. Vuelve a escanear el código QR.');
+    if (orderType === 'mesa' && !mesaToken && !sucursalId) {
+      setFormError('No se pudo identificar el local. Recarga la página e inténtalo de nuevo.');
       return;
     }
     if (orderType !== 'mesa' && !sucursalId) {
@@ -71,12 +58,18 @@ export function usePlaceOrder({ form, cart, setCart, mesaToken, sucursalId, onSu
 
     setSubmitting(true);
     try {
-      const items = cart.map(i => ({ productoId: Number(i.product.id), cantidad: i.quantity }));
+      const items = cart.map(i => {
+        const { productoId, varianteId } = parseCartLineId(i.product.id);
+        return { productoId, varianteId, cantidad: i.quantity };
+      });
 
       const pedido = orderType === 'mesa'
         ? await crearPedidoPublico({
             tipo: 'local',
             mesaToken,
+            // Sin QR de mesa (link genérico): se resuelve por el número que el cliente escribió a mano.
+            numeroMesa: mesaToken ? undefined : parseInt(tableNum, 10),
+            sucursalId: mesaToken ? undefined : sucursalId,
             nombreCliente: custName.trim(),
             numComensales: 1,
             items,

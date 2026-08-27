@@ -15,6 +15,7 @@ export interface ProductoDto {
   cantidadMinima?: number;
   unidad?: string;
   bajoMinimo?: boolean;
+  variantes?: ProductoVarianteDto[];
 }
 
 export interface CreateProductoDto {
