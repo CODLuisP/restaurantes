@@ -43,7 +43,11 @@ export default function ChargePanel({
   /* ── Pago ── */
   const [method, setMethod] = useState<PaymentMethod>('Efectivo');
   const [received, setReceived] = useState('');
-  const [emitting, setEmitting] = useState(false);
+  /* Cubre TODO el flujo de cobro (emisión SUNAT + registro en caja), no solo la emisión —
+     antes el botón se quedaba sin feedback mientras se registraba la venta, o directamente
+     nunca mostraba loading cuando el comprobante era "Sin comprobante" (docType === 'Nota de venta'). */
+  const [stage, setStage] = useState<'idle' | 'emitting' | 'charging'>('idle');
+  const submitting = stage !== 'idle';
 
   /* Si el método seleccionado se deshabilita (o carga la config después del primer render),
      cae al primero disponible en vez de dejar seleccionado un método que ya no se acepta. */
@@ -134,70 +138,72 @@ export default function ChargePanel({
 
     const chargingItems = splitMode === 'items' ? pickedItems : selected.items;
 
-    /* Emisión electrónica ante SUNAT (solo boleta/factura). */
-    if (docType !== 'Nota de venta') {
-      setEmitting(true);
-      try {
-        const res = await fetch('/api/emitir-comprobante', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            docType,
-            total: amountDue,
-            customer: customerDoc,
-            items: chargingItems.map(i => ({ name: i.product.name, quantity: i.quantity, price: i.product.price })),
-          }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.ok) {
-          triggerToast(EMIT_ERRORS[data?.error] ?? 'No se pudo emitir el comprobante.', 'error');
-          setEmitting(false);
+    try {
+      /* Emisión electrónica ante SUNAT (solo boleta/factura). */
+      if (docType !== 'Nota de venta') {
+        setStage('emitting');
+        try {
+          const res = await fetch('/api/emitir-comprobante', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              docType,
+              total: amountDue,
+              customer: customerDoc,
+              items: chargingItems.map(i => ({ name: i.product.name, quantity: i.quantity, price: i.product.price })),
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) {
+            triggerToast(EMIT_ERRORS[data?.error] ?? 'No se pudo emitir el comprobante.', 'error');
+            return;
+          }
+        } catch {
+          triggerToast('No se pudo conectar con el servicio de facturación electrónica.', 'error');
           return;
         }
-      } catch {
-        triggerToast('No se pudo conectar con el servicio de facturación electrónica.', 'error');
-        setEmitting(false);
+      }
+
+      setStage('charging');
+      const input: ChargeInput = {
+        method,
+        docType,
+        cashier,
+        customer: customerDoc?.name ?? selected.customer,
+        customerDoc,
+        received: method === 'Efectivo' && receivedNum != null ? receivedNum : undefined,
+        amount: amountDue,
+        itemsCount: itemsCountForCharge,
+        closeAfter: willCloseAfter,
+        chargeItems: chargingItems.map(i => ({ pedidoItemId: Number(i.product.id), cantidad: i.quantity })),
+      };
+
+      const sale = selected.kind === 'mesa'
+        ? await chargeTable(selected.ref, input)
+        : await chargeOrder(selected.ref, input);
+      if (!sale) return;
+
+      if (sale.change != null && sale.change > 0) {
+        triggerToast(`Vuelto a entregar: ${money(sale.change)}`, 'info');
+      }
+
+      if (willCloseAfter) {
+        onClosed();
         return;
       }
-      setEmitting(false);
+
+      /* Cuenta parcial: registrar avance y limpiar el formulario para la siguiente. */
+      if (splitMode === 'equal') setPaidEqual(p => p + 1);
+      if (splitMode === 'items') {
+        setPaidItemIds(prev => new Set([...prev, ...pickedItems.map(i => i.product.id)]));
+        setPickItemIds(new Set());
+      }
+      setReceived('');
+      setDocNumber('');
+      setDocName('');
+    } finally {
+      setStage('idle');
     }
-
-    const input: ChargeInput = {
-      method,
-      docType,
-      cashier,
-      customer: customerDoc?.name ?? selected.customer,
-      customerDoc,
-      received: method === 'Efectivo' && receivedNum != null ? receivedNum : undefined,
-      amount: amountDue,
-      itemsCount: itemsCountForCharge,
-      closeAfter: willCloseAfter,
-      chargeItems: chargingItems.map(i => ({ pedidoItemId: Number(i.product.id), cantidad: i.quantity })),
-    };
-
-    const sale = selected.kind === 'mesa'
-      ? await chargeTable(selected.ref, input)
-      : await chargeOrder(selected.ref, input);
-    if (!sale) return;
-
-    if (sale.change != null && sale.change > 0) {
-      triggerToast(`Vuelto a entregar: ${money(sale.change)}`, 'info');
-    }
-
-    if (willCloseAfter) {
-      onClosed();
-      return;
-    }
-
-    /* Cuenta parcial: registrar avance y limpiar el formulario para la siguiente. */
-    if (splitMode === 'equal') setPaidEqual(p => p + 1);
-    if (splitMode === 'items') {
-      setPaidItemIds(prev => new Set([...prev, ...pickedItems.map(i => i.product.id)]));
-      setPickItemIds(new Set());
-    }
-    setReceived('');
-    setDocNumber('');
-    setDocName('');
   };
 
   const toggleItem = (id: string) =>
@@ -470,11 +476,13 @@ export default function ChargePanel({
       {/* Botón cobrar */}
       <button
         onClick={doCharge}
-        disabled={!isCajaOpen || emitting || !!validationError}
+        disabled={!isCajaOpen || submitting || !!validationError}
         className="w-full bg-brand hover:bg-brand-hover text-white text-sm font-bold py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:cursor-not-allowed"
       >
-        {emitting ? (
+        {stage === 'emitting' ? (
           <><Loader2 className="h-4 w-4 animate-spin" /> Emitiendo comprobante…</>
+        ) : stage === 'charging' ? (
+          <><Loader2 className="h-4 w-4 animate-spin" /> Registrando cobro…</>
         ) : (
           <><CheckCircle2 className="h-4 w-4" /> Cobrar {money(amountDue)}{docType !== 'Nota de venta' ? ` · ${docType}` : ''}</>
         )}
