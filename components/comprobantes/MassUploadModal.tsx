@@ -44,6 +44,7 @@ export default function MassUploadModal({ open, onClose, onUploadComplete }: Mas
                 whatsappStatus: 'Pendiente',
                 metodoPago: 'Tarjeta',
                 hash: 'FAB76A52C098',
+                tieneSunat: true,
                 items: [{ name: 'Catering corporativo RestoPro', quantity: 1, price: 1500.00 }]
               },
               {
@@ -60,6 +61,7 @@ export default function MassUploadModal({ open, onClose, onUploadComplete }: Mas
                 whatsappStatus: 'Pendiente',
                 metodoPago: 'Tarjeta',
                 hash: 'EAB65A41B087',
+                tieneSunat: true,
                 items: [{ name: 'Almuerzos Ejecutivos Premium', quantity: 20, price: 44.50 }]
               },
               {
@@ -76,6 +78,7 @@ export default function MassUploadModal({ open, onClose, onUploadComplete }: Mas
                 whatsappStatus: 'Pendiente',
                 metodoPago: 'Efectivo',
                 hash: 'DAB54A30A076',
+                tieneSunat: true,
                 items: [
                   { name: 'Ceviche Clásico Carretillero', quantity: 2, price: 39.50 },
                   { name: 'Chicha Morada RestoPro (Jarra 1L)', quantity: 1, price: 18.00 },
@@ -96,6 +99,7 @@ export default function MassUploadModal({ open, onClose, onUploadComplete }: Mas
                 whatsappStatus: 'Pendiente',
                 metodoPago: 'Yape / Plin',
                 hash: 'CAB43A209065',
+                tieneSunat: true,
                 items: [
                   { name: 'Ají de Gallina de la Abuela', quantity: 2, price: 34.00 }
                 ]
@@ -114,6 +118,7 @@ export default function MassUploadModal({ open, onClose, onUploadComplete }: Mas
                 whatsappStatus: 'Pendiente',
                 metodoPago: 'Efectivo',
                 hash: 'BAB32A108054',
+                tieneSunat: true,
                 items: [
                   { name: 'Lomo Saltado con Papas Amarillas', quantity: 2, price: 45.00 },
                   { name: 'Inka Kola Personal Vidrio', quantity: 1, price: 6.50 }

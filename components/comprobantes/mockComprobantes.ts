@@ -18,6 +18,7 @@ export const INITIAL_MOCK_COMPROBANTES: Comprobante[] = [
     whatsappDestino: '987654321',
     metodoPago: 'Tarjeta',
     hash: '8E4A9F5C1B6D',
+    tieneSunat: true,
     items: [
       { name: 'Arroz con Mariscos Meloso', quantity: 4, price: 42.00 },
       { name: 'Ceviche Clásico Carretillero', quantity: 4, price: 39.50 },
@@ -41,6 +42,7 @@ export const INITIAL_MOCK_COMPROBANTES: Comprobante[] = [
     whatsappDestino: '987654321',
     metodoPago: 'Yape / Plin',
     hash: '7D3A8F4C0B5D',
+    tieneSunat: true,
     items: [
       { name: 'Ají de Gallina de la Abuela', quantity: 1, price: 34.00 },
       { name: 'Suspiro a la Limeña de la Casa', quantity: 1, price: 16.00 }
@@ -61,6 +63,7 @@ export const INITIAL_MOCK_COMPROBANTES: Comprobante[] = [
     whatsappStatus: 'Pendiente',
     metodoPago: 'Tarjeta',
     hash: '6C2A7F3B9A4C',
+    tieneSunat: true,
     items: [
       { name: 'Lomo Saltado con Papas Amarillas', quantity: 6, price: 45.00 }
     ]
@@ -80,6 +83,7 @@ export const INITIAL_MOCK_COMPROBANTES: Comprobante[] = [
     whatsappStatus: 'Pendiente',
     metodoPago: 'Tarjeta',
     hash: '5B1A6E2A893B',
+    tieneSunat: true,
     items: [
       { name: 'Tacu Tacu con Lomo al Jugo', quantity: 10, price: 48.00 }
     ]
@@ -99,6 +103,7 @@ export const INITIAL_MOCK_COMPROBANTES: Comprobante[] = [
     whatsappStatus: 'Pendiente',
     metodoPago: 'Efectivo',
     hash: '4A0A5D1A782A',
+    tieneSunat: true,
     items: [
       { name: 'Tacu Tacu con Lomo al Jugo', quantity: 10, price: 48.00 }
     ]
@@ -118,6 +123,7 @@ export const INITIAL_MOCK_COMPROBANTES: Comprobante[] = [
     whatsappStatus: 'Pendiente',
     metodoPago: 'Yape / Plin',
     hash: '3F9A4C0B671F',
+    tieneSunat: true,
     items: [
       { name: 'Arroz con Mariscos Meloso', quantity: 4, price: 42.00 },
       { name: 'Ceviche Clásico Carretillero', quantity: 4, price: 39.50 },
@@ -140,6 +146,7 @@ export const INITIAL_MOCK_COMPROBANTES: Comprobante[] = [
     whatsappStatus: 'Pendiente',
     metodoPago: 'Tarjeta',
     hash: '2E8A3B9A560E',
+    tieneSunat: true,
     items: [
       { name: 'Tacu Tacu con Lomo al Jugo', quantity: 10, price: 48.00 }
     ]
@@ -159,6 +166,7 @@ export const INITIAL_MOCK_COMPROBANTES: Comprobante[] = [
     whatsappDestino: '999111222',
     metodoPago: 'Efectivo',
     hash: '1D7A2A89459D',
+    tieneSunat: true,
     items: [
       { name: 'Tacu Tacu con Lomo al Jugo', quantity: 10, price: 48.00 }
     ]
@@ -179,6 +187,7 @@ export const INITIAL_MOCK_COMPROBANTES: Comprobante[] = [
     whatsappDestino: '999111222',
     metodoPago: 'Tarjeta',
     hash: '0C6A1E78348C',
+    tieneSunat: true,
     items: [
       { name: 'Anticuchos de Corazón (2 palos)', quantity: 5, price: 28.50 },
       { name: 'Arroz con Mariscos Meloso', quantity: 3, price: 42.00 },
@@ -201,6 +210,7 @@ export const INITIAL_MOCK_COMPROBANTES: Comprobante[] = [
     whatsappStatus: 'Pendiente',
     metodoPago: 'Tarjeta',
     hash: '9B5A0D67237B',
+    tieneSunat: true,
     items: [
       { name: 'Arroz con Mariscos Meloso', quantity: 10, price: 42.00 }
     ]
@@ -220,6 +230,7 @@ export const INITIAL_MOCK_COMPROBANTES: Comprobante[] = [
     whatsappStatus: 'Pendiente',
     metodoPago: 'Efectivo',
     hash: '8A4A9C56126A',
+    tieneSunat: true,
     items: [
       { name: 'Causa Rellena de Pollo', quantity: 15, price: 24.00 }
     ]

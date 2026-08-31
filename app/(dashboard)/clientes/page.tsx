@@ -222,7 +222,7 @@ export default function ClientesPage() {
                       {/* Dirección */}
                       <td className="px-4 py-3">
                         {primeraDir ? (
-                          <div className="flex items-center gap-1 text-xs text-slate-600 max-w-[160px]">
+                          <div className="flex items-center gap-1 text-xs text-slate-600 max-w-40">
                             <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
                             <span className="truncate">{primeraDir.direccion || [primeraDir.distrito, primeraDir.provincia].filter(Boolean).join(', ') || '—'}</span>
                           </div>

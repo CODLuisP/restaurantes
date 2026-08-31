@@ -4,6 +4,7 @@ export interface Sucursal {
   id: number;
   empresaId: number;
   nombre: string;
+  codEstablecimiento?: string | null;
   direccion?: string | null;
   telefono?: string | null;
   activo: boolean;
@@ -12,6 +13,7 @@ export interface Sucursal {
 
 export interface UpdateSucursalDto {
   nombre: string;
+  codEstablecimiento?: string | null;
   direccion?: string | null;
   telefono?: string | null;
   activo: boolean;
@@ -19,6 +21,7 @@ export interface UpdateSucursalDto {
 
 export interface CreateSucursalDto {
   nombre: string;
+  codEstablecimiento?: string | null;
   direccion?: string | null;
   telefono?: string | null;
 }

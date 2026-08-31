@@ -179,6 +179,7 @@ export default function NewReceiptModal({ open, onClose, onSubmit, comprobantesL
         whatsappStatus: 'Pendiente',
         metodoPago,
         hash: data.hash || nuevoHash(),
+        tieneSunat: true,
         items: validItems.map(i => {
           const prod = MOCK_PRODUCTS.find(p => p.id === i.productId)!;
           return {

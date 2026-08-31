@@ -12,12 +12,13 @@ import {
 
 interface FormState {
   nombre: string;
+  codEstablecimiento: string;
   direccion: string;
   telefono: string;
   activo: boolean;
 }
 
-const emptyForm = (): FormState => ({ nombre: '', direccion: '', telefono: '', activo: true });
+const emptyForm = (): FormState => ({ nombre: '', codEstablecimiento: '0000', direccion: '', telefono: '', activo: true });
 
 export default function SucursalesPage() {
   const { data: session } = useSession();
@@ -54,7 +55,7 @@ export default function SucursalesPage() {
 
   const openEdit = (s: Sucursal) => {
     setEditing(s);
-    setForm({ nombre: s.nombre, direccion: s.direccion ?? '', telefono: s.telefono ?? '', activo: s.activo });
+    setForm({ nombre: s.nombre, codEstablecimiento: s.codEstablecimiento ?? '0000', direccion: s.direccion ?? '', telefono: s.telefono ?? '', activo: s.activo });
     setModalOpen(true);
   };
 
@@ -69,13 +70,13 @@ export default function SucursalesPage() {
     try {
       if (editing) {
         const actualizada = await updateSucursal(token, editing.id, {
-          nombre, direccion: form.direccion.trim() || null, telefono: form.telefono.trim() || null, activo: form.activo,
+          nombre, codEstablecimiento: form.codEstablecimiento.trim() || '0000', direccion: form.direccion.trim() || null, telefono: form.telefono.trim() || null, activo: form.activo,
         });
         setSucursales(prev => prev.map(s => (s.id === editing.id ? actualizada : s)));
         triggerToast('Sucursal actualizada.', 'success');
       } else {
         const creada = await createSucursal(token, {
-          nombre, direccion: form.direccion.trim() || null, telefono: form.telefono.trim() || null,
+          nombre, codEstablecimiento: form.codEstablecimiento.trim() || '0000', direccion: form.direccion.trim() || null, telefono: form.telefono.trim() || null,
         });
         setSucursales(prev => [...prev, creada]);
         triggerToast('Sucursal creada.', 'success');
@@ -93,7 +94,7 @@ export default function SucursalesPage() {
     setTogglingId(s.id);
     try {
       const actualizada = await updateSucursal(token, s.id, {
-        nombre: s.nombre, direccion: s.direccion, telefono: s.telefono, activo,
+        nombre: s.nombre, codEstablecimiento: s.codEstablecimiento, direccion: s.direccion, telefono: s.telefono, activo,
       });
       setSucursales(prev => prev.map(x => (x.id === s.id ? actualizada : x)));
     } catch {
@@ -143,9 +144,14 @@ export default function SucursalesPage() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-slate-800 truncate">{s.nombre}</p>
-                    <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${s.activo ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
-                      {s.activo ? 'Activa' : 'Inactiva'}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${s.activo ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                        {s.activo ? 'Activa' : 'Inactiva'}
+                      </span>
+                      <span className="text-[9px] font-mono font-semibold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">
+                        #{s.codEstablecimiento ?? '0000'}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <button onClick={() => openEdit(s)} className="p-1.5 rounded-lg text-slate-400 hover:text-brand hover:bg-brand/10 shrink-0">
@@ -182,6 +188,7 @@ export default function SucursalesPage() {
       >
         <div className="space-y-4">
           <Input label="Nombre *" value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Sucursal Miraflores" />
+          <Input label="Código Establecimiento" value={form.codEstablecimiento} onChange={e => setForm(f => ({ ...f, codEstablecimiento: e.target.value }))} placeholder="0000" maxLength={10} />
           <Input label="Dirección" value={form.direccion} onChange={e => setForm(f => ({ ...f, direccion: e.target.value }))} placeholder="Av. Larco 123" />
           <Input label="Teléfono" value={form.telefono} onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))} placeholder="+51 999 888 777" />
           {editing && (

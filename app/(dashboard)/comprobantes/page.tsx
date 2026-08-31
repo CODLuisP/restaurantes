@@ -1,9 +1,17 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
-import { Plus, UploadCloud, FileText } from 'lucide-react';
+import { Plus, UploadCloud, FileText, Loader2 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
-import type { SalesHistory } from '@/types';
+import { useComprobantes } from '@/hooks/useComprobantes';
+import {
+  getPdfUrl,
+  getHtmlUrl,
+  getXmlUrl,
+  getCdrUrl,
+  reenviarSunat,
+  getComprobanteDetalle,
+} from '@/lib/api/comprobantes';
 import ComprobantesFilters from '@/components/comprobantes/ComprobantesFilters';
 import ComprobantesTable from '@/components/comprobantes/ComprobantesTable';
 import ComprobanteDetailModal from '@/components/comprobantes/ComprobanteDetailModal';
@@ -11,32 +19,54 @@ import NewReceiptModal from '@/components/comprobantes/NewReceiptModal';
 import MassUploadModal from '@/components/comprobantes/MassUploadModal';
 import EmailModal from '@/components/comprobantes/EmailModal';
 import WhatsAppModal from '@/components/comprobantes/WhatsAppModal';
-import { INITIAL_MOCK_COMPROBANTES } from '@/components/comprobantes/mockComprobantes';
 import {
-  type Comprobante, type EstadoSunat, type TipoComprobante, type FormatoImpresion,
-  nextNumeroComprobante, nuevoHash,
+  type Comprobante, type TipoComprobante, type FormatoImpresion,
+  mapApiToComprobante,
 } from '@/components/comprobantes/types';
 
 const ITEMS_PER_PAGE = 10;
 
 export default function ComprobantesPage() {
-  const { salesHistory, triggerToast, addManualSale } = useApp();
+  const { triggerToast } = useApp();
 
-  const [comprobantes, setComprobantes] = useState<Comprobante[]>(INITIAL_MOCK_COMPROBANTES);
-  const [search, setSearch] = useState('');
-  const [filterTipo, setFilterTipo] = useState<'Todos' | TipoComprobante>('Todos');
-  const [filterEstado, setFilterEstado] = useState<'Todos' | EstadoSunat>('Todos');
+  const {
+    token,
+    comprobantes: apiComprobantes,
+    totalCount,
+    totalPages,
+    currentPage,
+    setCurrentPage,
+    loading,
+    error,
+    refetch,
+    search, setSearch,
+    filterTipo, setFilterTipo,
+    filterEstado, setFilterEstado,
+    fechaDesde, setFechaDesde,
+    fechaHasta, setFechaHasta,
+  } = useComprobantes({ pageSize: ITEMS_PER_PAGE });
+
+  // Mapea datos de la API al formato que esperan los componentes existentes
+  const comprobantes = useMemo(
+    () => apiComprobantes.map(mapApiToComprobante),
+    [apiComprobantes],
+  );
+
+  // Filtros avanzados (monto) se aplican en el cliente sobre la página actual
   const [showAdvanced, setShowAdvanced] = useState(false);
-
-  /* Filtros avanzados */
-  const [fechaDesde, setFechaDesde] = useState('');
-  const [fechaHasta, setFechaHasta] = useState('');
   const [montoMin, setMontoMin] = useState('');
   const [montoMax, setMontoMax] = useState('');
 
-  const [currentPage, setCurrentPage] = useState(1);
+  const filteredComprobantes = useMemo(() => {
+    return comprobantes.filter(c => {
+      let ok = true;
+      if (montoMin && c.monto < parseFloat(montoMin)) ok = false;
+      if (montoMax && c.monto > parseFloat(montoMax)) ok = false;
+      return ok;
+    });
+  }, [comprobantes, montoMin, montoMax]);
 
-  /** Formato de impresión elegido por comprobante, ej: { 'F001-00015115': 'A4' } */
+  /** Formato de impresión elegido por comprobante */
   const [comprobanteSizes, setComprobanteSizes] = useState<Record<string, FormatoImpresion>>({});
 
   const [selectedComprobante, setSelectedComprobante] = useState<Comprobante | null>(null);
@@ -51,166 +81,82 @@ export default function ComprobantesPage() {
 
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
-  /* Sincroniza las boletas/facturas reales generadas al cobrar hacia esta lista */
-  useEffect(() => {
-    if (!salesHistory) return;
-
-    const historyComprobantes: Comprobante[] = salesHistory
-      .filter(sale => sale.comprobante && (sale.docType === 'Boleta' || sale.docType === 'Factura'))
-      .map(sale => {
-        const docNum = sale.comprobante!;
-        if (comprobantes.some(c => c.numero === docNum)) return null as any;
-
-        const subtotal = sale.total / 1.18;
-        const igv = sale.total - subtotal;
-
-        return {
-          id: sale.id,
-          fecha: `${new Date().toLocaleDateString('es-PE')} ${sale.time}`,
-          tipo: sale.docType as TipoComprobante,
-          numero: docNum,
-          clienteDoc: {
-            type: sale.customerDoc?.type || (sale.docType === 'Factura' ? 'RUC' : 'DNI'),
-            number: sale.customerDoc?.number || (sale.docType === 'Factura' ? '20100200301' : '10203040'),
-            name: sale.customerDoc?.name || 'CLIENTE GENERAL / PUBLICO EN GENERAL',
-          },
-          monto: sale.total,
-          subtotal,
-          igv,
-          estadoSunat: 'Aceptado', // Al cobrarse en caja usualmente va aceptado directamente
-          correoStatus: 'Pendiente',
-          whatsappStatus: 'Pendiente',
-          metodoPago: sale.paymentMethod,
-          hash: nuevoHash(),
-          items: [
-            { name: `Consumo de alimentos (${sale.table})`, quantity: sale.itemsCount || 1, price: sale.total / (sale.itemsCount || 1) },
-          ],
-        };
-      })
-      .filter(Boolean);
-
-    if (historyComprobantes.length > 0) {
-      setComprobantes(prev => [...historyComprobantes, ...prev]);
-    }
-  }, [salesHistory]);
-
-  /* Cierra el menú contextual de la fila al hacer click fuera */
   useEffect(() => {
     const handleCloseMenu = () => setActiveMenuId(null);
     window.addEventListener('click', handleCloseMenu);
     return () => window.removeEventListener('click', handleCloseMenu);
   }, []);
 
-  const filteredComprobantes = useMemo(() => {
-    return comprobantes.filter(c => {
-      const query = search.toLowerCase();
-      const matchesSearch =
-        c.numero.toLowerCase().includes(query) ||
-        c.clienteDoc.name.toLowerCase().includes(query) ||
-        c.clienteDoc.number.includes(query);
+  // ── Handlers ──────────────────────────────────────────────────────────
 
-      const matchesTipo = filterTipo === 'Todos' || c.tipo === filterTipo;
-      const matchesEstado = filterEstado === 'Todos' || c.estadoSunat === filterEstado;
+  const handleDownload = async (ventaId: string, type: 'PDF' | 'XML' | 'CDR') => {
+    if (!token) return;
+    const id = parseInt(ventaId);
+    const size = comprobanteSizes[
+      comprobantes.find(c => c.id === ventaId)?.numero ?? ''
+    ] || 'A4';
 
-      /* La fecha del comprobante viene como DD/MM/AAAA HH:MM */
-      let matchesFecha = true;
-      if (fechaDesde || fechaHasta) {
-        const [dStr] = c.fecha.split(' ');
-        const [day, month, year] = dStr.split('/').map(Number);
-        const compDate = new Date(year, month - 1, day);
-
-        if (fechaDesde) {
-          const fromDate = new Date(fechaDesde);
-          fromDate.setHours(0, 0, 0, 0);
-          if (compDate < fromDate) matchesFecha = false;
-        }
-        if (fechaHasta) {
-          const toDate = new Date(fechaHasta);
-          toDate.setHours(23, 59, 59, 999);
-          if (compDate > toDate) matchesFecha = false;
-        }
+    try {
+      if (type === 'PDF') {
+        const tamano = size === 'Ticket 80mm' ? 'Ticket80mm' : size === 'Ticket 58mm' ? 'Ticket58mm' : size === 'A5' ? 'MediaCarta' : 'A4';
+        const url = getPdfUrl(id, tamano);
+        window.open(url, '_blank');
+        triggerToast(`Abriendo PDF del comprobante...`, 'info');
+      } else if (type === 'XML') {
+        const url = await getXmlUrl(token, id);
+        window.open(url, '_blank');
+        triggerToast(`Descargando XML...`, 'info');
+      } else if (type === 'CDR') {
+        const url = await getCdrUrl(token, id);
+        window.open(url, '_blank');
+        triggerToast(`Descargando CDR...`, 'info');
       }
-
-      let matchesMonto = true;
-      if (montoMin && c.monto < parseFloat(montoMin)) matchesMonto = false;
-      if (montoMax && c.monto > parseFloat(montoMax)) matchesMonto = false;
-
-      return matchesSearch && matchesTipo && matchesEstado && matchesFecha && matchesMonto;
-    });
-  }, [comprobantes, search, filterTipo, filterEstado, fechaDesde, fechaHasta, montoMin, montoMax]);
-
-  const totalPages = Math.ceil(filteredComprobantes.length / ITEMS_PER_PAGE) || 1;
-  const paginatedComprobantes = useMemo(() => {
-    const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredComprobantes.slice(startIdx, startIdx + ITEMS_PER_PAGE);
-  }, [filteredComprobantes, currentPage]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, filterTipo, filterEstado, fechaDesde, fechaHasta, montoMin, montoMax]);
-
-  const handleDownload = (num: string, type: 'PDF' | 'XML' | 'CDR') => {
-    triggerToast(`Descargando archivo ${type} de ${num}...`, 'info');
-    setTimeout(() => {
-      triggerToast(`${type} de ${num} descargado con éxito.`, 'success');
-    }, 800);
+    } catch {
+      triggerToast(`No se pudo descargar el ${type}. Verifique que el comprobante fue emitido correctamente.`, 'error');
+    }
   };
 
   const handleBaja = (id: string, num: string) => {
-    setComprobantes(prev => prev.map(c => (c.id === id ? { ...c, estadoSunat: 'De Baja' } : c)));
-    triggerToast(`Se ha enviado la comunicación de Baja para ${num}. SUNAT aceptó la baja.`, 'success');
+    triggerToast(`Funcionalidad de baja para ${num} próximamente disponible.`, 'info');
   };
 
-  const handleReenviarSunat = (id: string, num: string) => {
+  const handleReenviarSunat = async (id: string, num: string) => {
+    if (!token) return;
     triggerToast(`Reenviando comprobante ${num} a SUNAT...`, 'info');
-    setTimeout(() => {
-      setComprobantes(prev => prev.map(c => (c.id === id ? { ...c, estadoSunat: 'Aceptado' } : c)));
-      triggerToast(`SUNAT aceptó el comprobante ${num} de forma exitosa.`, 'success');
-    }, 1200);
+    try {
+      const result = await reenviarSunat(token, parseInt(id));
+      if (result.exitoso) {
+        triggerToast(`SUNAT ${result.estadoSunat === 'Aceptado' ? 'aceptó' : 'procesó'} el comprobante ${num}.`, 'success');
+        refetch();
+      } else {
+        triggerToast(`Error al reenviar: ${result.mensaje}`, 'error');
+      }
+    } catch {
+      triggerToast(`Error de conexión al reenviar a SUNAT.`, 'error');
+    }
   };
 
   const handleDuplicar = (comp: Comprobante) => {
-    const nextNum = nextNumeroComprobante(comprobantes, comp.tipo);
-
-    const duplicate: Comprobante = {
-      ...comp,
-      id: `S-${Math.floor(100 + Math.random() * 900)}`,
-      fecha: `${new Date().toLocaleDateString('es-PE')} ${new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}`,
-      numero: nextNum,
-      estadoSunat: 'Aceptado',
-      correoStatus: 'Pendiente',
-      whatsappStatus: 'Pendiente',
-      hash: nuevoHash(),
-    };
-
-    setComprobantes(prev => [duplicate, ...prev]);
-
-    const sale: SalesHistory = {
-      id: duplicate.id,
-      time: new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-      itemsCount: duplicate.items.reduce((acc, curr) => acc + curr.quantity, 0),
-      paymentMethod: duplicate.metodoPago,
-      total: duplicate.monto,
-      table: 'Copia manual',
-      docType: duplicate.tipo,
-      comprobante: duplicate.numero,
-      waiter: 'Cajero',
-      cashier: 'Cajero Principal',
-      customerDoc: {
-        type: duplicate.clienteDoc.type,
-        number: duplicate.clienteDoc.number,
-        name: duplicate.clienteDoc.name,
-      },
-    };
-    addManualSale(sale);
-
-    triggerToast(`Comprobante duplicado correctamente como ${nextNum}.`, 'success');
+    triggerToast(`Funcionalidad de duplicar comprobante próximamente disponible.`, 'info');
   };
 
   const handleEliminar = (id: string, num: string) => {
-    if (confirm(`¿Estás seguro de eliminar de la lista local el comprobante ${num}?`)) {
-      setComprobantes(prev => prev.filter(c => c.id !== id));
-      triggerToast(`Comprobante ${num} removido.`, 'info');
+    triggerToast(`Los comprobantes emitidos no pueden eliminarse del registro.`, 'warning');
+  };
+
+  const handleVerDetalle = async (comp: Comprobante | null) => {
+    if (!comp) { setSelectedComprobante(null); return; }
+    if (!token) return;
+    try {
+      const detalle = await getComprobanteDetalle(token, parseInt(comp.id));
+      const itemsMapped = detalle.items.map(i => ({
+        name: i.productoNombre || i.comboNombre || 'Producto',
+        quantity: i.cantidad,
+        price: i.precioUnitario,
+      }));
+      setSelectedComprobante({ ...comp, items: itemsMapped });
+    } catch {
+      setSelectedComprobante(comp);
     }
   };
 
@@ -225,7 +171,7 @@ export default function ComprobantesPage() {
           <div>
             <h3 className="text-lg font-bold text-slate-900 leading-tight">Comprobantes Electrónicos</h3>
             <p className="text-[11px] text-slate-500">
-              Total listados: {filteredComprobantes.length} de {comprobantes.length} comprobantes
+              Total listados: {filteredComprobantes.length} de {totalCount} comprobantes
             </p>
           </div>
         </div>
@@ -250,8 +196,8 @@ export default function ComprobantesPage() {
 
       <ComprobantesFilters
         search={search} setSearch={setSearch}
-        filterTipo={filterTipo} setFilterTipo={setFilterTipo}
-        filterEstado={filterEstado} setFilterEstado={setFilterEstado}
+        filterTipo={filterTipo as any} setFilterTipo={(v) => setFilterTipo(v === 'Todos' ? '' : v)}
+        filterEstado={filterEstado as any} setFilterEstado={(v) => setFilterEstado(v === 'Todos' ? '' : v)}
         showAdvanced={showAdvanced} setShowAdvanced={setShowAdvanced}
         fechaDesde={fechaDesde} setFechaDesde={setFechaDesde}
         fechaHasta={fechaHasta} setFechaHasta={setFechaHasta}
@@ -259,27 +205,44 @@ export default function ComprobantesPage() {
         montoMax={montoMax} setMontoMax={setMontoMax}
       />
 
-      <ComprobantesTable
-        paginatedComprobantes={paginatedComprobantes}
-        filteredCount={filteredComprobantes.length}
-        comprobanteSizes={comprobanteSizes}
-        setComprobanteSizes={setComprobanteSizes}
-        activeMenuId={activeMenuId}
-        setActiveMenuId={setActiveMenuId}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        itemsPerPage={ITEMS_PER_PAGE}
-        setCurrentPage={setCurrentPage}
-        setSelectedComprobante={setSelectedComprobante}
-        setEmailModalData={setEmailModalData}
-        setWhatsappModalData={setWhatsappModalData}
-        onDownload={handleDownload}
-        onBaja={handleBaja}
-        onReenviarSunat={handleReenviarSunat}
-        onDuplicar={handleDuplicar}
-        onEliminar={handleEliminar}
-        triggerToast={triggerToast}
-      />
+      {/* Loading / Error states */}
+      {loading && comprobantes.length === 0 && (
+        <div className="card-lg p-12 flex flex-col items-center justify-center gap-3">
+          <Loader2 className="h-8 w-8 text-brand animate-spin" />
+          <p className="text-sm text-slate-500 font-medium">Cargando comprobantes...</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="card-lg p-6 border-rose-200 bg-rose-50">
+          <p className="text-sm text-rose-700 font-medium">{error}</p>
+          <button onClick={refetch} className="mt-2 btn-secondary text-xs">Reintentar</button>
+        </div>
+      )}
+
+      {!loading && !error && (
+        <ComprobantesTable
+          paginatedComprobantes={filteredComprobantes}
+          filteredCount={totalCount}
+          comprobanteSizes={comprobanteSizes}
+          setComprobanteSizes={setComprobanteSizes}
+          activeMenuId={activeMenuId}
+          setActiveMenuId={setActiveMenuId}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          itemsPerPage={ITEMS_PER_PAGE}
+          setCurrentPage={setCurrentPage}
+          setSelectedComprobante={handleVerDetalle}
+          setEmailModalData={setEmailModalData}
+          setWhatsappModalData={setWhatsappModalData}
+          onDownload={handleDownload}
+          onBaja={handleBaja}
+          onReenviarSunat={handleReenviarSunat}
+          onDuplicar={handleDuplicar}
+          onEliminar={handleEliminar}
+          triggerToast={triggerToast}
+        />
+      )}
 
       <ComprobanteDetailModal
         selectedComprobante={selectedComprobante}
@@ -294,9 +257,9 @@ export default function ComprobantesPage() {
         onClose={() => setShowNewModal(false)}
         comprobantesList={comprobantes}
         onSubmit={(comp) => {
-          setComprobantes(prev => [comp, ...prev]);
           setShowNewModal(false);
-          triggerToast(`Comprobante ${comp.numero} emitido y aceptado por SUNAT.`, 'success');
+          refetch();
+          triggerToast(`Comprobante ${comp.numero} emitido.`, 'success');
         }}
       />
 
@@ -304,8 +267,8 @@ export default function ComprobantesPage() {
         open={showUploadModal}
         onClose={() => setShowUploadModal(false)}
         onUploadComplete={(nuevos) => {
-          setComprobantes(prev => [...nuevos, ...prev]);
           setShowUploadModal(false);
+          refetch();
           triggerToast(`${nuevos.length} comprobantes importados correctamente.`, 'success');
         }}
       />
@@ -314,9 +277,6 @@ export default function ComprobantesPage() {
         data={emailModalData}
         onClose={() => setEmailModalData({ open: false, comp: null, email: '' })}
         onSuccess={(num, email) => {
-          setComprobantes(prev =>
-            prev.map(c => (c.numero === num ? { ...c, correoStatus: 'Enviado', correoDestino: email } : c))
-          );
           triggerToast(`Comprobante ${num} enviado a ${email}.`, 'success');
         }}
       />
@@ -325,9 +285,6 @@ export default function ComprobantesPage() {
         data={whatsappModalData}
         onClose={() => setWhatsappModalData({ open: false, comp: null, phone: '' })}
         onSuccess={(num, phone) => {
-          setComprobantes(prev =>
-            prev.map(c => (c.numero === num ? { ...c, whatsappStatus: 'Enviado', whatsappDestino: phone } : c))
-          );
           triggerToast(`Comprobante ${num} enviado por WhatsApp al ${phone}.`, 'success');
         }}
       />

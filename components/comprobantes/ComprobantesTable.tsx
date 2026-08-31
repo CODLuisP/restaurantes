@@ -66,21 +66,22 @@ export default function ComprobantesTable({
               ) : (
                 paginatedComprobantes.map(comp => {
                   const size = comprobanteSizes[comp.numero] || 'A4';
-                  
+                  const esTicket = !comp.tieneSunat;
+
                   // Iconos de SUNAT según estado
-                  const sunatBadgeColor = {
+                  const sunatBadgeColor = comp.estadoSunat ? ({
                     Aceptado: 'bg-emerald-50 text-emerald-700 border-emerald-200',
                     Pendiente: 'bg-amber-50 text-amber-700 border-amber-200',
                     Rechazado: 'bg-rose-50 text-rose-700 border-rose-200',
                     'De Baja': 'bg-slate-100 text-slate-600 border-slate-200'
-                  }[comp.estadoSunat];
+                  } as Record<string, string>)[comp.estadoSunat] : 'bg-slate-50 text-slate-400 border-slate-100';
 
-                  const sunatIcon = {
+                  const sunatIcon = comp.estadoSunat ? ({
                     Aceptado: <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />,
                     Pendiente: <Clock className="h-3 w-3 text-amber-600 shrink-0 animate-pulse" />,
                     Rechazado: <AlertTriangle className="h-3 w-3 text-rose-600 shrink-0" />,
                     'De Baja': <X className="h-3 w-3 text-slate-500 shrink-0" />
-                  }[comp.estadoSunat];
+                  } as Record<string, React.ReactNode>)[comp.estadoSunat] : null;
 
                   // Colores de correo y whatsapp
                   const correoIsEnviado = comp.correoStatus === 'Enviado';
@@ -136,7 +137,7 @@ export default function ComprobantesTable({
                       {/* PDF */}
                       <td className="px-2 py-3.5 text-center">
                         <button
-                          onClick={() => onDownload(comp.numero, 'PDF')}
+                          onClick={() => onDownload(comp.id, 'PDF')}
                           className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-100 transition-colors"
                           title="Descargar PDF"
                         >
@@ -147,9 +148,14 @@ export default function ComprobantesTable({
                       {/* XML */}
                       <td className="px-2 py-3.5 text-center">
                         <button
-                          onClick={() => onDownload(comp.numero, 'XML')}
-                          className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 border border-transparent hover:border-emerald-100 transition-colors"
-                          title="Descargar XML"
+                          onClick={() => !esTicket && onDownload(comp.id, 'XML')}
+                          disabled={esTicket}
+                          className={`p-1.5 rounded-lg border border-transparent transition-colors ${
+                            esTicket
+                              ? 'text-slate-300 cursor-not-allowed'
+                              : 'text-emerald-600 hover:bg-emerald-50 hover:border-emerald-100'
+                          }`}
+                          title={esTicket ? 'No disponible para tickets' : 'Descargar XML'}
                         >
                           <RefreshCw className="h-4 w-4" />
                         </button>
@@ -158,9 +164,14 @@ export default function ComprobantesTable({
                       {/* CDR */}
                       <td className="px-2 py-3.5 text-center">
                         <button
-                          onClick={() => onDownload(comp.numero, 'CDR')}
-                          className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 transition-colors"
-                          title="Descargar CDR"
+                          onClick={() => !esTicket && onDownload(comp.id, 'CDR')}
+                          disabled={esTicket}
+                          className={`p-1.5 rounded-lg border border-transparent transition-colors ${
+                            esTicket
+                              ? 'text-slate-300 cursor-not-allowed'
+                              : 'text-indigo-600 hover:bg-indigo-50 hover:border-indigo-100'
+                          }`}
+                          title={esTicket ? 'No disponible para tickets' : 'Descargar CDR'}
                         >
                           <RefreshCw className="h-4 w-4" />
                         </button>
@@ -168,10 +179,16 @@ export default function ComprobantesTable({
 
                       {/* Estado SUNAT */}
                       <td className="px-3 py-3.5 text-center whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${sunatBadgeColor}`}>
-                          {sunatIcon}
-                          {comp.estadoSunat}
-                        </span>
+                        {esTicket ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold bg-slate-50 text-slate-400 border-slate-100">
+                            — N/A
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${sunatBadgeColor}`}>
+                            {sunatIcon}
+                            {comp.estadoSunat}
+                          </span>
+                        )}
                       </td>
 
                       {/* Correo */}
@@ -238,7 +255,7 @@ export default function ComprobantesTable({
                             onClick={e => e.stopPropagation()}
                             className="absolute right-3 mt-1 w-48 bg-white rounded-lg border border-slate-200 shadow-lg z-30 py-1 text-left animate-section"
                           >
-                            {comp.estadoSunat === 'Aceptado' && (
+                            {!esTicket && comp.estadoSunat === 'Aceptado' && (
                               <button
                                 onClick={() => {
                                   onBaja(comp.id, comp.numero);
@@ -250,7 +267,7 @@ export default function ComprobantesTable({
                               </button>
                             )}
 
-                            {(comp.estadoSunat === 'Pendiente' || comp.estadoSunat === 'Rechazado') && (
+                            {!esTicket && (comp.estadoSunat === 'Pendiente' || comp.estadoSunat === 'Rechazado') && (
                               <button
                                 onClick={() => {
                                   onReenviarSunat(comp.id, comp.numero);
@@ -272,17 +289,19 @@ export default function ComprobantesTable({
                               <PlusCircle className="h-3.5 w-3.5 text-slate-400" /> Duplicar Comprobante
                             </button>
 
-                            <button
-                              onClick={() => {
-                                onDownload(comp.numero, 'PDF');
-                                onDownload(comp.numero, 'XML');
-                                onDownload(comp.numero, 'CDR');
-                                setActiveMenuId(null);
-                              }}
-                              className="w-full px-3 py-2 text-[11px] text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                            >
-                              <Download className="h-3.5 w-3.5 text-slate-400" /> Descargar Todo (ZIP)
-                            </button>
+                            {!esTicket && (
+                              <button
+                                onClick={() => {
+                                  onDownload(comp.id, 'PDF');
+                                  onDownload(comp.id, 'XML');
+                                  onDownload(comp.id, 'CDR');
+                                  setActiveMenuId(null);
+                                }}
+                                className="w-full px-3 py-2 text-[11px] text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                              >
+                                <Download className="h-3.5 w-3.5 text-slate-400" /> Descargar Todo (ZIP)
+                              </button>
+                            )}
 
                             <button
                               onClick={() => {

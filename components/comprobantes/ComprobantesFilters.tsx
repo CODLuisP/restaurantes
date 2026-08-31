@@ -59,6 +59,7 @@ export default function ComprobantesFilters({
               <option value="Todos">Todos</option>
               <option value="Factura">Facturas</option>
               <option value="Boleta">Boletas</option>
+              <option value="Ticket">Tickets</option>
             </select>
           </div>
 
