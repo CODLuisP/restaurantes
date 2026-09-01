@@ -25,15 +25,6 @@ export const ESTADO_PEDIDO_LABEL: Record<string, string> = {
   listo: 'Platos listos, falta que el mozo los sirva',
 };
 
-/** Mensajes de error del servicio de facturación electrónica. */
-export const EMIT_ERRORS: Record<string, string> = {
-  ruc_invalido:           'El RUC ingresado no es válido (debe tener 11 dígitos).',
-  razon_social_requerida: 'Falta la razón social para emitir la factura.',
-  dni_invalido:           'El DNI debe tener 8 dígitos.',
-  invalid_doc_type:       'Tipo de comprobante inválido.',
-  provider_error:         'El servicio de facturación rechazó el comprobante.',
-  provider_unreachable:   'No se pudo contactar al servicio de facturación.',
-};
 
 /** Elemento cobrable unificado (mesa ocupada o pedido para llevar/delivery). */
 export interface Chargeable {

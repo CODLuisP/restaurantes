@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch, ApiError } from './client';
 
 // ── Tipos de respuesta ──────────────────────────────────────────────────
 
@@ -18,12 +18,16 @@ export interface ComprobanteListItem {
   comprobanteId: string | null;
   hashCpe: string | null;
   tieneSunat: boolean;
+  ventaAfectadaId: number | null;
+  codMotivo: string | null;
+  desMotivo: string | null;
 }
 
 export interface ComprobanteDetail extends ComprobanteListItem {
   igvPorcentaje: number;
   descuento: number;
   propina: number;
+  numeroVentaAfectada: string | null;
   items: ComprobanteDetailItem[];
 }
 
@@ -46,6 +50,28 @@ export interface PaginatedResult<T> {
 
 export interface ReenviarResult {
   exitoso: boolean;
+  estadoSunat: string | null;
+  mensaje: string | null;
+}
+
+export interface EmitirResult {
+  exitoso: boolean;
+  estadoSunat: string | null;
+  numeroComprobante: string | null;
+  mensaje: string | null;
+}
+
+export interface CrearNotaDto {
+  tipoNota: 'credito' | 'debito';
+  codMotivo: string;
+  desMotivo: string;
+  montoTotal: number;
+}
+
+export interface NotaVentaResult {
+  exitoso: boolean;
+  ventaId: number | null;
+  numeroComprobante: string | null;
   estadoSunat: string | null;
   mensaje: string | null;
 }
@@ -87,12 +113,36 @@ export function reenviarSunat(token: string, ventaId: number) {
   return apiFetch<ReenviarResult>(`/api/comprobantes/${ventaId}/reenviar-sunat`, { token, method: 'POST' });
 }
 
+export function emitirComprobante(token: string, ventaId: number) {
+  return apiFetch<EmitirResult>(`/api/comprobantes/${ventaId}/emitir`, { token, method: 'POST' });
+}
+
+export function generarNota(token: string, ventaId: number, dto: CrearNotaDto) {
+  return apiFetch<NotaVentaResult>(`/api/comprobantes/${ventaId}/notas`, { token, method: 'POST', body: dto });
+}
+
+export function getNotasDeVenta(token: string, ventaId: number) {
+  return apiFetch<ComprobanteListItem[]>(`/api/comprobantes/${ventaId}/notas`, { token });
+}
+
 // ── URLs para descargas (abren en nueva pestaña o descargan) ─────────
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5004';
 
 export function getPdfUrl(ventaId: number, tamano: string = 'A4') {
   return `${API_URL}/api/comprobantes/${ventaId}/pdf?tamano=${encodeURIComponent(tamano)}`;
+}
+
+/** Descarga el PDF con el header Authorization (el endpoint es [Authorize], no acepta un window.open directo) y lo abre en una nueva pestaña. */
+export async function downloadPdfBlob(token: string, ventaId: number, tamano: string = 'A4') {
+  const res = await fetch(getPdfUrl(ventaId, tamano), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new ApiError('No se pudo descargar el PDF.', res.status);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export function getHtmlUrl(ventaId: number, tamano: string = 'Ticket80mm') {

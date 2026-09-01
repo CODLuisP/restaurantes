@@ -1,14 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import {
   Ban, CheckCircle2, Divide, FileText, Loader2, MapPin, Pencil, Phone, Receipt, Users, Wallet,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import type { PaymentMethod, DocType, CustomerDoc, ChargeInput } from '@/types';
 import {
-  money, round2, onlyDigits, PAYMENTS, TYPE_META, EMIT_ERRORS, ESTADO_PEDIDO_LABEL, type Chargeable, type SplitMode,
+  money, round2, onlyDigits, PAYMENTS, TYPE_META, ESTADO_PEDIDO_LABEL, type Chargeable, type SplitMode,
 } from './types';
+import { getSeriesFacturacion, type SeriesSucursal } from '@/lib/api/facturacion';
 export default function ChargePanel({
   selected, isCajaOpen, cashier, onAddItems, onClosed,
 }: {
@@ -19,6 +21,17 @@ export default function ChargePanel({
   onClosed: () => void;
 }) {
   const { chargeTable, chargeOrder, triggerToast, metodosPago, igvPorcentaje } = useApp();
+  const { data: session } = useSession();
+
+  /* ── Series y correlativos reales desde la API de facturación ── */
+  const [series, setSeries] = useState<SeriesSucursal | null>(null);
+  useEffect(() => {
+    const token = session?.accessToken;
+    if (!token) return;
+    getSeriesFacturacion(token)
+      .then(data => { if (data.length > 0) setSeries(data[0]); })
+      .catch(() => { /* sin series no bloqueamos el cobro */ });
+  }, [session?.accessToken]);
 
   /* Solo se ofrecen los métodos habilitados en /configuracion/metodos-pago. "Yape / Plin" es un
      solo botón en esta UI, así que basta con que cualquiera de los dos esté activo. */
@@ -43,10 +56,7 @@ export default function ChargePanel({
   /* ── Pago ── */
   const [method, setMethod] = useState<PaymentMethod>('Efectivo');
   const [received, setReceived] = useState('');
-  /* Cubre TODO el flujo de cobro (emisión SUNAT + registro en caja), no solo la emisión —
-     antes el botón se quedaba sin feedback mientras se registraba la venta, o directamente
-     nunca mostraba loading cuando el comprobante era "Sin comprobante" (docType === 'Nota de venta'). */
-  const [stage, setStage] = useState<'idle' | 'emitting' | 'charging'>('idle');
+  const [stage, setStage] = useState<'idle' | 'charging'>('idle');
   const submitting = stage !== 'idle';
 
   /* Si el método seleccionado se deshabilita (o carga la config después del primer render),
@@ -139,31 +149,6 @@ export default function ChargePanel({
     const chargingItems = splitMode === 'items' ? pickedItems : selected.items;
 
     try {
-      /* Emisión electrónica ante SUNAT (solo boleta/factura). */
-      if (docType !== 'Nota de venta') {
-        setStage('emitting');
-        try {
-          const res = await fetch('/api/emitir-comprobante', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              docType,
-              total: amountDue,
-              customer: customerDoc,
-              items: chargingItems.map(i => ({ name: i.product.name, quantity: i.quantity, price: i.product.price })),
-            }),
-          });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok || !data.ok) {
-            triggerToast(EMIT_ERRORS[data?.error] ?? 'No se pudo emitir el comprobante.', 'error');
-            return;
-          }
-        } catch {
-          triggerToast('No se pudo conectar con el servicio de facturación electrónica.', 'error');
-          return;
-        }
-      }
-
       setStage('charging');
       const input: ChargeInput = {
         method,
@@ -345,9 +330,9 @@ export default function ChargePanel({
         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Comprobante</p>
         <div className="grid grid-cols-3 gap-1.5">
           {([
-            { id: 'Boleta' as const,       label: 'Boleta',        icon: <Receipt className="h-3.5 w-3.5" /> },
-            { id: 'Factura' as const,      label: 'Factura',       icon: <FileText className="h-3.5 w-3.5" /> },
-            { id: 'Nota de venta' as const, label: 'Sin comprob.', icon: <Ban className="h-3.5 w-3.5" /> },
+            { id: 'Boleta' as const,        label: 'Boleta',        icon: <Receipt className="h-3.5 w-3.5" />,  serie: series ? `${series.serieBoleta}-${String(series.correlativoBoleta).padStart(8,'0')}` : null },
+            { id: 'Factura' as const,       label: 'Factura',       icon: <FileText className="h-3.5 w-3.5" />, serie: series ? `${series.serieFactura}-${String(series.correlativoFactura).padStart(8,'0')}` : null },
+            { id: 'Nota de venta' as const, label: 'Sin comprob.',  icon: <Ban className="h-3.5 w-3.5" />,      serie: null },
           ]).map(d => (
             <button
               key={d.id}
@@ -357,6 +342,7 @@ export default function ChargePanel({
               }`}
             >
               {d.icon} {d.label}
+              {d.serie && <span className="text-[8px] font-mono opacity-70">{d.serie}</span>}
             </button>
           ))}
         </div>
@@ -479,10 +465,8 @@ export default function ChargePanel({
         disabled={!isCajaOpen || submitting || !!validationError}
         className="w-full bg-brand hover:bg-brand-hover text-white text-sm font-bold py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:cursor-not-allowed"
       >
-        {stage === 'emitting' ? (
-          <><Loader2 className="h-4 w-4 animate-spin" /> Emitiendo comprobante…</>
-        ) : stage === 'charging' ? (
-          <><Loader2 className="h-4 w-4 animate-spin" /> Registrando cobro…</>
+        {stage === 'charging' ? (
+          <><Loader2 className="h-4 w-4 animate-spin" /> {docType !== 'Nota de venta' ? 'Emitiendo y registrando…' : 'Registrando cobro…'}</>
         ) : (
           <><CheckCircle2 className="h-4 w-4" /> Cobrar {money(amountDue)}{docType !== 'Nota de venta' ? ` · ${docType}` : ''}</>
         )}

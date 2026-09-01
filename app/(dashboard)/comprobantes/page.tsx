@@ -5,16 +5,19 @@ import { Plus, UploadCloud, FileText, Loader2 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { useComprobantes } from '@/hooks/useComprobantes';
 import {
-  getPdfUrl,
-  getHtmlUrl,
   getXmlUrl,
   getCdrUrl,
+  downloadPdfBlob,
   reenviarSunat,
+  emitirComprobante,
   getComprobanteDetalle,
+  type NotaVentaResult,
 } from '@/lib/api/comprobantes';
+import { getMiEmpresa, type EmpresaDto } from '@/lib/api/empresas';
 import ComprobantesFilters from '@/components/comprobantes/ComprobantesFilters';
 import ComprobantesTable from '@/components/comprobantes/ComprobantesTable';
 import ComprobanteDetailModal from '@/components/comprobantes/ComprobanteDetailModal';
+import GenerarNotaModal from '@/components/comprobantes/GenerarNotaModal';
 import NewReceiptModal from '@/components/comprobantes/NewReceiptModal';
 import MassUploadModal from '@/components/comprobantes/MassUploadModal';
 import EmailModal from '@/components/comprobantes/EmailModal';
@@ -80,12 +83,21 @@ export default function ComprobantesPage() {
   });
 
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [notaModalData, setNotaModalData] = useState<{ open: boolean; comp: Comprobante | null; tipoNota: 'credito' | 'debito' }>({
+    open: false, comp: null, tipoNota: 'credito',
+  });
+  const [empresa, setEmpresa] = useState<EmpresaDto | null>(null);
 
   useEffect(() => {
     const handleCloseMenu = () => setActiveMenuId(null);
     window.addEventListener('click', handleCloseMenu);
     return () => window.removeEventListener('click', handleCloseMenu);
   }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    getMiEmpresa(token).then(setEmpresa).catch(() => setEmpresa(null));
+  }, [token]);
 
   // ── Handlers ──────────────────────────────────────────────────────────
 
@@ -99,8 +111,7 @@ export default function ComprobantesPage() {
     try {
       if (type === 'PDF') {
         const tamano = size === 'Ticket 80mm' ? 'Ticket80mm' : size === 'Ticket 58mm' ? 'Ticket58mm' : size === 'A5' ? 'MediaCarta' : 'A4';
-        const url = getPdfUrl(id, tamano);
-        window.open(url, '_blank');
+        await downloadPdfBlob(token, id, tamano);
         triggerToast(`Abriendo PDF del comprobante...`, 'info');
       } else if (type === 'XML') {
         const url = await getXmlUrl(token, id);
@@ -136,6 +147,35 @@ export default function ComprobantesPage() {
     }
   };
 
+  const handleEmitir = async (id: string, num: string) => {
+    if (!token) return;
+    triggerToast(`Emitiendo comprobante ${num}...`, 'info');
+    try {
+      const result = await emitirComprobante(token, parseInt(id));
+      if (result.exitoso) {
+        triggerToast(`SUNAT ${result.estadoSunat === 'Aceptado' ? 'aceptó' : 'procesó'} el comprobante ${result.numeroComprobante ?? num}.`, 'success');
+      } else {
+        triggerToast(`No se pudo emitir: ${result.mensaje}`, 'error');
+      }
+      refetch();
+    } catch (err) {
+      triggerToast(err instanceof Error ? err.message : 'Error de conexión al emitir el comprobante.', 'error');
+    }
+  };
+
+  const handleGenerarNota = (comp: Comprobante, tipoNota: 'credito' | 'debito') => {
+    setNotaModalData({ open: true, comp, tipoNota });
+  };
+
+  const handleNotaSuccess = (result: NotaVentaResult) => {
+    if (result.exitoso) {
+      triggerToast(`Nota ${result.numeroComprobante ?? ''} generada y enviada a SUNAT.`, 'success');
+    } else {
+      triggerToast(`La nota se registró pero SUNAT respondió: ${result.mensaje ?? 'sin detalle'}.`, 'warning');
+    }
+    refetch();
+  };
+
   const handleDuplicar = (comp: Comprobante) => {
     triggerToast(`Funcionalidad de duplicar comprobante próximamente disponible.`, 'info');
   };
@@ -154,7 +194,13 @@ export default function ComprobantesPage() {
         quantity: i.cantidad,
         price: i.precioUnitario,
       }));
-      setSelectedComprobante({ ...comp, items: itemsMapped });
+      setSelectedComprobante({
+        ...comp,
+        items: itemsMapped,
+        numeroVentaAfectada: detalle.numeroVentaAfectada,
+        codMotivo: detalle.codMotivo,
+        desMotivo: detalle.desMotivo,
+      });
     } catch {
       setSelectedComprobante(comp);
     }
@@ -238,6 +284,8 @@ export default function ComprobantesPage() {
           onDownload={handleDownload}
           onBaja={handleBaja}
           onReenviarSunat={handleReenviarSunat}
+          onEmitir={handleEmitir}
+          onGenerarNota={handleGenerarNota}
           onDuplicar={handleDuplicar}
           onEliminar={handleEliminar}
           triggerToast={triggerToast}
@@ -249,6 +297,17 @@ export default function ComprobantesPage() {
         setSelectedComprobante={setSelectedComprobante}
         comprobanteSizes={comprobanteSizes}
         onDownload={handleDownload}
+        triggerToast={triggerToast}
+        empresa={empresa}
+      />
+
+      <GenerarNotaModal
+        open={notaModalData.open}
+        onClose={() => setNotaModalData({ open: false, comp: null, tipoNota: 'credito' })}
+        comprobante={notaModalData.comp}
+        tipoNota={notaModalData.tipoNota}
+        token={token}
+        onSuccess={handleNotaSuccess}
         triggerToast={triggerToast}
       />
 

@@ -1,7 +1,7 @@
 import type { PaymentMethod } from '@/types';
 
 export type EstadoSunat = 'Aceptado' | 'Rechazado' | 'Pendiente' | 'De Baja';
-export type TipoComprobante = 'Boleta' | 'Factura' | 'Ticket';
+export type TipoComprobante = 'Boleta' | 'Factura' | 'Ticket' | 'NotaCredito' | 'NotaDebito';
 export type EnvioStatus = 'Enviado' | 'Pendiente';
 export type FormatoImpresion = 'A4' | 'Ticket 80mm' | 'Ticket 58mm' | 'A5';
 
@@ -31,7 +31,19 @@ export interface Comprobante {
   hash: string;
   comprobanteIdExterno?: string | null;
   tieneSunat: boolean;
+  ventaAfectadaId?: number | null;
+  numeroVentaAfectada?: string | null;
+  codMotivo?: string | null;
+  desMotivo?: string | null;
 }
+
+export const TIPO_COMPROBANTE_LABEL: Record<TipoComprobante, string> = {
+  Boleta: 'Boleta',
+  Factura: 'Factura',
+  Ticket: 'Ticket',
+  NotaCredito: 'Nota de Crédito',
+  NotaDebito: 'Nota de Débito',
+};
 
 export const SUNAT_BADGE_COLOR: Record<EstadoSunat, string> = {
   Aceptado: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -83,11 +95,17 @@ export function mapApiToComprobante(item: {
   comprobanteId: string | null;
   hashCpe: string | null;
   tieneSunat: boolean;
+  ventaAfectadaId?: number | null;
+  numeroVentaAfectada?: string | null;
+  codMotivo?: string | null;
+  desMotivo?: string | null;
 }): Comprobante {
   const tipoMap: Record<string, TipoComprobante> = {
     ticket: 'Ticket',
     boleta: 'Boleta',
     factura: 'Factura',
+    nota_credito: 'NotaCredito',
+    nota_debito: 'NotaDebito',
   };
 
   const docTypeMap: Record<string, string> = {
@@ -121,5 +139,9 @@ export function mapApiToComprobante(item: {
     hash: item.hashCpe ?? '',
     comprobanteIdExterno: item.comprobanteId,
     tieneSunat: item.tieneSunat,
+    ventaAfectadaId: item.ventaAfectadaId ?? null,
+    numeroVentaAfectada: item.numeroVentaAfectada ?? null,
+    codMotivo: item.codMotivo ?? null,
+    desMotivo: item.desMotivo ?? null,
   };
 }

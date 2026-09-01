@@ -2,9 +2,9 @@
 
 import {
   AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clock, Download, Eye,
-  FileText, Mail, MessageCircle, MoreVertical, PlusCircle, RefreshCw, Trash2, X,
+  FileText, Mail, MessageCircle, MoreVertical, PlusCircle, MinusCircle, RefreshCw, Send, Trash2, X,
 } from 'lucide-react';
-import type { Comprobante, FormatoImpresion } from './types';
+import { TIPO_COMPROBANTE_LABEL, type Comprobante, type FormatoImpresion } from './types';
 
 interface ComprobantesTableProps {
   paginatedComprobantes: Comprobante[];
@@ -23,6 +23,8 @@ interface ComprobantesTableProps {
   onDownload: (num: string, type: 'PDF' | 'XML' | 'CDR') => void;
   onBaja: (id: string, num: string) => void;
   onReenviarSunat: (id: string, num: string) => void;
+  onEmitir: (id: string, num: string) => void;
+  onGenerarNota: (comp: Comprobante, tipoNota: 'credito' | 'debito') => void;
   onDuplicar: (comp: Comprobante) => void;
   onEliminar: (id: string, num: string) => void;
   triggerToast: (message: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
@@ -33,7 +35,7 @@ export default function ComprobantesTable({
   paginatedComprobantes, filteredCount, comprobanteSizes, setComprobanteSizes,
   activeMenuId, setActiveMenuId, currentPage, totalPages, itemsPerPage, setCurrentPage,
   setSelectedComprobante, setEmailModalData, setWhatsappModalData,
-  onDownload, onBaja, onReenviarSunat, onDuplicar, onEliminar, triggerToast,
+  onDownload, onBaja, onReenviarSunat, onEmitir, onGenerarNota, onDuplicar, onEliminar, triggerToast,
 }: ComprobantesTableProps) {
   return (
     <>
@@ -67,6 +69,8 @@ export default function ComprobantesTable({
                 paginatedComprobantes.map(comp => {
                   const size = comprobanteSizes[comp.numero] || 'A4';
                   const esTicket = !comp.tieneSunat;
+                  const esNota = comp.tipo === 'NotaCredito' || comp.tipo === 'NotaDebito';
+                  const nuncaEmitido = !esTicket && !comp.comprobanteIdExterno;
 
                   // Iconos de SUNAT según estado
                   const sunatBadgeColor = comp.estadoSunat ? ({
@@ -102,7 +106,7 @@ export default function ComprobantesTable({
                       <td className="px-4 py-3.5">
                         <div className="font-bold text-slate-800">{comp.numero}</div>
                         <div className="text-[10px] text-slate-400">
-                          {comp.tipo} - <span className="font-semibold text-slate-600">S/ {comp.monto.toFixed(2)}</span>
+                          {TIPO_COMPROBANTE_LABEL[comp.tipo]} - <span className="font-semibold text-slate-600">S/ {comp.monto.toFixed(2)}</span>
                         </div>
                       </td>
 
@@ -267,7 +271,19 @@ export default function ComprobantesTable({
                               </button>
                             )}
 
-                            {!esTicket && (comp.estadoSunat === 'Pendiente' || comp.estadoSunat === 'Rechazado') && (
+                            {nuncaEmitido && (
+                              <button
+                                onClick={() => {
+                                  onEmitir(comp.id, comp.numero);
+                                  setActiveMenuId(null);
+                                }}
+                                className="w-full px-3 py-2 text-[11px] text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 border-b border-slate-100"
+                              >
+                                <Send className="h-3.5 w-3.5" /> Reintentar emisión
+                              </button>
+                            )}
+
+                            {!esTicket && !nuncaEmitido && (comp.estadoSunat === 'Pendiente' || comp.estadoSunat === 'Rechazado') && (
                               <button
                                 onClick={() => {
                                   onReenviarSunat(comp.id, comp.numero);
@@ -277,6 +293,29 @@ export default function ComprobantesTable({
                               >
                                 <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Enviar a SUNAT
                               </button>
+                            )}
+
+                            {!esTicket && !esNota && comp.estadoSunat === 'Aceptado' && (
+                              <>
+                                <button
+                                  onClick={() => {
+                                    onGenerarNota(comp, 'credito');
+                                    setActiveMenuId(null);
+                                  }}
+                                  className="w-full px-3 py-2 text-[11px] text-slate-700 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100"
+                                >
+                                  <MinusCircle className="h-3.5 w-3.5 text-slate-400" /> Generar Nota de Crédito
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    onGenerarNota(comp, 'debito');
+                                    setActiveMenuId(null);
+                                  }}
+                                  className="w-full px-3 py-2 text-[11px] text-slate-700 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100"
+                                >
+                                  <PlusCircle className="h-3.5 w-3.5 text-slate-400" /> Generar Nota de Débito
+                                </button>
+                              </>
                             )}
 
                             <button

@@ -3,7 +3,8 @@
 import { Download, Printer } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Modal } from '@/components/ui';
-import type { Comprobante, FormatoImpresion } from './types';
+import type { EmpresaDto } from '@/lib/api/empresas';
+import { TIPO_COMPROBANTE_LABEL, type Comprobante, type FormatoImpresion } from './types';
 
 interface ComprobanteDetailModalProps {
   selectedComprobante: Comprobante | null;
@@ -11,18 +12,26 @@ interface ComprobanteDetailModalProps {
   comprobanteSizes: Record<string, FormatoImpresion>;
   onDownload: (num: string, type: 'PDF' | 'XML' | 'CDR') => void;
   triggerToast: (message: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
+  empresa: EmpresaDto | null;
 }
 
 /** Vista previa imprimible del comprobante seleccionado, con su QR y detalle de ítems. */
 export default function ComprobanteDetailModal({
-  selectedComprobante, setSelectedComprobante, comprobanteSizes, onDownload, triggerToast,
+  selectedComprobante, setSelectedComprobante, comprobanteSizes, onDownload, triggerToast, empresa,
 }: ComprobanteDetailModalProps) {
+  const razonSocial = empresa?.razonSocial || empresa?.nombreComercial || empresa?.nombre || 'Mi Empresa';
+  const ruc = empresa?.ruc || '-';
+  const direccion = empresa?.direccionCompleta
+    || [empresa?.distrito, empresa?.provincia, empresa?.departamento].filter(Boolean).join(', ')
+    || '-';
+  const tipoLabel = selectedComprobante ? TIPO_COMPROBANTE_LABEL[selectedComprobante.tipo] : '';
+  const esNota = selectedComprobante?.tipo === 'NotaCredito' || selectedComprobante?.tipo === 'NotaDebito';
   return (
       <Modal
         open={!!selectedComprobante}
         onClose={() => setSelectedComprobante(null)}
         title={`Visualizar Comprobante: ${selectedComprobante?.numero}`}
-        subtitle={`${selectedComprobante?.tipo} Electrónica · S/ ${selectedComprobante?.monto.toFixed(2)}`}
+        subtitle={`${tipoLabel} Electrónica · S/ ${selectedComprobante?.monto.toFixed(2)}`}
         size="lg"
         fullHeight={true}
         footer={
@@ -43,7 +52,7 @@ export default function ComprobanteDetailModal({
                 <Printer className="h-3.5 w-3.5" /> Imprimir
               </button>
               <button
-                onClick={() => onDownload(selectedComprobante!.numero, 'PDF')}
+                onClick={() => onDownload(selectedComprobante!.id, 'PDF')}
                 className="btn-primary py-1.5 px-3 flex items-center gap-1 text-[11px]"
               >
                 <Download className="h-3.5 w-3.5" /> Descargar PDF
@@ -70,26 +79,26 @@ export default function ComprobanteDetailModal({
               >
                 {/* Logo y Encabezado de Ticket */}
                 <div className="text-center space-y-1 mb-4">
-                  <div className="font-bold text-sm tracking-wider">RESTOPRO PERÚ S.A.C.</div>
-                  <div>R.U.C.: 20601234567</div>
-                  <div>Av. Javier Prado Este 1234, San Isidro, Lima</div>
-                  <div>Telf: (01) 444-5555</div>
+                  <div className="font-bold text-sm tracking-wider">{razonSocial.toUpperCase()}</div>
+                  <div>R.U.C.: {ruc}</div>
+                  <div>{direccion}</div>
                   <div className="border-b border-dashed border-slate-400 py-1"></div>
                 </div>
 
                 {/* Info Comprobante */}
                 <div className="space-y-1 mb-3">
                   <div className="font-bold text-center text-xs tracking-wider">
-                    {selectedComprobante.tipo.toUpperCase()} ELECTRÓNICA
+                    {tipoLabel.toUpperCase()} ELECTRÓNICA
                   </div>
                   <div className="font-bold text-center text-xs">{selectedComprobante.numero}</div>
                   <div className="border-b border-dashed border-slate-400 py-1"></div>
                   <div>FECHA: {selectedComprobante.fecha}</div>
-                  <div>CAJA: 01 (PRINCIPAL)</div>
-                  <div>CAJERO: Administrador</div>
                   <div>MÉTODO: {selectedComprobante.metodoPago}</div>
                   <div>CLIENTE: {selectedComprobante.clienteDoc.name}</div>
                   <div>{selectedComprobante.clienteDoc.type}: {selectedComprobante.clienteDoc.number}</div>
+                  {esNota && selectedComprobante.numeroVentaAfectada && (
+                    <div>REF: {selectedComprobante.numeroVentaAfectada} — {selectedComprobante.desMotivo}</div>
+                  )}
                   <div className="border-b border-dashed border-slate-400 py-1"></div>
                 </div>
 
@@ -135,8 +144,8 @@ export default function ComprobanteDetailModal({
                 {/* Firma Digital y QR */}
                 <div className="flex flex-col items-center justify-center pt-3 text-center space-y-2">
                   <div className="bg-white p-1 border border-slate-200 rounded">
-                    <QRCodeSVG 
-                      value={`20601234567|${selectedComprobante.tipo === 'Boleta' ? '03' : '01'}|${selectedComprobante.numero.split('-')[0]}|${selectedComprobante.numero.split('-')[1]}|${selectedComprobante.igv.toFixed(2)}|${selectedComprobante.monto.toFixed(2)}|${selectedComprobante.fecha.split(' ')[0]}|${selectedComprobante.clienteDoc.type === 'RUC' ? '6' : '1'}|${selectedComprobante.clienteDoc.number}`}
+                    <QRCodeSVG
+                      value={`${ruc}|${selectedComprobante.tipo === 'Boleta' ? '03' : '01'}|${selectedComprobante.numero.split('-')[0]}|${selectedComprobante.numero.split('-')[1]}|${selectedComprobante.igv.toFixed(2)}|${selectedComprobante.monto.toFixed(2)}|${selectedComprobante.fecha.split(' ')[0]}|${selectedComprobante.clienteDoc.type === 'RUC' ? '6' : '1'}|${selectedComprobante.clienteDoc.number}`}
                       size={80}
                       level="M"
                     />
@@ -145,7 +154,7 @@ export default function ComprobanteDetailModal({
                     HASH: {selectedComprobante.hash}
                   </div>
                   <div className="text-[9px] text-slate-400 mt-2 font-sans font-semibold">
-                    Representación impresa de la {selectedComprobante.tipo} Electrónica. Autorizado mediante resolución de SUNAT.
+                    Representación impresa de la {tipoLabel} Electrónica. Autorizado mediante resolución de SUNAT.
                   </div>
                 </div>
               </div>
@@ -155,17 +164,13 @@ export default function ComprobanteDetailModal({
                 {/* Cabecera A4 */}
                 <div className="grid grid-cols-2 gap-4 pb-6 border-b border-slate-200">
                   <div className="space-y-1">
-                    <div className="text-base font-bold text-brand uppercase tracking-wide">RESTOPRO PERÚ S.A.C.</div>
-                    <div className="text-[10px] text-slate-500">
-                      Servicios de Restaurantes y Concesionarios<br />
-                      Av. Javier Prado Este 1234, San Isidro, Lima<br />
-                      Telf: (01) 444-5555 · ventas@restopro.pe
-                    </div>
+                    <div className="text-base font-bold text-brand uppercase tracking-wide">{razonSocial}</div>
+                    <div className="text-[10px] text-slate-500">{direccion}</div>
                   </div>
                   <div className="border-2 border-brand p-3 rounded-lg text-center bg-slate-50 flex flex-col justify-center">
-                    <div className="text-xs font-bold text-brand font-mono">R.U.C. 20601234567</div>
+                    <div className="text-xs font-bold text-brand font-mono">R.U.C. {ruc}</div>
                     <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wide mt-1">
-                      {selectedComprobante.tipo === 'Factura' ? 'FACTURA ELECTRÓNICA' : 'BOLETA DE VENTA ELECTRÓNICA'}
+                      {tipoLabel.toUpperCase()} ELECTRÓNICA
                     </div>
                     <div className="text-sm font-extrabold text-slate-900 font-mono mt-1">
                       {selectedComprobante.numero}
@@ -173,15 +178,20 @@ export default function ComprobanteDetailModal({
                   </div>
                 </div>
 
+                {esNota && selectedComprobante.numeroVentaAfectada && (
+                  <div className="text-[11px] bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2 mt-3">
+                    Nota referente a <span className="font-bold">{selectedComprobante.numeroVentaAfectada}</span> — Motivo: {selectedComprobante.desMotivo}
+                  </div>
+                )}
+
                 {/* Info Cliente A4 */}
                 <div className="grid grid-cols-2 gap-4 py-4 border-b border-slate-100">
                   <div className="space-y-1">
                     <div className="flex"><span className="font-bold text-slate-500 w-24">Adquiriente:</span> <span className="font-semibold text-slate-800">{selectedComprobante.clienteDoc.name}</span></div>
                     <div className="flex">
-                      <span className="font-bold text-slate-500 w-24">{selectedComprobante.clienteDoc.type}:</span> 
+                      <span className="font-bold text-slate-500 w-24">{selectedComprobante.clienteDoc.type}:</span>
                       <span className="font-mono">{selectedComprobante.clienteDoc.number}</span>
                     </div>
-                    <div className="flex"><span className="font-bold text-slate-500 w-24">Dirección:</span> <span className="text-slate-600">Lima, Perú</span></div>
                   </div>
                   <div className="space-y-1 text-right">
                     <div><span className="font-bold text-slate-500">Fecha de Emisión:</span> <span className="font-medium text-slate-800">{selectedComprobante.fecha}</span></div>
@@ -218,16 +228,15 @@ export default function ComprobanteDetailModal({
                 <div className="grid grid-cols-12 gap-4 border-t border-slate-200 pt-4">
                   <div className="col-span-8 flex gap-4 items-center">
                     <div className="bg-white p-1.5 border border-slate-200 rounded shrink-0">
-                      <QRCodeSVG 
-                        value={`20601234567|${selectedComprobante.tipo === 'Boleta' ? '03' : '01'}|${selectedComprobante.numero.split('-')[0]}|${selectedComprobante.numero.split('-')[1]}|${selectedComprobante.igv.toFixed(2)}|${selectedComprobante.monto.toFixed(2)}|${selectedComprobante.fecha.split(' ')[0]}|${selectedComprobante.clienteDoc.type === 'RUC' ? '6' : '1'}|${selectedComprobante.clienteDoc.number}`}
+                      <QRCodeSVG
+                        value={`${ruc}|${selectedComprobante.tipo === 'Boleta' ? '03' : '01'}|${selectedComprobante.numero.split('-')[0]}|${selectedComprobante.numero.split('-')[1]}|${selectedComprobante.igv.toFixed(2)}|${selectedComprobante.monto.toFixed(2)}|${selectedComprobante.fecha.split(' ')[0]}|${selectedComprobante.clienteDoc.type === 'RUC' ? '6' : '1'}|${selectedComprobante.clienteDoc.number}`}
                         size={90}
                         level="M"
                       />
                     </div>
                     <div className="space-y-1">
                       <div className="text-[9px] font-mono text-slate-500">
-                        Representación impresa de la {selectedComprobante.tipo} Electrónica.<br />
-                        Consulte en el portal: <span className="underline">https://restopro.pe/consultas</span><br />
+                        Representación impresa de la {tipoLabel} Electrónica.<br />
                         Código Hash: <span className="font-bold">{selectedComprobante.hash}</span>
                       </div>
                     </div>
