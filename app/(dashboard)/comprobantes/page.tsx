@@ -334,18 +334,22 @@ export default function ComprobantesPage() {
 
       <EmailModal
         data={emailModalData}
+        token={token}
         onClose={() => setEmailModalData({ open: false, comp: null, email: '' })}
         onSuccess={(num, email) => {
           triggerToast(`Comprobante ${num} enviado a ${email}.`, 'success');
         }}
+        triggerToast={triggerToast}
       />
 
       <WhatsAppModal
         data={whatsappModalData}
+        token={token}
         onClose={() => setWhatsappModalData({ open: false, comp: null, phone: '' })}
         onSuccess={(num, phone) => {
           triggerToast(`Comprobante ${num} enviado por WhatsApp al ${phone}.`, 'success');
         }}
+        triggerToast={triggerToast}
       />
     </div>
   );

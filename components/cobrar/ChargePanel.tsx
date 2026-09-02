@@ -52,6 +52,43 @@ export default function ChargePanel({
   const [docType, setDocType] = useState<DocType>('Boleta');
   const [docNumber, setDocNumber] = useState('');
   const [docName, setDocName] = useState('');
+  const [consultandoDoc, setConsultandoDoc] = useState(false);
+
+  /* Busca automáticamente el nombre/razón social por DNI o RUC (misma API que Configuración →
+     Datos del negocio) apenas el número alcanza su longitud válida — sin botón, con su propio
+     loading para que quede claro que está consultando. Se cancela si el número sigue cambiando
+     antes de que la consulta anterior responda. */
+  useEffect(() => {
+    const digits = onlyDigits(docNumber);
+    const isRuc = docType === 'Factura';
+    const longitudValida = isRuc ? digits.length === 11 : digits.length === 8;
+    if (docType === 'Nota de venta' || !longitudValida) return;
+
+    let cancelado = false;
+    setConsultandoDoc(true);
+    fetch(isRuc ? '/api/consultar-ruc' : '/api/consultar-dni', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(isRuc ? { ruc: digits } : { dni: digits }),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (cancelado) return;
+        if (!data.success) { triggerToast(data.error || `${isRuc ? 'RUC' : 'DNI'} no encontrado.`, 'error'); return; }
+
+        if (isRuc) {
+          setDocName(data.data?.nombre_o_razon_social || '');
+        } else {
+          const { nombres, apellido_paterno, apellido_materno } = data.data ?? {};
+          setDocName([nombres, apellido_paterno, apellido_materno].filter(Boolean).join(' ').trim());
+        }
+      })
+      .catch(() => { if (!cancelado) triggerToast(`Error al consultar el ${isRuc ? 'RUC' : 'DNI'}.`, 'error'); })
+      .finally(() => { if (!cancelado) setConsultandoDoc(false); });
+
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docNumber, docType]);
 
   /* ── Pago ── */
   const [method, setMethod] = useState<PaymentMethod>('Efectivo');
@@ -336,7 +373,7 @@ export default function ChargePanel({
           ]).map(d => (
             <button
               key={d.id}
-              onClick={() => setDocType(d.id)}
+              onClick={() => { setDocType(d.id); setDocNumber(''); setDocName(''); }}
               className={`py-2 text-[10px] font-bold rounded-lg border transition-all flex flex-col items-center gap-1 ${
                 docType === d.id ? 'bg-brand/10 border-brand text-brand' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
               }`}
@@ -349,13 +386,22 @@ export default function ChargePanel({
 
         {docType === 'Boleta' && (
           <div className="space-y-2">
-            <input
-              value={docNumber}
-              onChange={e => setDocNumber(onlyDigits(e.target.value).slice(0, 8))}
-              inputMode="numeric"
-              placeholder="DNI (opcional)"
-              className="input w-full px-3 py-2 text-xs"
-            />
+            <div className="relative">
+              <input
+                value={docNumber}
+                onChange={e => {
+                  const digits = onlyDigits(e.target.value).slice(0, 8);
+                  setDocNumber(digits);
+                  if (digits === '') setDocName('');
+                }}
+                inputMode="numeric"
+                placeholder="DNI (opcional)"
+                className="input w-full pl-3 pr-8 py-2 text-xs"
+              />
+              {consultandoDoc && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
+              )}
+            </div>
             <input
               value={docName}
               onChange={e => setDocName(e.target.value)}
@@ -370,13 +416,22 @@ export default function ChargePanel({
 
         {docType === 'Factura' && (
           <div className="space-y-2">
-            <input
-              value={docNumber}
-              onChange={e => setDocNumber(onlyDigits(e.target.value).slice(0, 11))}
-              inputMode="numeric"
-              placeholder="RUC (11 dígitos) *"
-              className="input w-full px-3 py-2 text-xs"
-            />
+            <div className="relative">
+              <input
+                value={docNumber}
+                onChange={e => {
+                  const digits = onlyDigits(e.target.value).slice(0, 11);
+                  setDocNumber(digits);
+                  if (digits === '') setDocName('');
+                }}
+                inputMode="numeric"
+                placeholder="RUC (11 dígitos) *"
+                className="input w-full pl-3 pr-8 py-2 text-xs"
+              />
+              {consultandoDoc && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
+              )}
+            </div>
             <input
               value={docName}
               onChange={e => setDocName(e.target.value)}
