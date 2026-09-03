@@ -20,6 +20,7 @@ import {
   BellRing,
   ChevronDown,
   FileText,
+  Landmark,
   type LucideIcon,
 } from 'lucide-react';
 import { useSidebar } from '@/context/SidebarContext';
@@ -50,6 +51,7 @@ const menuItems: MenuItem[] = [
   { href: '/clientes',      label: 'Clientes',         icon: Users,           roles: ['admin', 'cajero'] },
   { href: '/usuarios',      label: 'Personal',         icon: ShieldCheck,     roles: ['admin'] },
   { href: '/sucursales',    label: 'Sucursales',       icon: Store,           roles: ['admin'] },
+  { href: '/facturacion',   label: 'Facturación',      icon: Landmark,        roles: ['admin'] },
   { href: '/reportes',      label: 'Reportes',         icon: TrendingUp,      roles: ['admin', 'cajero'] },
 ];
 

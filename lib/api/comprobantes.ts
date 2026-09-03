@@ -61,11 +61,18 @@ export interface EmitirResult {
   mensaje: string | null;
 }
 
+export interface CrearNotaItemDto {
+  ventaItemId: number;
+  cantidad: number;
+}
+
 export interface CrearNotaDto {
   tipoNota: 'credito' | 'debito';
   codMotivo: string;
   desMotivo: string;
   montoTotal: number;
+  /** Ítems puntuales afectados (motivos "descuento por ítem" / "devolución por ítem"). */
+  items?: CrearNotaItemDto[];
 }
 
 export interface NotaVentaResult {

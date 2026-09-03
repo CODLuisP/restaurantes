@@ -283,7 +283,7 @@ export default function ComprobantesTable({
                               </button>
                             )}
 
-                            {!esTicket && !nuncaEmitido && (comp.estadoSunat === 'Pendiente' || comp.estadoSunat === 'Rechazado') && (
+                            {!esTicket && !nuncaEmitido && comp.estadoSunat === 'Pendiente' && (
                               <button
                                 onClick={() => {
                                   onReenviarSunat(comp.id, comp.numero);
@@ -291,7 +291,7 @@ export default function ComprobantesTable({
                                 }}
                                 className="w-full px-3 py-2 text-[11px] text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 border-b border-slate-100"
                               >
-                                <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Enviar a SUNAT
+                                <RefreshCw className="h-3.5 w-3.5" /> Enviar a SUNAT
                               </button>
                             )}
 

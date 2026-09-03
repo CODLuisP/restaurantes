@@ -77,6 +77,21 @@ export function nextNumeroComprobante(comprobantes: Comprobante[], tipo: TipoCom
 
 export const nuevoHash = () => Math.random().toString(36).slice(2, 14).toUpperCase();
 
+/**
+ * SUNAT/Ideatec devuelve el estado en mayúsculas ("ACEPTADO", "RECHAZADO",
+ * "ACEPTADO_CON_OBSERVACIONES"), pero toda la UI compara contra Pascal-case
+ * ('Aceptado', 'Rechazado'...). Sin normalizar, esas comparaciones nunca
+ * coinciden y los botones condicionados al estado (Dar de Baja, Enviar a
+ * SUNAT, Generar Nota) no se muestran nunca.
+ */
+export function normalizeEstadoSunat(raw: string | null | undefined): EstadoSunat {
+  const upper = (raw ?? '').toUpperCase();
+  if (upper.startsWith('ACEPTADO')) return 'Aceptado';
+  if (upper === 'RECHAZADO') return 'Rechazado';
+  if (upper === 'ANULADO' || upper === 'DE BAJA' || upper === 'DE_BAJA') return 'De Baja';
+  return 'Pendiente';
+}
+
 // ── Mapeo de datos de la API a la interfaz Comprobante del frontend ──
 
 export function mapApiToComprobante(item: {
@@ -131,7 +146,7 @@ export function mapApiToComprobante(item: {
     monto: item.total,
     igv: item.igv,
     subtotal: item.subtotal,
-    estadoSunat: item.tieneSunat ? (item.estadoSunat as EstadoSunat ?? 'Pendiente') : null,
+    estadoSunat: item.tieneSunat ? normalizeEstadoSunat(item.estadoSunat) : null,
     correoStatus: 'Pendiente',
     whatsappStatus: 'Pendiente',
     items: [],

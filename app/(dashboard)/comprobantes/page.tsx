@@ -24,7 +24,7 @@ import EmailModal from '@/components/comprobantes/EmailModal';
 import WhatsAppModal from '@/components/comprobantes/WhatsAppModal';
 import {
   type Comprobante, type TipoComprobante, type FormatoImpresion,
-  mapApiToComprobante,
+  mapApiToComprobante, normalizeEstadoSunat,
 } from '@/components/comprobantes/types';
 
 const ITEMS_PER_PAGE = 10;
@@ -137,7 +137,7 @@ export default function ComprobantesPage() {
     try {
       const result = await reenviarSunat(token, parseInt(id));
       if (result.exitoso) {
-        triggerToast(`SUNAT ${result.estadoSunat === 'Aceptado' ? 'aceptó' : 'procesó'} el comprobante ${num}.`, 'success');
+        triggerToast(`SUNAT ${normalizeEstadoSunat(result.estadoSunat) === 'Aceptado' ? 'aceptó' : 'procesó'} el comprobante ${num}.`, 'success');
         refetch();
       } else {
         triggerToast(`Error al reenviar: ${result.mensaje}`, 'error');
@@ -153,7 +153,7 @@ export default function ComprobantesPage() {
     try {
       const result = await emitirComprobante(token, parseInt(id));
       if (result.exitoso) {
-        triggerToast(`SUNAT ${result.estadoSunat === 'Aceptado' ? 'aceptó' : 'procesó'} el comprobante ${result.numeroComprobante ?? num}.`, 'success');
+        triggerToast(`SUNAT ${normalizeEstadoSunat(result.estadoSunat) === 'Aceptado' ? 'aceptó' : 'procesó'} el comprobante ${result.numeroComprobante ?? num}.`, 'success');
       } else {
         triggerToast(`No se pudo emitir: ${result.mensaje}`, 'error');
       }
