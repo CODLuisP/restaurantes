@@ -21,6 +21,7 @@ export function useNegocioConfig() {
   const [metodosPago, setMetodosPago] = useState<MetodosPago>(DEFAULT_METODOS_PAGO);
   const [metodosEntrega, setMetodosEntrega] = useState<MetodosEntrega>(DEFAULT_METODOS_ENTREGA);
   const [igvPorcentaje, setIgvPorcentaje] = useState(18);
+  const [impresoraCocina, setImpresoraCocina] = useState(false);
   const [negocioConfigLoading, setNegocioConfigLoading] = useState(true);
 
   const refreshNegocioConfig = useCallback(async () => {
@@ -31,6 +32,7 @@ export function useNegocioConfig() {
       setIgvPorcentaje(c.igvPorcentaje ?? 18);
       setMetodosPago(parseMetodosPago(c.metodosPagoJson));
       setMetodosEntrega(parseMetodosEntrega(c.metodosEntregaJson));
+      setImpresoraCocina(c.impresoraCocina ?? false);
     } catch {
       /* silencioso: si falla, se queda con lo último cargado (o los defaults) */
     } finally {
@@ -40,5 +42,5 @@ export function useNegocioConfig() {
 
   useEffect(() => { refreshNegocioConfig(); }, [refreshNegocioConfig]);
 
-  return { metodosPago, metodosEntrega, igvPorcentaje, negocioConfigLoading, refreshNegocioConfig };
+  return { metodosPago, metodosEntrega, igvPorcentaje, impresoraCocina, negocioConfigLoading, refreshNegocioConfig };
 }

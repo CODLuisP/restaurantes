@@ -51,7 +51,7 @@ const menuItems: MenuItem[] = [
   { href: '/clientes',      label: 'Clientes',         icon: Users,           roles: ['admin', 'cajero'] },
   { href: '/usuarios',      label: 'Personal',         icon: ShieldCheck,     roles: ['admin'] },
   { href: '/sucursales',    label: 'Sucursales',       icon: Store,           roles: ['admin'] },
-  { href: '/facturacion',   label: 'Facturación',      icon: Landmark,        roles: ['admin'] },
+  { href: '/facturacion',   label: 'SUNAT',            icon: Landmark,        roles: ['admin'] },
   { href: '/reportes',      label: 'Reportes',         icon: TrendingUp,      roles: ['admin', 'cajero'] },
 ];
 
@@ -72,7 +72,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { isOpen, closeOpen, isCollapsed, toggleCollapsed } = useSidebar();
   const { currentUser } = useAuth();
-  const { triggerToast, tables, activeOrders } = useApp();
+  const { triggerToast, tables, activeOrders, impresoraCocina } = useApp();
   const { pedidos } = useCocinaPedidos(triggerToast);
   const isConfigRoute = pathname.startsWith('/configuracion');
   const [isConfigOpen, setIsConfigOpen] = useState(isConfigRoute);
@@ -86,9 +86,10 @@ export default function Sidebar() {
     tables.filter(t => t.pedidoEstado === 'pendiente_confirmacion').length +
     activeOrders.filter(o => o.pedidoEstado === 'pendiente_confirmacion').length;
 
-  const visibleItems = menuItems.filter(
-    item => !item.roles || !currentUser || item.roles.includes(currentUser.role)
-  );
+  const visibleItems = menuItems.filter(item => {
+    if (item.href === '/cocina' && impresoraCocina) return false;
+    return !item.roles || !currentUser || item.roles.includes(currentUser.role);
+  });
 
   return (
     <>

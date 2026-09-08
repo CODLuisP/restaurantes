@@ -9,7 +9,7 @@ import {
 } from '@/lib/api/sesionesMesa';
 import {
   getPedidoById, getPedidoBySesion, crearPedido, agregarItemsPedido,
-  actualizarItemPedido, eliminarItemPedido, cancelarPedido, confirmarPedido, type PedidoDto,
+  actualizarItemPedido, eliminarItemPedido, cancelarPedido, confirmarPedido, marcarPedidoEntregado, type PedidoDto,
 } from '@/lib/api/pedidos';
 import { usePedidoEvents } from '@/hooks/realtime/usePedidoEvents';
 import { useSesionCerradaEvents, type SesionCerradaPayload } from '@/hooks/realtime/useSesionCerradaEvents';
@@ -242,6 +242,24 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
     [token, activeOrders, triggerToast, loadActiveOrders]
   );
 
+  /** Marca el pedido llevar/delivery como entregado de un solo golpe — para "Impresora en cocina",
+   *  donde no hay KDS que lo vaya avanzando de a poco. */
+  const marcarActiveOrderEntregado = useCallback(
+    async (orderId: string) => {
+      if (!token) return;
+      const order = activeOrders.find(o => o.id === orderId);
+      if (!order?.pedidoId) return;
+      try {
+        await marcarPedidoEntregado(token, order.pedidoId);
+        await loadActiveOrders();
+        triggerToast(`Pedido ${order.id} marcado como entregado.`, 'success');
+      } catch (err) {
+        triggerToast(err instanceof ApiError ? err.message : 'No se pudo marcar el pedido como entregado.', 'error');
+      }
+    },
+    [token, activeOrders, triggerToast, loadActiveOrders]
+  );
+
   const cancelActiveOrder = useCallback(
     async (orderId: string) => {
       if (!token) return;
@@ -280,5 +298,6 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
     activeOrders, activeOrdersLoading, loadActiveOrders,
     createActiveOrder, addItemsToActiveOrder, updateActiveOrderItemQty,
     removeActiveOrderItem, cancelActiveOrder, closeActiveOrderAfterCharge, confirmarActiveOrder,
+    marcarActiveOrderEntregado,
   };
 }

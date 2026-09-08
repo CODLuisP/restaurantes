@@ -170,6 +170,7 @@ export default function Inspector({ block, onChange, onMove, onDuplicate, onRemo
           <FieldLabel>Mostrar</FieldLabel>
           <CheckRow checked={block.showFecha ?? true} onChange={v => onChange({ showFecha: v })} label="Fecha" />
           <CheckRow checked={block.showHora ?? true} onChange={v => onChange({ showHora: v })} label="Hora" />
+          <CheckRow checked={block.showMozo ?? false} onChange={v => onChange({ showMozo: v })} label="Mozo" />
         </div>
       )}
 

@@ -47,6 +47,8 @@ export interface TicketBlock {
   /* datos-pedido */
   showFecha?: boolean;
   showHora?: boolean;
+  /** Nombre del mozo que atendió/tomó el pedido — útil sobre todo en el ticket de cocina. */
+  showMozo?: boolean;
 
   /* cliente */
   showClientName?: boolean;
@@ -108,7 +110,7 @@ export function makeBlock(type: BlockType): TicketBlock {
     case 'negocio':       return { ...base, showName: true, compactName: false, showAddress: true, showPhone: false, align: 'center', bold: true, size: 'large' };
     case 'texto':         return { ...base, text: 'Texto', align: 'center', bold: false, size: 'normal', upper: false };
     case 'separador':     return { ...base, sepStyle: 'guiones' };
-    case 'datos-pedido':  return { ...base, showFecha: true, showHora: true, align: 'left', size: 'normal' };
+    case 'datos-pedido':  return { ...base, showFecha: true, showHora: true, showMozo: false, align: 'left', size: 'normal' };
     case 'numero-pedido': return { ...base, align: 'center', bold: true, size: 'xlarge' };
     case 'cliente':       return { ...base, showClientName: true, showClientPhone: true, showClientAddress: true, showDeliveryTime: true, size: 'normal' };
     case 'productos':     return { ...base, showModifiers: true, showPrices: true, size: 'normal' };
@@ -136,6 +138,7 @@ export const SAMPLE = {
   customerPhone: '+51 999 888 777',
   customerAddress: 'Av. Providencia 456, Depto 12',
   deliveryTime: '2:00 p.m.',
+  mozo: 'Jorgito Muñoz',
   items: [
     {
       qty: 2, name: 'Hamburguesa Clásica', price: 9990,
@@ -188,7 +191,7 @@ function defaultCocina(): TicketBlock[] {
     { ...makeBlock('texto'), text: 'COCINA', bold: true, size: 'large', upper: true },
     makeBlock('numero-pedido'),
     makeBlock('separador'),
-    { ...makeBlock('datos-pedido'), showFecha: false, showHora: true },
+    { ...makeBlock('datos-pedido'), showFecha: false, showHora: true, showMozo: true },
     { ...makeBlock('cliente'), showClientPhone: false, showClientAddress: false, showDeliveryTime: true },
     makeBlock('separador'),
     { ...makeBlock('productos'), showPrices: false, size: 'large' },

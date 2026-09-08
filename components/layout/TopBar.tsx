@@ -20,7 +20,7 @@ const SECTION_NAMES: Record<string, string> = {
   '/caja':          'Caja',
   '/gastos':        'Gastos',
   '/usuarios':      'Personal',
-  '/facturacion':   'Facturación Electrónica',
+  '/facturacion':   'SUNAT',
   '/reportes':      'Reportes',
   '/configuracion': 'Configuración',
   '/ui-components': 'Componentes de Marca UI/UX',

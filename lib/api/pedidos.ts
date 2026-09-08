@@ -70,6 +70,12 @@ export function confirmarPedido(token: string, pedidoId: number) {
   return apiFetch<PedidoDto>(`/api/pedidos/${pedidoId}/confirmar`, { token, method: 'POST' });
 }
 
+/** Marca el pedido completo como entregado de un solo golpe — para "Impresora en cocina", donde
+ *  no hay KDS que lo vaya avanzando de a poco. */
+export function marcarPedidoEntregado(token: string, pedidoId: number) {
+  return apiFetch<PedidoDto>(`/api/pedidos/${pedidoId}/marcar-entregado`, { token, method: 'POST' });
+}
+
 export function agregarItemsPedido(token: string, pedidoId: number, items: CreatePedidoItemDto[]) {
   return apiFetch<PedidoDto>(`/api/pedidos/${pedidoId}/items`, { token, method: 'POST', body: items });
 }

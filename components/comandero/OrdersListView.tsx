@@ -36,6 +36,8 @@ interface OrdersListViewProps {
   onCancelOrder: (orderId: string) => Promise<void>;
   onConfirmTable: (tableName: string) => Promise<void>;
   onConfirmOrder: (orderId: string) => Promise<void>;
+  onMarkDeliveredTable: (tableName: string) => Promise<void>;
+  onMarkDeliveredOrder: (orderId: string) => Promise<void>;
 }
 
 /** Vista principal del comandero: pestañas con mesas ocupadas y pedidos para llevar / delivery. */
@@ -43,6 +45,7 @@ export default function OrdersListView({
   tabs, activeTab, setActiveTab, tables, activeOrders, activeOrdersLoading, detailView, setDetailView,
   isCajaOpen, canEdit, busyTables, inProgressCount, onTableCardClick, onOrderCardClick, onStartNewOrder, mozoName,
   onEditTable, onEditOrder, onCancelTable, onCancelOrder, onConfirmTable, onConfirmOrder,
+  onMarkDeliveredTable, onMarkDeliveredOrder,
 }: OrdersListViewProps) {
   return (
     <div className="flex flex-col lg:flex-row gap-6 items-start">
@@ -382,6 +385,8 @@ export default function OrdersListView({
           onCancelOrder={onCancelOrder}
           onConfirmTable={onConfirmTable}
           onConfirmOrder={onConfirmOrder}
+          onMarkDeliveredTable={onMarkDeliveredTable}
+          onMarkDeliveredOrder={onMarkDeliveredOrder}
         />
       )}
     </div>

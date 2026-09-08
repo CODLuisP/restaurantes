@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Bell, Bike, Building2, Loader2, Pencil, ShoppingBag, Trash2, X } from 'lucide-react';
+import { Bell, Bike, Building2, Check, Loader2, Pencil, ShoppingBag, Trash2, X } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import type { ActiveOrder, Table } from '@/types';
 
-type BusyAction = 'cancel' | 'confirm' | null;
+type BusyAction = 'cancel' | 'confirm' | 'delivered' | null;
 
 /** Estado del plato en Cocina, reflejado en vivo (mismo hub de SignalR que usa el KDS). */
 const KITCHEN_ESTADO_LABEL: Record<string, { label: string; className: string }> = {
@@ -17,6 +17,7 @@ const KITCHEN_ESTADO_LABEL: Record<string, { label: string; className: string }>
 
 export default function OrderDetailDrawer({
   view, onClose, canEdit, onEditTable, onEditOrder, onCancelTable, onCancelOrder, onConfirmTable, onConfirmOrder,
+  onMarkDeliveredTable, onMarkDeliveredOrder,
 }: {
   view: { kind: 'mesa'; tableName: string } | { kind: 'order'; orderId: string };
   onClose: () => void;
@@ -27,8 +28,10 @@ export default function OrderDetailDrawer({
   onCancelOrder: (orderId: string) => Promise<void>;
   onConfirmTable: (tableName: string) => Promise<void>;
   onConfirmOrder: (orderId: string) => Promise<void>;
+  onMarkDeliveredTable: (tableName: string) => Promise<void>;
+  onMarkDeliveredOrder: (orderId: string) => Promise<void>;
 }) {
-  const { tables, activeOrders } = useApp();
+  const { tables, activeOrders, impresoraCocina } = useApp();
   const [busyAction, setBusyAction] = useState<BusyAction>(null);
 
   const table: Table | undefined = view.kind === 'mesa' ? tables.find(t => t.name === view.tableName) : undefined;
@@ -52,6 +55,7 @@ export default function OrderDetailDrawer({
   };
   const handleCancel = () => runAction('cancel', () => (view.kind === 'mesa' ? onCancelTable(view.tableName) : onCancelOrder(view.orderId)));
   const handleConfirm = () => runAction('confirm', () => (view.kind === 'mesa' ? onConfirmTable(view.tableName) : onConfirmOrder(view.orderId)));
+  const handleMarkDelivered = () => runAction('delivered', () => (view.kind === 'mesa' ? onMarkDeliveredTable(view.tableName) : onMarkDeliveredOrder(view.orderId)));
 
   const items = view.kind === 'mesa' ? (table?.items ?? []) : (order?.items ?? []);
   const total = view.kind === 'mesa' ? (table?.cuenta ?? 0) : (order?.total ?? 0);
@@ -62,6 +66,10 @@ export default function OrderDetailDrawer({
   const TypeIcon = view.kind === 'mesa' ? Building2 : order!.type === 'llevar' ? ShoppingBag : Bike;
   const pedidoEstado = view.kind === 'mesa' ? table?.pedidoEstado : order?.pedidoEstado;
   const pendienteConfirmacion = pedidoEstado === 'pendiente_confirmacion';
+  /* Con "Impresora en cocina" no hay KDS que vaya avanzando el pedido — sin este botón se quedaría
+     como "pendiente" para siempre, así que el mozo lo marca entregado él mismo. */
+  const puedeMarcarEntregado =
+    impresoraCocina && !pendienteConfirmacion && !!pedidoEstado && pedidoEstado !== 'entregado' && pedidoEstado !== 'cancelado';
 
   return (
     <div className="w-full lg:w-96 shrink-0 lg:-my-8 lg:-mr-8 lg:h-[calc(100vh-4rem)] lg:sticky lg:top-16">
@@ -184,6 +192,19 @@ export default function OrderDetailDrawer({
                   <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Confirmando...</>
                 ) : (
                   <><Bell className="w-3.5 h-3.5" /> Confirmar y enviar a cocina</>
+                )}
+              </button>
+            )}
+            {puedeMarcarEntregado && (
+              <button
+                onClick={handleMarkDelivered}
+                disabled={busyAction !== null}
+                className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 py-2.5 rounded-xl transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {busyAction === 'delivered' ? (
+                  <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Marcando...</>
+                ) : (
+                  <><Check className="w-3.5 h-3.5" /> Entregado</>
                 )}
               </button>
             )}

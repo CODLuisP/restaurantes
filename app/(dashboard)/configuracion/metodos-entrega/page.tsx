@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Truck, Check, ArrowRight, Utensils, ShoppingBag } from 'lucide-react';
+import { Truck, Check, ArrowRight, Utensils, ShoppingBag, Printer } from 'lucide-react';
 import { Toggle, Button, SucursalSelector, Spinner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
@@ -54,6 +54,7 @@ export default function MetodosEntregaPage() {
   const { token, isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
   const [methods, setMethods] = useState<DeliveryMethods>(DEFAULTS);
+  const [impresoraCocina, setImpresoraCocina] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -62,10 +63,11 @@ export default function MetodosEntregaPage() {
     setLoading(true);
     getConfiguracion(token, sId).then(c => {
       setMethods(parseMetodosEntrega(c.metodosEntregaJson));
+      setImpresoraCocina(c.impresoraCocina ?? false);
     }).catch(() => setMethods(DEFAULTS)).finally(() => setLoading(false));
   }, [token, sId]);
 
-  const save = async (updated: DeliveryMethods) => {
+  const save = async (updated: DeliveryMethods, impresora: boolean) => {
     if (!token || !sId) return;
     setSaving(true);
     try {
@@ -75,6 +77,7 @@ export default function MetodosEntregaPage() {
         metodosEntregaJson: JSON.stringify(updated),
         instagram: actual.instagram, facebook: actual.facebook, tiktok: actual.tiktok,
         sitioWeb: actual.sitioWeb, reviewsLink: actual.reviewsLink,
+        impresoraCocina: impresora,
       });
       triggerToast('Métodos de entrega guardados.', 'success');
       refreshNegocioConfig();
@@ -168,9 +171,29 @@ export default function MetodosEntregaPage() {
       </div>
       )}
 
+      {/* Flujo de cocina */}
+      {!loading && (
+        <div className="bg-white rounded-xl border border-slate-200/90 p-4 flex items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="bg-slate-100 p-2 rounded-xl shrink-0">
+              <Printer className="h-4 w-4 text-slate-600" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-slate-800">Impresora en cocina</h4>
+              <p className="text-[11px] text-slate-500 max-w-md leading-snug">
+                Actívalo si cocina no usa pantalla: cada comanda de mesa se imprime directo en la impresora térmica
+                del local (el cocinero avisa al mozo de viva voz cuando está lista) y la mesa se puede cobrar en
+                caja sin esperar a que el pedido quede &quot;entregado&quot;.
+              </p>
+            </div>
+          </div>
+          <Toggle checked={impresoraCocina} onChange={setImpresoraCocina} />
+        </div>
+      )}
+
       {/* Botón Guardar Cambios */}
       <div className="flex justify-end pt-2">
-        <Button onClick={() => save(methods)} disabled={saving} size="md">
+        <Button onClick={() => save(methods, impresoraCocina)} disabled={saving} size="md">
           {saving ? 'Guardando...' : 'Guardar cambios'}
         </Button>
       </div>

@@ -7,18 +7,15 @@ import {
   Building2,
   MapPin,
   Truck,
-  Landmark,
 } from 'lucide-react';
 import DatosTab from '@/components/configuracion/negocio/DatosTab';
 import UbicacionTab from '@/components/configuracion/negocio/UbicacionTab';
 import AreasEntregaTab from '@/components/configuracion/negocio/AreasEntregaTab';
-import SunatTab from '@/components/configuracion/negocio/SunatTab';
 
-type TabId = 'datos' | 'ubicacion' | 'areas-entrega' | 'sunat';
+type TabId = 'datos' | 'ubicacion' | 'areas-entrega';
 
 const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: 'datos',          label: 'Datos',               icon: Building2 },
-  { id: 'sunat',          label: 'SUNAT',                icon: Landmark },
   { id: 'ubicacion',      label: 'Ubicación',            icon: MapPin },
   { id: 'areas-entrega',  label: 'Áreas de entrega',     icon: Truck },
 ];
@@ -85,7 +82,6 @@ export default function NegocioPage() {
         {tab === 'datos' && <DatosTab />}
         {tab === 'ubicacion' && <UbicacionTab />}
         {tab === 'areas-entrega' && <AreasEntregaTab />}
-        {tab === 'sunat' && <SunatTab />}
       </div>
     </div>
   );

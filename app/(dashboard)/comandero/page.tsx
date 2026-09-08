@@ -22,9 +22,9 @@ export default function ComanderoPage() {
   const {
     tables, searchQuery, triggerToast, sucursalCajaAbierta: isCajaOpen,
     sendOrderToKitchen, updateTableItemQty, removeTableItem, cancelTableOrder: cancelTableOrderBackend,
-    confirmarPedidoCliente,
+    confirmarPedidoCliente, marcarMesaEntregada,
     activeOrders, activeOrdersLoading, createOrder, addItemsToActiveOrder, updateActiveOrderItemQty,
-    removeActiveOrderItem, cancelActiveOrder, confirmarActiveOrder,
+    removeActiveOrderItem, cancelActiveOrder, confirmarActiveOrder, marcarActiveOrderEntregado,
     metodosEntrega,
   } = useApp();
   const { currentUser } = useAuth();
@@ -157,6 +157,8 @@ export default function ComanderoPage() {
   const confirmTableOrder = (tableName: string) => confirmarPedidoCliente(tableName);
   const cancelOrderDetail = (orderId: string) => cancelActiveOrder(orderId);
   const confirmOrderDetail = (orderId: string) => confirmarActiveOrder(orderId);
+  const markDeliveredTable = (tableName: string) => marcarMesaEntregada(tableName);
+  const markDeliveredOrder = (orderId: string) => marcarActiveOrderEntregado(orderId);
 
   /** Arranca un pedido nuevo de llevar/delivery desde la vista de listas. */
   const startNewOrder = (type: OrderType) => {
@@ -188,14 +190,14 @@ export default function ComanderoPage() {
     );
   };
 
-  const handleExistingQty = (productId: string, delta: number) => {
-    if (orderType === 'mesa') updateTableItemQty(selectedTable, productId, delta);
-    else if (editingOrderId) updateActiveOrderItemQty(editingOrderId, productId, delta);
+  const handleExistingQty = async (productId: string, delta: number) => {
+    if (orderType === 'mesa') await updateTableItemQty(selectedTable, productId, delta);
+    else if (editingOrderId) await updateActiveOrderItemQty(editingOrderId, productId, delta);
   };
 
-  const handleRemoveExisting = (productId: string) => {
-    if (orderType === 'mesa') removeTableItem(selectedTable, productId);
-    else if (editingOrderId) removeActiveOrderItem(editingOrderId, productId);
+  const handleRemoveExisting = async (productId: string) => {
+    if (orderType === 'mesa') await removeTableItem(selectedTable, productId);
+    else if (editingOrderId) await removeActiveOrderItem(editingOrderId, productId);
   };
 
   const onSend = async () => {
@@ -351,6 +353,8 @@ export default function ComanderoPage() {
       onCancelOrder={cancelOrderDetail}
       onConfirmTable={confirmTableOrder}
       onConfirmOrder={confirmOrderDetail}
+      onMarkDeliveredTable={markDeliveredTable}
+      onMarkDeliveredOrder={markDeliveredOrder}
     />
   );
 }

@@ -24,6 +24,7 @@ export interface ConfiguracionDto {
   ubicacionLng?: number | null;
   ubicacionDireccion?: string | null;
   mostrarDireccionMenu?: boolean | null;
+  impresoraCocina?: boolean;
 }
 export interface UpdateConfiguracionDto {
   igvPorcentaje: number;
@@ -46,6 +47,7 @@ export interface UpdateConfiguracionDto {
   ubicacionLng?: number | null;
   ubicacionDireccion?: string | null;
   mostrarDireccionMenu?: boolean | null;
+  impresoraCocina?: boolean | null;
 }
 
 export function getConfiguracion(token: string, sucursalId: number) {

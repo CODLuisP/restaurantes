@@ -84,6 +84,7 @@ function BlockView({ block }: { block: TicketBlock }) {
               <div className="flex justify-between"><span>Hora:</span><span>{SAMPLE.time}</span></div>
             )}
             {block.showFecha && block.showHora && null}
+            {block.showMozo && <div><span className="font-bold">Mozo:</span> {SAMPLE.mozo}</div>}
           </div>
         );
 

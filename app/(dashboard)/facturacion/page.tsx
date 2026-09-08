@@ -44,7 +44,7 @@ export default function FacturacionPage() {
           <Landmark className="h-5 w-5 text-white" />
         </div>
         <div>
-          <h3 className="text-xl font-bold text-slate-900">Facturación Electrónica</h3>
+          <h3 className="text-xl font-bold text-slate-900">SUNAT</h3>
           <p className="text-xs text-slate-500">Certificado digital, credenciales SUNAT y series de comprobantes</p>
         </div>
       </div>

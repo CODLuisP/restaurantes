@@ -20,7 +20,7 @@ export default function ChargePanel({
   onAddItems: () => void;
   onClosed: () => void;
 }) {
-  const { chargeTable, chargeOrder, triggerToast, metodosPago, igvPorcentaje } = useApp();
+  const { chargeTable, chargeOrder, triggerToast, metodosPago, igvPorcentaje, impresoraCocina } = useApp();
   const { data: session } = useSession();
 
   /* ── Series y correlativos reales desde la API de facturación ── */
@@ -140,8 +140,10 @@ export default function ChargePanel({
   const change = method === 'Efectivo' && receivedNum != null ? round2(receivedNum - amountDue) : null;
 
   /* Mesas solo se pueden cobrar cuando cocina ya entregó todos los platos. Llevar/delivery no
-     tienen esta restricción: se pueden cobrar (ej. pago anticipado) antes de que salgan. */
-  const esperandoEntrega = selected.kind === 'mesa' && !!selected.pedidoEstado && selected.pedidoEstado !== 'entregado';
+     tienen esta restricción: se pueden cobrar (ej. pago anticipado) antes de que salgan. Con
+     "Impresora en cocina" activo no hay KDS que marque "entregado" — el pedido se imprime y el
+     cocinero avisa de viva voz, así que la mesa puede cobrarse de inmediato. */
+  const esperandoEntrega = !impresoraCocina && selected.kind === 'mesa' && !!selected.pedidoEstado && selected.pedidoEstado !== 'entregado';
 
   /* ── Validación ── */
   const validate = (): string | null => {

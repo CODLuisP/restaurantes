@@ -10,6 +10,7 @@ import type {
 import { useToasts } from '@/hooks/app/useToasts';
 import { useCajaTurno } from '@/hooks/app/useCajaTurno';
 import { useNegocioConfig } from '@/hooks/app/useNegocioConfig';
+import { useTicketsConfig } from '@/hooks/app/useTicketsConfig';
 import type { MetodosPago, MetodosEntrega } from '@/lib/config/metodos';
 import { useMesasCatalogo } from '@/hooks/mesas/useMesasCatalogo';
 import { useActiveOrders } from '@/hooks/comandero/useActiveOrders';
@@ -20,6 +21,7 @@ import type { TurnoCajaDto } from '@/lib/api/turnosCaja';
 import type { PedidoDto } from '@/lib/api/pedidos';
 import { crearVenta } from '@/lib/api/ventas';
 import { ApiError } from '@/lib/api/client';
+import { imprimirComanda, imprimirCancelacion } from '@/lib/print/comanda';
 
 /** Boleta/Factura/Nota de venta (UI) → ticket/boleta/factura (backend). */
 const DOC_TYPE_TO_BACKEND: Record<DocType, string> = {
@@ -50,6 +52,10 @@ interface AppContextType {
   metodosPago: MetodosPago;
   metodosEntrega: MetodosEntrega;
   igvPorcentaje: number;
+  /** Si está activo, Cocina no muestra el KDS: cada comanda se imprime directo y la mesa puede
+   *  cobrarse sin esperar a que el pedido quede "entregado". Se activa en Configuración > Métodos
+   *  de entrega. */
+  impresoraCocina: boolean;
   negocioConfigLoading: boolean;
   /** Refresca métodos de pago/entrega e IGV desde el backend — se llama tras guardar cambios
    *  en /configuracion para que Cobrar/Comandero los reflejen sin tener que recargar la sesión. */
@@ -89,6 +95,9 @@ interface AppContextType {
   cancelTableOrder: (tableName: string) => Promise<void>;
   /** El mozo confirma un pedido que armó el cliente por QR — recién ahí se manda a cocina. */
   confirmarPedidoCliente: (tableName: string) => Promise<void>;
+  /** Marca el pedido de la mesa como entregado de un solo golpe (sin pasar por Cocina) — para
+   *  "Impresora en cocina", donde no hay KDS que lo vaya avanzando de a poco. */
+  marcarMesaEntregada: (tableName: string) => Promise<void>;
   /** Pedidos que no ocupan mesa (para llevar / delivery), pendientes de cobro. Vienen del backend real. */
   activeOrders: ActiveOrder[];
   activeOrdersLoading: boolean;
@@ -108,6 +117,9 @@ interface AppContextType {
   cancelActiveOrder: (orderId: string) => Promise<void>;
   /** El mozo confirma un pedido de llevar/delivery armado por el cliente — recién ahí se manda a cocina. */
   confirmarActiveOrder: (orderId: string) => Promise<void>;
+  /** Marca el pedido de llevar/delivery como entregado de un solo golpe — para "Impresora en
+   *  cocina", donde no hay KDS que lo vaya avanzando de a poco. */
+  marcarActiveOrderEntregado: (orderId: string) => Promise<void>;
   /** Cobra un pedido para llevar / delivery (o una parte, en cuentas separadas) registrando la venta real en el backend. */
   chargeOrder: (orderId: string, input: ChargeInput) => Promise<SalesHistory | null>;
   /** Cajero: cobra el consumo de una mesa (o una parte, en cuentas separadas) registrando la venta real en el backend. */
@@ -151,17 +163,78 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const { toasts, triggerToast, dismissToast } = useToasts();
   const caja = useCajaTurno(triggerToast);
-  const { metodosPago, metodosEntrega, igvPorcentaje, negocioConfigLoading, refreshNegocioConfig } = useNegocioConfig();
+  const { metodosPago, metodosEntrega, igvPorcentaje, impresoraCocina, negocioConfigLoading, refreshNegocioConfig } = useNegocioConfig();
+  const { cocinaBlocks, paperSize: ticketPaperSize, businessName: ticketBusinessName, logoUrl: ticketLogoUrl } = useTicketsConfig();
   const {
     tables, setTables, mesasLoading, loadMesas, addTable, removeTable, setTableStatus,
     mergeTables: mergeTablesBackend, unmergeTable: unmergeTableBackend,
-    sendOrderToKitchen, updateTableItemQty, removeTableItem, cancelTableOrder,
-    confirmarPedidoCliente,
+    sendOrderToKitchen: sendOrderToKitchenBackend,
+    updateTableItemQty: updateTableItemQtyBackend, removeTableItem: removeTableItemBackend,
+    cancelTableOrder, confirmarPedidoCliente, marcarMesaEntregada,
   } = useMesasCatalogo(triggerToast);
+
+  /* Con "Impresora en cocina" activo, cada envío de comanda se imprime directo en vez de mostrarse
+     en el KDS — el cocinero avisa al mozo de viva voz cuando está lista. */
+  const sendOrderToKitchen = useCallback(
+    async (tableName: string, nombreComensal: string | undefined, items: OrderItem[]) => {
+      const ok = await sendOrderToKitchenBackend(tableName, nombreComensal, items);
+      if (ok && impresoraCocina) {
+        const ahora = new Date();
+        imprimirComanda(cocinaBlocks, ticketPaperSize, {
+          businessName: ticketBusinessName,
+          logoUrl: ticketLogoUrl,
+          mesa: tableName,
+          mozo: authSession?.user?.name ?? undefined,
+          clienteName: nombreComensal,
+          fecha: ahora.toLocaleDateString('es-PE'),
+          hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+          items: items.map(i => ({ nombre: i.product.name, cantidad: i.quantity, precio: i.product.price })),
+        });
+      }
+      return ok;
+    },
+    [sendOrderToKitchenBackend, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
+  );
+
+  /* Con "Impresora en cocina" activo, reducir o quitar un plato ya enviado imprime un ticket de
+     cancelación — sin KDS, cocina no tiene otra forma de enterarse. Con KDS, el plato ya
+     desaparece solo del tablero vía el mismo evento de SignalR que actualiza el pedido. */
+  const updateTableItemQty = useCallback(
+    async (tableName: string, pedidoItemId: string, delta: number) => {
+      const item = tables.find(t => t.name === tableName)?.items?.find(i => i.product.id === pedidoItemId);
+      await updateTableItemQtyBackend(tableName, pedidoItemId, delta);
+      if (impresoraCocina && item && delta < 0) {
+        imprimirCancelacion({
+          mesa: tableName,
+          mozo: authSession?.user?.name ?? undefined,
+          nombre: item.product.name,
+          cantidad: Math.min(-delta, item.quantity),
+        });
+      }
+    },
+    [tables, updateTableItemQtyBackend, impresoraCocina, authSession?.user?.name]
+  );
+
+  const removeTableItem = useCallback(
+    async (tableName: string, pedidoItemId: string) => {
+      const item = tables.find(t => t.name === tableName)?.items?.find(i => i.product.id === pedidoItemId);
+      await removeTableItemBackend(tableName, pedidoItemId);
+      if (impresoraCocina && item) {
+        imprimirCancelacion({
+          mesa: tableName,
+          mozo: authSession?.user?.name ?? undefined,
+          nombre: item.product.name,
+          cantidad: item.quantity,
+        });
+      }
+    },
+    [tables, removeTableItemBackend, impresoraCocina, authSession?.user?.name]
+  );
+
   const {
     activeOrders, activeOrdersLoading, loadActiveOrders, createActiveOrder, addItemsToActiveOrder,
     updateActiveOrderItemQty, removeActiveOrderItem, cancelActiveOrder,
-    confirmarActiveOrder,
+    confirmarActiveOrder, marcarActiveOrderEntregado,
   } = useActiveOrders(triggerToast);
 
   /* Aviso en vivo a todo mozo: cuando cocina marca un pedido como "listo", cualquiera puede recogerlo y servirlo. */
@@ -504,6 +577,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         metodosPago,
         metodosEntrega,
         igvPorcentaje,
+        impresoraCocina,
         negocioConfigLoading,
         refreshNegocioConfig,
         tables,
@@ -529,6 +603,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         removeTableItem,
         cancelTableOrder,
         confirmarPedidoCliente,
+        marcarMesaEntregada,
         activeOrders,
         activeOrdersLoading,
         createOrder,
@@ -537,6 +612,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         removeActiveOrderItem,
         cancelActiveOrder,
         confirmarActiveOrder,
+        marcarActiveOrderEntregado,
         chargeOrder,
         chargeTable,
         setTableStatus,

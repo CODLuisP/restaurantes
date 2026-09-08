@@ -1,6 +1,6 @@
 'use client';
 
-import type { MutableRefObject } from 'react';
+import { useState, type MutableRefObject } from 'react';
 import { Loader2, Minus, Plus, Send, ShoppingCart, Trash2, Utensils, X } from 'lucide-react';
 import { Spinner } from '@/components/ui';
 import type { OrderItem, OrderType } from '@/types';
@@ -26,8 +26,8 @@ interface OrderPanelProps {
   /* Ítems */
   existingItems: OrderItem[];
   existingTotal: number;
-  onExistingQty: (productId: string, delta: number) => void;
-  onRemoveExisting: (productId: string) => void;
+  onExistingQty: (productId: string, delta: number) => Promise<void>;
+  onRemoveExisting: (productId: string) => Promise<void>;
   cart: OrderItem[];
   onUpdateQty: (productId: string, delta: number) => void;
   cartTotal: number;
@@ -47,6 +47,23 @@ export default function OrderPanel({
   existingItems, existingTotal, onExistingQty, onRemoveExisting, cart, onUpdateQty, cartTotal,
   isCajaOpen, onSend, sending, onClearCart,
 }: OrderPanelProps) {
+  /* Ítems "ya en servicio" que están descontándose/quitándose en este momento — bloquea sus
+     propios controles y muestra un loading en vez de dejar el clic sin ningún efecto visible. */
+  const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+
+  const runBusy = async (productId: string, action: () => Promise<void>) => {
+    setBusyIds(prev => new Set(prev).add(productId));
+    try {
+      await action();
+    } finally {
+      setBusyIds(prev => {
+        const next = new Set(prev);
+        next.delete(productId);
+        return next;
+      });
+    }
+  };
+
   return (
         <div className="w-full lg:w-96 shrink-0 bg-white rounded-2xl border border-slate-100 p-5 shadow-sm h-full flex flex-col justify-between overflow-y-auto">
           <div className="flex-1 flex flex-col min-h-0">
@@ -142,20 +159,29 @@ export default function OrderPanel({
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide block">
                     Ya en servicio
                   </span>
-                  {existingItems.map(item => (
-                    <div key={item.product.id} className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 flex justify-between items-center gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[11px] font-bold text-slate-700 truncate">{item.product.name}</p>
-                        <span className="text-[10px] font-mono text-slate-400">S/. {(item.product.price * item.quantity).toFixed(2)}</span>
+                  {existingItems.map(item => {
+                    const busy = busyIds.has(item.product.id);
+                    return (
+                      <div key={item.product.id} className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 flex justify-between items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-[11px] font-bold truncate ${busy ? 'text-slate-400' : 'text-slate-700'}`}>{item.product.name}</p>
+                          <span className="text-[10px] font-mono text-slate-400">S/. {(item.product.price * item.quantity).toFixed(2)}</span>
+                        </div>
+                        {busy ? (
+                          <div className="flex items-center justify-center h-6 w-[84px] shrink-0">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button onClick={() => runBusy(item.product.id, () => onExistingQty(item.product.id, -1))} className="p-1 rounded bg-slate-200 text-slate-600 hover:bg-slate-300"><Minus className="h-3 w-3" /></button>
+                            <span className="text-[11px] font-bold font-mono text-slate-700 w-4 text-center">{item.quantity}</span>
+                            <button onClick={() => runBusy(item.product.id, () => onExistingQty(item.product.id, 1))} className="p-1 rounded bg-slate-200 text-slate-600 hover:bg-slate-300"><Plus className="h-3 w-3" /></button>
+                            <button onClick={() => runBusy(item.product.id, () => onRemoveExisting(item.product.id))} className="p-1 rounded text-slate-400 hover:text-rose-500 hover:bg-rose-50" title="Quitar"><Trash2 className="h-3 w-3" /></button>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button onClick={() => onExistingQty(item.product.id, -1)} className="p-1 rounded bg-slate-200 text-slate-600 hover:bg-slate-300"><Minus className="h-3 w-3" /></button>
-                        <span className="text-[11px] font-bold font-mono text-slate-700 w-4 text-center">{item.quantity}</span>
-                        <button onClick={() => onExistingQty(item.product.id, 1)} className="p-1 rounded bg-slate-200 text-slate-600 hover:bg-slate-300"><Plus className="h-3 w-3" /></button>
-                        <button onClick={() => onRemoveExisting(item.product.id)} className="p-1 rounded text-slate-400 hover:text-rose-500 hover:bg-rose-50" title="Quitar"><Trash2 className="h-3 w-3" /></button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <div className="border-t border-dashed border-slate-200 my-2" />
                 </div>
               )}

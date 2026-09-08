@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Clock, ChevronRight, ChevronLeft, Check, ArrowLeft, Loader2 } from 'lucide-react';
+import { Clock, ChevronRight, ChevronLeft, Check, ArrowLeft, Loader2, Printer } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { useApp } from '@/context/AppContext';
 import { useToasts } from '@/hooks/app/useToasts';
 import { useCocinaPedidos } from '@/hooks/cocina/useCocinaPedidos';
 import { pedidoLabel, pedidoMinutos } from '@/components/cocina/types';
@@ -25,6 +26,7 @@ function itemName(it: PedidoItemDto) {
 export default function CocinaPage() {
   const { currentUser } = useAuth();
   const router = useRouter();
+  const { impresoraCocina } = useApp();
   const { triggerToast, toasts, dismissToast } = useToasts();
   const { pedidos, loading, moverItemEstado } = useCocinaPedidos(triggerToast);
 
@@ -75,7 +77,19 @@ export default function CocinaPage() {
         </span>
       </div>
 
-      {loading ? (
+      {impresoraCocina ? (
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
+          <div className="bg-brand/10 text-brand p-4 rounded-2xl">
+            <Printer className="h-8 w-8" />
+          </div>
+          <h4 className="text-base font-bold text-slate-800">Modo impresora activo</h4>
+          <p className="text-xs text-slate-500 max-w-sm">
+            Cada comanda que el mozo envía se imprime directo en la impresora de cocina — no hay pantalla que
+            consultar aquí. Para volver al Kitchen Display System, desactiva &quot;Impresora en cocina&quot; en
+            Configuración → Métodos de entrega.
+          </p>
+        </div>
+      ) : loading ? (
         <div className="flex-1 flex items-center justify-center gap-2 text-sm text-slate-400">
           <Spinner size="sm" /> Cargando comandas...
         </div>
