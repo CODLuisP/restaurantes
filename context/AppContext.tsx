@@ -232,7 +232,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const {
-    activeOrders, activeOrdersLoading, loadActiveOrders, createActiveOrder, addItemsToActiveOrder,
+    activeOrders, activeOrdersLoading, loadActiveOrders, createActiveOrder,
+    addItemsToActiveOrder: addItemsToActiveOrderBackend,
     updateActiveOrderItemQty, removeActiveOrderItem, cancelActiveOrder,
     confirmarActiveOrder, marcarActiveOrderEntregado,
   } = useActiveOrders(triggerToast);
@@ -472,9 +473,47 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         triggerToast('La caja está cerrada. No se pueden tomar pedidos hasta aperturarla.', 'error');
         return null;
       }
-      return createActiveOrder(type, info, items);
+      const order = await createActiveOrder(type, info, items);
+      if (order && impresoraCocina) {
+        const ahora = new Date();
+        imprimirComanda(cocinaBlocks, ticketPaperSize, {
+          businessName: ticketBusinessName,
+          logoUrl: ticketLogoUrl,
+          orderNumber: order.id,
+          mozo: authSession?.user?.name ?? undefined,
+          clienteName: info.customer,
+          fecha: ahora.toLocaleDateString('es-PE'),
+          hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+          items: items.map(i => ({ nombre: i.product.name, cantidad: i.quantity, precio: i.product.price })),
+        });
+      }
+      return order;
     },
-    [caja.sucursalCajaAbierta, triggerToast, createActiveOrder]
+    [caja.sucursalCajaAbierta, triggerToast, createActiveOrder, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
+  );
+
+  /* Igual que sendOrderToKitchen para mesas: agregar platos a un pedido de llevar/delivery YA
+     enviado también imprime su propia comanda (solo con los ítems nuevos) cuando corresponde. */
+  const addItemsToActiveOrder = useCallback(
+    async (orderId: string, items: OrderItem[]) => {
+      const ok = await addItemsToActiveOrderBackend(orderId, items);
+      if (ok && impresoraCocina) {
+        const order = activeOrders.find(o => o.id === orderId);
+        const ahora = new Date();
+        imprimirComanda(cocinaBlocks, ticketPaperSize, {
+          businessName: ticketBusinessName,
+          logoUrl: ticketLogoUrl,
+          orderNumber: orderId,
+          mozo: authSession?.user?.name ?? undefined,
+          clienteName: order?.customer,
+          fecha: ahora.toLocaleDateString('es-PE'),
+          hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+          items: items.map(i => ({ nombre: i.product.name, cantidad: i.quantity, precio: i.product.price })),
+        });
+      }
+      return ok;
+    },
+    [addItemsToActiveOrderBackend, activeOrders, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
   );
 
   /** Igual que chargeTable pero para pedidos llevar/delivery — misma venta real de backend,
