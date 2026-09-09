@@ -34,6 +34,12 @@ export interface VentaDto {
   razonSocial?: string | null;
   /** ID devuelto por el proveedor OSE/SUNAT; null hasta que se emita el comprobante. */
   comprobanteId?: string | null;
+  /** Ej: "F001-00015115", "B001-00000234"; null hasta que se emita el comprobante. */
+  numeroComprobante?: string | null;
+  /** Datos desnormalizados vía JOIN — no son columnas propias de la venta. */
+  cajeroNombre?: string | null;
+  mesaNumero?: number | null;
+  nombreCliente?: string | null;
   items: VentaItemDto[];
 }
 
@@ -71,11 +77,15 @@ export function getVentasBySesion(token: string, sesionMesaId: number) {
   return apiFetch<VentaDto[]>(`/api/ventas/sesion/${sesionMesaId}`, { token });
 }
 
-export function getVentas(token: string, params: { sucursalId?: number; fechaInicio?: string; fechaFin?: string } = {}) {
+export function getVentas(
+  token: string,
+  params: { sucursalId?: number; fechaInicio?: string; fechaFin?: string; cajeroId?: number } = {}
+) {
   const query = new URLSearchParams();
   if (params.sucursalId) query.set('sucursalId', String(params.sucursalId));
   if (params.fechaInicio) query.set('fechaInicio', params.fechaInicio);
   if (params.fechaFin) query.set('fechaFin', params.fechaFin);
+  if (params.cajeroId) query.set('cajeroId', String(params.cajeroId));
   const qs = query.toString();
   return apiFetch<VentaDto[]>(`/api/ventas${qs ? `?${qs}` : ''}`, { token });
 }

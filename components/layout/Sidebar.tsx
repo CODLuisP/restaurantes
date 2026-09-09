@@ -44,6 +44,8 @@ const menuItems: MenuItem[] = [
   { href: '/cobrar',        label: 'Cobrar',           icon: Receipt,         roles: ['admin', 'cajero'] },
   { href: '/cocina',        label: 'Cocina',           icon: ChefHat,         roles: ['admin', 'cocinero'] },
   { href: '/despachar',     label: 'Por despachar',    icon: BellRing,        roles: ['admin', 'mozo'] },
+  // '/caja' se intercepta en el render y se dibuja como acordeón con Corte / Ventas del día,
+  // en vez de como un link plano — se mantiene acá solo para conservar el orden y el rol.
   { href: '/caja',          label: 'Caja',             icon: Coins,           roles: ['admin', 'cajero'] },
   { href: '/gastos',        label: 'Gastos',           icon: Wallet,          roles: ['admin', 'cajero'] },
   { href: '/comprobantes',  label: 'Comprobantes',     icon: FileText,        roles: ['admin', 'cajero'] },
@@ -68,6 +70,11 @@ const configSubItems: ConfigSubItem[] = [
   { href: '/configuracion/tickets',              label: 'Tickets', badge: 'NEW' },
 ];
 
+const cajaSubItems: ConfigSubItem[] = [
+  { href: '/caja/corte',       label: 'Corte' },
+  { href: '/caja/ventas-dia',  label: 'Ventas del día' },
+];
+
 export default function Sidebar() {
   const pathname = usePathname();
   const { isOpen, closeOpen, isCollapsed, toggleCollapsed } = useSidebar();
@@ -77,6 +84,9 @@ export default function Sidebar() {
   const isConfigRoute = pathname.startsWith('/configuracion');
   const [isConfigOpen, setIsConfigOpen] = useState(isConfigRoute);
   const canSeeConfig = !currentUser || currentUser?.role === 'admin';
+
+  const isCajaRoute = pathname.startsWith('/caja');
+  const [isCajaOpen, setIsCajaOpen] = useState(isCajaRoute);
 
   /* Comandas listas por despachar — cualquier mozo puede recogerlas y entregarlas, sin importar quién las tomó. */
   const readyCount = pedidos.filter(p => p.estado === 'listo').length;
@@ -132,6 +142,67 @@ export default function Sidebar() {
             const isComandero = item.href === '/comandero';
             const isLiveBadge = isDispatch || isComandero;
             const badge = isDispatch ? (readyCount || undefined) : isComandero ? (pendingConfirmCount || undefined) : item.badge;
+
+            /* Caja (acordeón): Corte / Ventas del día, en vez de un link plano — se dibuja acá
+               para conservar su posición original en el menú (entre Despachar y Gastos). */
+            if (item.href === '/caja') {
+              return (
+                <div key="caja">
+                  <button
+                    type="button"
+                    onClick={() => (isCollapsed ? toggleCollapsed() : setIsCajaOpen(v => !v))}
+                    title={isCollapsed ? 'Caja' : undefined}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all group relative ${
+                      isCajaRoute
+                        ? 'bg-white/10 text-white shadow-sm backdrop-blur-sm'
+                        : 'text-white/80 hover:bg-white/5 hover:text-white'
+                    }`}
+                  >
+                    {isCajaRoute && (
+                      <div className="absolute left-0 top-3 bottom-3 w-1 bg-brand-accent rounded-r-full" />
+                    )}
+                    <Icon
+                      className={`h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                        isCajaRoute ? 'text-brand-accent' : 'text-white/60'
+                      }`}
+                    />
+                    {!isCollapsed && (
+                      <>
+                        <span className="grow text-left truncate">Caja</span>
+                        <ChevronDown
+                          className={`h-3.5 w-3.5 shrink-0 text-white/50 transition-transform duration-200 ${
+                            isCajaOpen ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </>
+                    )}
+                  </button>
+
+                  {!isCollapsed && isCajaOpen && (
+                    <div className="mt-1 ml-4 pl-3 border-l border-white/10 space-y-0.5">
+                      {cajaSubItems.map(sub => {
+                        const isSubActive = pathname === sub.href;
+                        return (
+                          <Link
+                            key={sub.href}
+                            href={sub.href}
+                            onClick={closeOpen}
+                            className={`flex items-center px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                              isSubActive
+                                ? 'bg-white/10 text-white'
+                                : 'text-white/70 hover:bg-white/5 hover:text-white'
+                            }`}
+                          >
+                            <span className="truncate">{sub.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <Link
                 key={item.href}
