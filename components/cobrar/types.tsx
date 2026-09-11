@@ -48,5 +48,5 @@ export interface Chargeable {
 
 export type Filter = 'todos' | OrderType;
 
-/** Modo de división de la cuenta al cobrar: completa, en partes iguales o por ítems. */
-export type SplitMode = 'full' | 'equal' | 'items';
+/** Modo de división de la cuenta al cobrar: completa o dividiendo por ítems seleccionados. */
+export type SplitMode = 'full' | 'items';

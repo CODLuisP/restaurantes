@@ -221,4 +221,4 @@ export default function CobrarPage() {
    Panel de cobro: comprobante, vuelto y cuentas separadas
    ══════════════════════════════════════════════════════════════ */
 
-type SplitMode = 'full' | 'equal' | 'items';
+type SplitMode = 'full' | 'items';

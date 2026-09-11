@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import {
-  Ban, CheckCircle2, Divide, FileText, Loader2, MapPin, Pencil, Phone, Receipt, Users, Wallet,
+  Ban, CheckCircle2, ChevronDown, Divide, FileText, Loader2, MapPin, Pencil, Phone, Receipt, Users, Wallet,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
-import type { PaymentMethod, DocType, CustomerDoc, ChargeInput } from '@/types';
+import type { PaymentMethod, DocType, CustomerDoc, ChargeInput, SalesHistory } from '@/types';
 import {
   money, round2, onlyDigits, PAYMENTS, TYPE_META, ESTADO_PEDIDO_LABEL, type Chargeable, type SplitMode,
 } from './types';
@@ -43,10 +43,13 @@ export default function ChargePanel({
 
   /* ── Cuentas separadas ── */
   const [splitMode, setSplitMode] = useState<SplitMode>('full');
-  const [equalParts, setEqualParts] = useState(2);
-  const [paidEqual, setPaidEqual] = useState(0);
   const [paidItemIds, setPaidItemIds] = useState<Set<string>>(new Set());
   const [pickItemIds, setPickItemIds] = useState<Set<string>>(new Set());
+
+  /* Cuentas ya cobradas en esta sesión de división (se muestran en un desplegable para no
+     ocupar espacio). Solo tiene sentido mientras la mesa sigue abierta con cuentas pendientes. */
+  const [chargedAccounts, setChargedAccounts] = useState<{ sale: SalesHistory; itemLabels: string[] }[]>([]);
+  const [showChargedAccounts, setShowChargedAccounts] = useState(false);
 
   /* ── Comprobante ── */
   const [docType, setDocType] = useState<DocType>('Boleta');
@@ -106,31 +109,22 @@ export default function ChargePanel({
   }, [visiblePayments.map(p => p.id).join(',')]);
 
   const total = selected.total;
-  const started = paidEqual > 0 || paidItemIds.size > 0; // ya se cobró alguna parte
+  const started = paidItemIds.size > 0; // ya se cobró alguna parte
   const splitLocked = started; // no cambiar de modo a mitad de un cobro dividido
 
   /* ── Cálculo del monto a cobrar según el modo ── */
-  const partAmount = round2(total / equalParts);
-  const remainingParts = equalParts - paidEqual;
-  const equalDue = remainingParts <= 1 ? round2(total - partAmount * (equalParts - 1)) : partAmount;
-
   const unpaidItems = selected.items.filter(i => !paidItemIds.has(i.product.id));
   const pickedItems = unpaidItems.filter(i => pickItemIds.has(i.product.id));
   const itemsDue = round2(pickedItems.reduce((s, i) => s + i.product.price * i.quantity, 0));
 
-  const amountDue =
-    splitMode === 'full'  ? total :
-    splitMode === 'equal' ? equalDue :
-    itemsDue;
+  const amountDue = splitMode === 'full' ? total : itemsDue;
 
   const willCloseAfter =
-    splitMode === 'full'  ? true :
-    splitMode === 'equal' ? remainingParts <= 1 :
+    splitMode === 'full' ? true :
     unpaidItems.length > 0 && pickedItems.length === unpaidItems.length;
 
   const itemsCountForCharge =
     splitMode === 'items' ? pickedItems.reduce((s, i) => s + i.quantity, 0) :
-    splitMode === 'equal' ? Math.max(1, Math.round(selected.itemsCount / equalParts)) :
     selected.itemsCount;
 
   const base = round2(amountDue / (1 + igvPorcentaje / 100));
@@ -162,9 +156,6 @@ export default function ChargePanel({
     }
     if (method === 'Efectivo' && receivedNum != null && receivedNum < amountDue) {
       return 'El efectivo recibido es menor al monto a cobrar.';
-    }
-    if (splitMode === 'equal') {
-      return 'Partes iguales aún no está disponible — usa Pago único o Por ítems.';
     }
     if (!selected.sesionMesaId) {
       return 'Esta cuenta no tiene una sesión activa en el sistema; no se puede cobrar.';
@@ -217,10 +208,13 @@ export default function ChargePanel({
       }
 
       /* Cuenta parcial: registrar avance y limpiar el formulario para la siguiente. */
-      if (splitMode === 'equal') setPaidEqual(p => p + 1);
       if (splitMode === 'items') {
         setPaidItemIds(prev => new Set([...prev, ...pickedItems.map(i => i.product.id)]));
         setPickItemIds(new Set());
+        setChargedAccounts(prev => [
+          ...prev,
+          { sale, itemLabels: chargingItems.map(i => `${i.quantity}× ${i.product.name}`) },
+        ]);
       }
       setReceived('');
       setDocNumber('');
@@ -244,9 +238,7 @@ export default function ChargePanel({
   };
 
   const paidAmount = round2(
-    splitMode === 'equal' ? paidEqual * partAmount :
-    splitMode === 'items' ? selected.items.filter(i => paidItemIds.has(i.product.id)).reduce((s, i) => s + i.product.price * i.quantity, 0) :
-    0
+    splitMode === 'items' ? selected.items.filter(i => paidItemIds.has(i.product.id)).reduce((s, i) => s + i.product.price * i.quantity, 0) : 0
   );
   const remaining = round2(total - paidAmount);
 
@@ -314,16 +306,50 @@ export default function ChargePanel({
         })}
       </div>
 
+      {/* Cuentas ya cobradas (desplegable) */}
+      {chargedAccounts.length > 0 && (
+        <div className="border-t border-slate-200 pt-3">
+          <button
+            type="button"
+            onClick={() => setShowChargedAccounts(v => !v)}
+            className="w-full flex items-center justify-between text-[11px] font-bold text-emerald-700"
+          >
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Cuentas cobradas ({chargedAccounts.length})
+            </span>
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showChargedAccounts ? 'rotate-180' : ''}`} />
+          </button>
+          {showChargedAccounts && (
+            <div className="mt-2 space-y-2">
+              {chargedAccounts.map((acc, idx) => (
+                <div key={acc.sale.id ?? idx} className="bg-emerald-50 rounded-lg px-3 py-2 text-[11px] space-y-1">
+                  <div className="flex justify-between font-bold text-emerald-800">
+                    <span>Cuenta {idx + 1} · {acc.sale.docType ?? 'Sin comprob.'}</span>
+                    <span className="font-mono">{money(acc.sale.total)}</span>
+                  </div>
+                  {acc.sale.comprobante && (
+                    <p className="text-slate-500 font-mono text-[10px]">{acc.sale.comprobante}</p>
+                  )}
+                  {acc.sale.customerDoc?.number && (
+                    <p className="text-slate-500">{acc.sale.customerDoc.type} {acc.sale.customerDoc.number} — {acc.sale.customerDoc.name}</p>
+                  )}
+                  <p className="text-slate-500">{acc.itemLabels.join(', ')}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Cuentas separadas */}
       <div className="border-t border-slate-200 pt-3 space-y-2">
         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
           <Divide className="h-3.5 w-3.5" /> Forma de cobro
         </p>
-        <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-xl">
+        <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl">
           {([
             { id: 'full' as const,  label: 'Pago único' },
-            { id: 'equal' as const, label: 'Partes iguales' },
-            { id: 'items' as const, label: 'Por ítems' },
+            { id: 'items' as const, label: 'Dividir cuenta' },
           ]).map(m => (
             <button
               key={m.id}
@@ -338,27 +364,9 @@ export default function ChargePanel({
           ))}
         </div>
 
-        {splitMode === 'equal' && (
-          <div className="flex items-center justify-between gap-2 bg-slate-50 rounded-lg px-3 py-2">
-            <label className="text-[11px] text-slate-600">Dividir entre</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                min={2}
-                max={20}
-                value={equalParts}
-                disabled={splitLocked}
-                onChange={e => setEqualParts(Math.max(2, Math.min(20, parseInt(e.target.value, 10) || 2)))}
-                className="input w-16 px-2 py-1 text-xs text-center disabled:bg-slate-100"
-              />
-              <span className="text-[11px] text-slate-600">personas</span>
-            </div>
-          </div>
-        )}
-
-        {(splitMode === 'equal' || splitMode === 'items') && (
+        {splitMode === 'items' && (
           <div className="text-[11px] text-slate-500 flex justify-between bg-emerald-50 rounded-lg px-3 py-1.5">
-            <span>{splitMode === 'equal' ? `Parte ${Math.min(paidEqual + 1, equalParts)} de ${equalParts}` : 'Cuenta en curso'}</span>
+            <span>Cuenta en curso</span>
             <span className="font-mono">Abonado {money(paidAmount)} · Falta {money(remaining)}</span>
           </div>
         )}

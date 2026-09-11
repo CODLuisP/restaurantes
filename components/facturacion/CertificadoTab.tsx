@@ -19,6 +19,20 @@ function diasRestantes(fechaHasta?: string | null): number | null {
   return Math.ceil((hasta - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
+function formatFecha(fecha: string): string {
+  return new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(fecha));
+}
+
+/** % transcurrido del periodo de vigencia (0-100), para la barra de progreso. */
+function porcentajeVigencia(desde?: string | null, hasta?: string | null): number | null {
+  if (!desde || !hasta) return null;
+  const t0 = new Date(desde).getTime();
+  const t1 = new Date(hasta).getTime();
+  if (Number.isNaN(t0) || Number.isNaN(t1) || t1 <= t0) return null;
+  const pct = ((Date.now() - t0) / (t1 - t0)) * 100;
+  return Math.min(100, Math.max(0, pct));
+}
+
 export default function CertificadoTab() {
   const { data: session } = useSession();
   const token = session?.accessToken;
@@ -104,6 +118,9 @@ export default function CertificadoTab() {
 
   const dias = diasRestantes(empresa?.certificadoVigenciaHasta);
   const vigenciaCritica = dias !== null && dias <= 30;
+  const pctVigencia = porcentajeVigencia(empresa?.certificadoVigenciaDesde, empresa?.certificadoVigenciaHasta);
+  const vencido = dias !== null && dias < 0;
+  const barraColor = vencido ? 'bg-rose-500' : vigenciaCritica ? 'bg-amber-500' : 'bg-emerald-500';
 
   return (
     <div className="space-y-4">
@@ -124,26 +141,55 @@ export default function CertificadoTab() {
         </div>
 
         {empresa?.tieneCertificado ? (
-          <div className="space-y-3 pt-3 border-t border-slate-100">
+          <div className="space-y-4 pt-3 border-t border-slate-100">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
               <span className="text-xs font-semibold text-slate-700">Certificado cargado y activo</span>
             </div>
-            {empresa.certificadoVigenciaHasta && (
-              <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                <CalendarClock className="h-3.5 w-3.5 shrink-0" />
-                {dias !== null && dias >= 0
-                  ? <span>Vigente hasta {new Date(empresa.certificadoVigenciaHasta).toLocaleDateString('es-PE')} ({dias} días restantes)</span>
-                  : <span>Venció el {new Date(empresa.certificadoVigenciaHasta).toLocaleDateString('es-PE')}</span>}
+
+            {empresa.certificadoVigenciaDesde && empresa.certificadoVigenciaHasta && (
+              <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-100 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1">
+                    <CalendarClock className="h-3.5 w-3.5" /> Vigencia
+                  </span>
+                  <span className={`text-[11px] font-bold ${vencido ? 'text-rose-600' : vigenciaCritica ? 'text-amber-600' : 'text-emerald-600'}`}>
+                    {vencido ? 'Vencido' : `Vence en ${dias} día${dias === 1 ? '' : 's'}`}
+                  </span>
+                </div>
+                {pctVigencia !== null && (
+                  <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div className={`h-full ${barraColor} rounded-full transition-all`} style={{ width: `${pctVigencia}%` }} />
+                  </div>
+                )}
+                <p className="text-[11px] text-slate-500">
+                  {formatFecha(empresa.certificadoVigenciaDesde)} &rarr; {formatFecha(empresa.certificadoVigenciaHasta)}
+                </p>
               </div>
             )}
+
             {vigenciaCritica && (
-              <Alert variant={dias !== null && dias < 0 ? 'danger' : 'warning'} icon={<AlertTriangle className="h-4 w-4 shrink-0" />}>
-                {dias !== null && dias < 0
+              <Alert variant={vencido ? 'danger' : 'warning'} icon={<AlertTriangle className="h-4 w-4 shrink-0" />}>
+                {vencido
                   ? 'El certificado ha vencido. Los comprobantes no podrán firmarse hasta que lo actualices.'
                   : `El certificado vence pronto (${dias} días). Actualízalo antes de que expire.`}
               </Alert>
             )}
+
+            <div className="grid grid-cols-3 gap-3 text-[11px] pt-1">
+              <div>
+                <p className="text-slate-400 font-semibold uppercase tracking-wide text-[9.5px]">RUC</p>
+                <p className="text-slate-700 font-medium mt-0.5">{empresa.ruc}</p>
+              </div>
+              <div>
+                <p className="text-slate-400 font-semibold uppercase tracking-wide text-[9.5px]">Tipo</p>
+                <p className="text-slate-700 font-medium mt-0.5">PFX / P12</p>
+              </div>
+              <div>
+                <p className="text-slate-400 font-semibold uppercase tracking-wide text-[9.5px]">Archivo</p>
+                <p className="text-slate-700 font-medium mt-0.5">Cargado</p>
+              </div>
+            </div>
           </div>
         ) : (
           <Alert variant="warning" icon={<AlertTriangle className="h-4 w-4 shrink-0" />}>
