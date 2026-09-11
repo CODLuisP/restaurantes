@@ -156,6 +156,8 @@ export interface ChargeInput {
   customer?: string;
   /** Identificación tributaria del cliente (DNI para boleta, RUC para factura). */
   customerDoc?: CustomerDoc;
+  /** Cliente del CRM vinculado a esta venta (si se seleccionó uno existente o se detectó por documento). */
+  clienteId?: number;
   /** Efectivo entregado por el cliente (para calcular el vuelto). */
   received?: number;
   /** Monto a cobrar; si se omite, se cobra el total pendiente. Se usa en cuentas separadas. */

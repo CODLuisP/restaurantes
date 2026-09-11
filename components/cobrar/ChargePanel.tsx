@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import {
-  Ban, CheckCircle2, ChevronDown, Divide, FileText, Loader2, MapPin, Pencil, Phone, Receipt, Users, Wallet,
+  Ban, CheckCircle2, ChevronDown, Divide, FileText, Loader2, MapPin, Pencil, Phone, Receipt, Search, Users, Wallet,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import type { PaymentMethod, DocType, CustomerDoc, ChargeInput, SalesHistory } from '@/types';
@@ -11,6 +11,8 @@ import {
   money, round2, onlyDigits, PAYMENTS, TYPE_META, ESTADO_PEDIDO_LABEL, type Chargeable, type SplitMode,
 } from './types';
 import { getSeriesFacturacion, type SeriesSucursal } from '@/lib/api/facturacion';
+import { getClientes } from '@/lib/api/clientes';
+import type { Cliente } from '@/types/clientes';
 export default function ChargePanel({
   selected, isCajaOpen, cashier, onAddItems, onClosed,
 }: {
@@ -57,15 +59,64 @@ export default function ChargePanel({
   const [docName, setDocName] = useState('');
   const [consultandoDoc, setConsultandoDoc] = useState(false);
 
-  /* Busca automáticamente el nombre/razón social por DNI o RUC (misma API que Configuración →
-     Datos del negocio) apenas el número alcanza su longitud válida — sin botón, con su propio
-     loading para que quede claro que está consultando. Se cancela si el número sigue cambiando
-     antes de que la consulta anterior responda. */
+  /* ── Cliente del CRM ──
+     Se carga una sola vez (en paralelo con las series, sin encadenar) y el buscador filtra en
+     memoria: es instantáneo y no depende de la API externa de RENIEC/SUNAT. */
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [clienteId, setClienteId] = useState<number | undefined>(undefined);
+  const [clienteQuery, setClienteQuery] = useState('');
+  const [showClienteResults, setShowClienteResults] = useState(false);
+
+  useEffect(() => {
+    const token = session?.accessToken;
+    if (!token) return;
+    getClientes(token).then(setClientes).catch(() => { /* buscador queda vacío, no bloquea el cobro */ });
+  }, [session?.accessToken]);
+
+  const clienteMatches = useMemo(() => {
+    const q = clienteQuery.trim().toLowerCase();
+    if (!q) return [];
+    return clientes
+      .filter(c => c.nombre.toLowerCase().includes(q) || (c.numeroDocumento ?? '').includes(q))
+      .slice(0, 8);
+  }, [clientes, clienteQuery]);
+
+  const selectCliente = (c: Cliente) => {
+    setClienteId(c.id);
+    setClienteQuery(c.nombre);
+    setShowClienteResults(false);
+    setDocName(c.nombre);
+    if (c.numeroDocumento) {
+      setDocType(c.numeroDocumento.length === 11 ? 'Factura' : 'Boleta');
+      setDocNumber(c.numeroDocumento);
+    }
+  };
+
+  const clearCliente = () => {
+    setClienteId(undefined);
+    setClienteQuery('');
+  };
+
+  /* Autocompleta el nombre/razón social por DNI o RUC apenas el número alcanza su longitud
+     válida — sin botón, con su propio loading para que quede claro que está consultando.
+     1) Primero busca en el CRM local (instantáneo, ya cargado en memoria, sin costo de API).
+     2) Solo si no hay match local, cae a la API externa (RENIEC/SUNAT vía json.pe) — misma que
+        usa Configuración → Datos del negocio. Se cancela si el número sigue cambiando antes de
+        que la consulta anterior responda. */
   useEffect(() => {
     const digits = onlyDigits(docNumber);
     const isRuc = docType === 'Factura';
     const longitudValida = isRuc ? digits.length === 11 : digits.length === 8;
     if (docType === 'Nota de venta' || !longitudValida) return;
+
+    const local = clientes.find(c => onlyDigits(c.numeroDocumento ?? '') === digits);
+    if (local) {
+      setClienteId(local.id);
+      setClienteQuery(local.nombre);
+      setDocName(local.nombre);
+      return;
+    }
+    setClienteId(undefined);
 
     let cancelado = false;
     setConsultandoDoc(true);
@@ -91,7 +142,7 @@ export default function ChargePanel({
 
     return () => { cancelado = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [docNumber, docType]);
+  }, [docNumber, docType, clientes]);
 
   /* ── Pago ── */
   const [method, setMethod] = useState<PaymentMethod>('Efectivo');
@@ -186,6 +237,7 @@ export default function ChargePanel({
         cashier,
         customer: customerDoc?.name ?? selected.customer,
         customerDoc,
+        clienteId,
         received: method === 'Efectivo' && receivedNum != null ? receivedNum : undefined,
         amount: amountDue,
         itemsCount: itemsCountForCharge,
@@ -219,6 +271,7 @@ export default function ChargePanel({
       setReceived('');
       setDocNumber('');
       setDocName('');
+      clearCliente();
     } finally {
       setStage('idle');
     }
@@ -372,6 +425,47 @@ export default function ChargePanel({
         )}
       </div>
 
+      {/* Cliente (CRM) */}
+      <div className="border-t border-slate-200 pt-3 space-y-2">
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Cliente</p>
+        <div className="relative">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            <input
+              value={clienteQuery}
+              onChange={e => { setClienteQuery(e.target.value); setClienteId(undefined); setShowClienteResults(true); }}
+              onFocus={() => setShowClienteResults(true)}
+              onBlur={() => setTimeout(() => setShowClienteResults(false), 150)}
+              placeholder="Buscar cliente por nombre o documento..."
+              className="input w-full pl-8 pr-16 py-2 text-xs"
+            />
+            {clienteId && (
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                CRM ✓
+              </span>
+            )}
+          </div>
+          {showClienteResults && clienteMatches.length > 0 && (
+            <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+              {clienteMatches.map(c => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onMouseDown={() => selectCliente(c)}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 flex justify-between items-center gap-2"
+                >
+                  <span className="font-semibold text-slate-700 truncate">{c.nombre}</span>
+                  <span className="text-slate-400 font-mono text-[10px] shrink-0">{c.numeroDocumento ?? '—'}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <p className="text-[10px] text-slate-400">
+          Opcional — vincula la venta al cliente para su historial y nivel en Clientes. Si escribes su DNI/RUC abajo y ya está en el CRM, se detecta solo.
+        </p>
+      </div>
+
       {/* Comprobante */}
       <div className="border-t border-slate-200 pt-3 space-y-2">
         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Comprobante</p>
@@ -383,7 +477,7 @@ export default function ChargePanel({
           ]).map(d => (
             <button
               key={d.id}
-              onClick={() => { setDocType(d.id); setDocNumber(''); setDocName(''); }}
+              onClick={() => { setDocType(d.id); setDocNumber(''); setDocName(''); clearCliente(); }}
               className={`py-2 text-[10px] font-bold rounded-lg border transition-all flex flex-col items-center gap-1 ${
                 docType === d.id ? 'bg-brand/10 border-brand text-brand' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
               }`}
@@ -402,7 +496,7 @@ export default function ChargePanel({
                 onChange={e => {
                   const digits = onlyDigits(e.target.value).slice(0, 8);
                   setDocNumber(digits);
-                  if (digits === '') setDocName('');
+                  if (digits === '') { setDocName(''); clearCliente(); }
                 }}
                 inputMode="numeric"
                 placeholder="DNI (opcional)"
@@ -432,7 +526,7 @@ export default function ChargePanel({
                 onChange={e => {
                   const digits = onlyDigits(e.target.value).slice(0, 11);
                   setDocNumber(digits);
-                  if (digits === '') setDocName('');
+                  if (digits === '') { setDocName(''); clearCliente(); }
                 }}
                 inputMode="numeric"
                 placeholder="RUC (11 dígitos) *"

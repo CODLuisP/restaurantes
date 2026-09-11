@@ -38,6 +38,7 @@ export async function apiFetch<T>(path: string, { token, headers, body, ...init 
       ? Object.values(data.errors as Record<string, unknown>).flatMap(value => Array.isArray(value) ? value : [value]).join(' ')
       : '';
     const message = (data && typeof data.message === 'string' && data.message)
+      || (data && typeof data.mensaje === 'string' && data.mensaje)
       || (data && typeof data.detail === 'string' && data.detail)
       || (data && typeof data.title === 'string' && data.title)
       || validationErrors

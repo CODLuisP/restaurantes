@@ -50,6 +50,8 @@ export interface VentaItemInputDto {
 
 export interface CreateVentaDto {
   sesionMesaId: number;
+  /** Cliente del CRM vinculado a esta venta (opcional — walk-ins sin cliente registrado quedan sin enlazar). */
+  clienteId?: number | null;
   cajeroId: number;
   turnoId: number;
   items: VentaItemInputDto[];

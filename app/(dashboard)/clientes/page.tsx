@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { Search, Download, Plus, Users, Eye, Pencil, Trash2, Check, MapPin } from 'lucide-react';
+import ExcelJS from 'exceljs';
+import { Search, Download, Plus, Users, Eye, Pencil, Trash2, Check, MapPin, Loader2 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { getSegment, SEGMENT_COLORS, SEGMENTS } from '@/components/clientes/segment';
 import { useClientes } from '@/hooks/clientes/useClientes';
@@ -17,19 +18,117 @@ const NIVEL_SEGMENT: Record<NivelCliente, Segment> = {
   NUEVO: 'Nuevo', OCASIONAL: 'Ocasional', FRECUENTE: 'Frecuente', FIEL: 'Fiel', VIP: 'VIP',
 };
 
-function exportToCsv(clientes: Cliente[]) {
-  const header = ['Nombre', 'Documento', 'Teléfono', 'Email', 'Nivel', 'Total gastado', 'Último pedido'];
-  const rows = clientes.map(c => [
-    c.nombre, c.numeroDocumento ?? '', c.telefono ?? '', c.email ?? '',
-    c.nivel, c.totalGastado.toFixed(2),
-    c.ultimoPedido ? new Date(c.ultimoPedido).toLocaleDateString('es-PE') : '',
-  ]);
-  const csv = [header, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+/** Colores de relleno por nivel (aprox. a SEGMENT_COLORS de Tailwind) para las celdas del Excel. */
+const NIVEL_EXCEL_COLORS: Record<NivelCliente, { bg: string; text: string }> = {
+  NUEVO:     { bg: 'FFF1F5F9', text: 'FF475569' },
+  OCASIONAL: { bg: 'FFEFF6FF', text: 'FF2563EB' },
+  FRECUENTE: { bg: 'FFFFF7ED', text: 'FFEA580C' },
+  FIEL:      { bg: 'FFF5F3FF', text: 'FF7C3AED' },
+  VIP:       { bg: 'FFFFF1F2', text: 'FFE11D48' },
+};
+
+const NIVEL_LABEL: Record<NivelCliente, string> = {
+  NUEVO: 'Nuevo', OCASIONAL: 'Ocasional', FRECUENTE: 'Frecuente', FIEL: 'Fiel', VIP: 'VIP',
+};
+
+const BRAND_COLOR = 'FF007542';
+
+async function exportClientesExcel(clientes: Cliente[], usuario: string, filtroSegmento: Segment | 'Todos') {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'RestoPro';
+  workbook.created = new Date();
+
+  const sheet = workbook.addWorksheet('Clientes', { views: [{ state: 'frozen', ySplit: 4 }] });
+
+  const columnas = ['N°', 'Cliente', 'Documento', 'Teléfono', 'Correo', 'Dirección', 'Nivel', 'Total gastado', 'Último pedido'];
+  sheet.columns = [
+    { key: 'n', width: 6 },
+    { key: 'nombre', width: 30 },
+    { key: 'documento', width: 16 },
+    { key: 'telefono', width: 16 },
+    { key: 'email', width: 28 },
+    { key: 'direccion', width: 32 },
+    { key: 'nivel', width: 14 },
+    { key: 'total', width: 16 },
+    { key: 'ultimoPedido', width: 16 },
+  ];
+
+  // ── Encabezado (título + metadata) ──
+  const ahora = new Date();
+  sheet.mergeCells(1, 1, 1, columnas.length);
+  const tituloCell = sheet.getCell(1, 1);
+  tituloCell.value = 'REPORTE DE CLIENTES — RESTOPRO';
+  tituloCell.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+  tituloCell.alignment = { vertical: 'middle', horizontal: 'left' };
+  tituloCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND_COLOR } };
+  sheet.getRow(1).height = 28;
+
+  sheet.mergeCells(2, 1, 2, columnas.length);
+  const subtituloCell = sheet.getCell(2, 1);
+  const filtroTxt = filtroSegmento === 'Todos' ? 'Todos los niveles' : `Nivel: ${filtroSegmento}`;
+  subtituloCell.value =
+    `Generado el ${ahora.toLocaleDateString('es-PE')} ${ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}` +
+    `  ·  Por: ${usuario}  ·  ${filtroTxt}  ·  Total: ${clientes.length} cliente${clientes.length === 1 ? '' : 's'}`;
+  subtituloCell.font = { italic: true, size: 10, color: { argb: 'FF64748B' } };
+  subtituloCell.alignment = { vertical: 'middle', horizontal: 'left' };
+
+  // ── Fila 3 en blanco como respiro visual ──
+
+  // ── Encabezado de la tabla ──
+  const headerRow = sheet.getRow(4);
+  headerRow.values = columnas;
+  headerRow.eachCell(cell => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E8C45' } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    cell.border = { bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } } };
+  });
+  headerRow.height = 20;
+
+  // ── Filas de datos, numeradas ──
+  clientes.forEach((c, idx) => {
+    const primeraDir = c.direcciones?.[0];
+    const direccion = primeraDir
+      ? (primeraDir.direccion || [primeraDir.distrito, primeraDir.provincia].filter(Boolean).join(', ') || '')
+      : '';
+
+    const row = sheet.addRow({
+      n: idx + 1,
+      nombre: c.nombre,
+      documento: c.numeroDocumento ? `${c.tipoDocumento ?? ''} ${c.numeroDocumento}`.trim() : '',
+      telefono: c.telefono ?? '',
+      email: c.email ?? '',
+      direccion,
+      nivel: NIVEL_LABEL[c.nivel],
+      total: c.totalGastado,
+      ultimoPedido: c.ultimoPedido ? new Date(c.ultimoPedido).toLocaleDateString('es-PE') : '',
+    });
+
+    row.getCell('n').alignment = { horizontal: 'center' };
+    row.getCell('total').numFmt = '"S/." #,##0.00';
+    row.getCell('ultimoPedido').alignment = { horizontal: 'center' };
+
+    const colores = NIVEL_EXCEL_COLORS[c.nivel];
+    const nivelCell = row.getCell('nivel');
+    nivelCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colores.bg } };
+    nivelCell.font = { bold: true, color: { argb: colores.text } };
+    nivelCell.alignment = { horizontal: 'center' };
+
+    if (idx % 2 === 1) {
+      ['n', 'nombre', 'documento', 'telefono', 'email', 'direccion', 'total', 'ultimoPedido'].forEach(key => {
+        row.getCell(key).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+      });
+    }
+  });
+
+  sheet.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: columnas.length } };
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `clientes-${new Date().toISOString().split('T')[0]}.csv`;
+  link.download = `clientes-${new Date().toISOString().split('T')[0]}.xlsx`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -45,6 +144,7 @@ export default function ClientesPage() {
   const [editandoCliente, setEditandoCliente] = useState<Cliente | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const token = session?.accessToken;
 
@@ -86,6 +186,19 @@ export default function ClientesPage() {
     if (selectedCliente?.id === cliente.id) setSelectedCliente(cliente);
   };
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const usuario = session?.user?.name ?? session?.user?.username ?? 'Usuario';
+      await exportClientesExcel(filtered, usuario, filterSegment);
+      triggerToast('Reporte de clientes descargado como archivo Excel.', 'success');
+    } catch {
+      triggerToast('No se pudo generar el archivo Excel.', 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-5 animate-section">
       {/* ── Toolbar ── */}
@@ -124,8 +237,8 @@ export default function ClientesPage() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <button onClick={() => exportToCsv(filtered)} className="btn-secondary">
-            <Download className="h-3.5 w-3.5" /> Excel
+          <button onClick={handleExport} disabled={exporting} className="btn-secondary disabled:opacity-60">
+            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Excel
           </button>
           <button onClick={() => setShowNewModal(true)} className="btn-primary">
             <Plus className="h-3.5 w-3.5" /> Nuevo cliente

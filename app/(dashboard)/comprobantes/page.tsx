@@ -83,6 +83,8 @@ export default function ComprobantesPage() {
   });
 
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  /** ventaId con una emisión/reenvío en curso, para deshabilitar el botón y evitar doble clic. */
+  const [procesandoId, setProcesandoId] = useState<string | null>(null);
   const [notaModalData, setNotaModalData] = useState<{ open: boolean; comp: Comprobante | null; tipoNota: 'credito' | 'debito' }>({
     open: false, comp: null, tipoNota: 'credito',
   });
@@ -132,7 +134,8 @@ export default function ComprobantesPage() {
   };
 
   const handleReenviarSunat = async (id: string, num: string) => {
-    if (!token) return;
+    if (!token || procesandoId) return;
+    setProcesandoId(id);
     triggerToast(`Reenviando comprobante ${num} a SUNAT...`, 'info');
     try {
       const result = await reenviarSunat(token, parseInt(id));
@@ -144,11 +147,14 @@ export default function ComprobantesPage() {
       }
     } catch {
       triggerToast(`Error de conexión al reenviar a SUNAT.`, 'error');
+    } finally {
+      setProcesandoId(null);
     }
   };
 
   const handleEmitir = async (id: string, num: string) => {
-    if (!token) return;
+    if (!token || procesandoId) return;
+    setProcesandoId(id);
     triggerToast(`Emitiendo comprobante ${num}...`, 'info');
     try {
       const result = await emitirComprobante(token, parseInt(id));
@@ -160,6 +166,8 @@ export default function ComprobantesPage() {
       refetch();
     } catch (err) {
       triggerToast(err instanceof Error ? err.message : 'Error de conexión al emitir el comprobante.', 'error');
+    } finally {
+      setProcesandoId(null);
     }
   };
 
@@ -274,6 +282,7 @@ export default function ComprobantesPage() {
           setComprobanteSizes={setComprobanteSizes}
           activeMenuId={activeMenuId}
           setActiveMenuId={setActiveMenuId}
+          procesandoId={procesandoId}
           currentPage={currentPage}
           totalPages={totalPages}
           itemsPerPage={ITEMS_PER_PAGE}

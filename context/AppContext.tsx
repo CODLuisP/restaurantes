@@ -353,6 +353,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const venta = await crearVenta(token, {
           sesionMesaId: table.sesionMesaId,
+          clienteId: input.clienteId ?? null,
           cajeroId,
           turnoId: caja.cashSession.turnoId,
           items: input.chargeItems.map(i => ({ pedidoItemId: i.pedidoItemId, cantidad: i.cantidad })),
@@ -548,6 +549,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const venta = await crearVenta(token, {
           sesionMesaId: order.sesionMesaId,
+          clienteId: input.clienteId ?? null,
           cajeroId,
           turnoId: caja.cashSession.turnoId,
           items: input.chargeItems.map(i => ({ pedidoItemId: i.pedidoItemId, cantidad: i.cantidad })),

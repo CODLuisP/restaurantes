@@ -13,6 +13,8 @@ interface ComprobantesTableProps {
   setComprobanteSizes: React.Dispatch<React.SetStateAction<Record<string, FormatoImpresion>>>;
   activeMenuId: string | null;
   setActiveMenuId: (id: string | null) => void;
+  /** ventaId con una emisión/reenvío en curso; deshabilita esas acciones para esa fila. */
+  procesandoId: string | null;
   currentPage: number;
   totalPages: number;
   itemsPerPage: number;
@@ -33,7 +35,7 @@ interface ComprobantesTableProps {
 /** Tabla de comprobantes emitidos con acciones por fila y paginación. */
 export default function ComprobantesTable({
   paginatedComprobantes, filteredCount, comprobanteSizes, setComprobanteSizes,
-  activeMenuId, setActiveMenuId, currentPage, totalPages, itemsPerPage, setCurrentPage,
+  activeMenuId, setActiveMenuId, procesandoId, currentPage, totalPages, itemsPerPage, setCurrentPage,
   setSelectedComprobante, setEmailModalData, setWhatsappModalData,
   onDownload, onBaja, onReenviarSunat, onEmitir, onGenerarNota, onDuplicar, onEliminar, triggerToast,
 }: ComprobantesTableProps) {
@@ -277,9 +279,10 @@ export default function ComprobantesTable({
                                   onEmitir(comp.id, comp.numero);
                                   setActiveMenuId(null);
                                 }}
-                                className="w-full px-3 py-2 text-[11px] text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 border-b border-slate-100"
+                                disabled={procesandoId === comp.id}
+                                className="w-full px-3 py-2 text-[11px] text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 border-b border-slate-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                               >
-                                <Send className="h-3.5 w-3.5" /> Reintentar emisión
+                                <Send className="h-3.5 w-3.5" /> {procesandoId === comp.id ? 'Emitiendo...' : 'Reintentar emisión'}
                               </button>
                             )}
 
@@ -289,9 +292,10 @@ export default function ComprobantesTable({
                                   onReenviarSunat(comp.id, comp.numero);
                                   setActiveMenuId(null);
                                 }}
-                                className="w-full px-3 py-2 text-[11px] text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 border-b border-slate-100"
+                                disabled={procesandoId === comp.id}
+                                className="w-full px-3 py-2 text-[11px] text-emerald-700 hover:bg-emerald-50 flex items-center gap-2 border-b border-slate-100 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                               >
-                                <RefreshCw className="h-3.5 w-3.5" /> Enviar a SUNAT
+                                <RefreshCw className="h-3.5 w-3.5" /> {procesandoId === comp.id ? 'Enviando...' : 'Enviar a SUNAT'}
                               </button>
                             )}
 
