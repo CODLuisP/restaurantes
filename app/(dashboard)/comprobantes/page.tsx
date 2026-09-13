@@ -32,7 +32,7 @@ import {
 const ITEMS_PER_PAGE = 10;
 
 export default function ComprobantesPage() {
-  const { triggerToast } = useApp();
+  const { triggerToast, searchQuery } = useApp();
   const { isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
   const {
@@ -45,7 +45,7 @@ export default function ComprobantesPage() {
     loading,
     error,
     refetch,
-    search, setSearch,
+    setSearch,
     filterTipo, setFilterTipo,
     filterEstado, setFilterEstado,
     fechaDesde, setFechaDesde,
@@ -103,6 +103,11 @@ export default function ComprobantesPage() {
     if (!token) return;
     getMiEmpresa(token).then(setEmpresa).catch(() => setEmpresa(null));
   }, [token]);
+
+  // El buscador global del topbar también filtra esta vista (cliente, serie o correlativo).
+  useEffect(() => {
+    setSearch(searchQuery);
+  }, [searchQuery, setSearch]);
 
   // ── Handlers ──────────────────────────────────────────────────────────
 
@@ -233,8 +238,39 @@ export default function ComprobantesPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sId} onChange={selectSucursal} />
+
+          <select
+            value={filterTipo || 'Todos'}
+            onChange={e => setFilterTipo(e.target.value === 'Todos' ? '' : e.target.value)}
+            className="input px-3 py-1.5 text-xs"
+          >
+            <option value="Todos">Todos los tipos</option>
+            <option value="Factura">Facturas</option>
+            <option value="Boleta">Boletas</option>
+          </select>
+
+          <select
+            value={filterEstado || 'Todos'}
+            onChange={e => setFilterEstado(e.target.value === 'Todos' ? '' : e.target.value)}
+            className="input px-3 py-1.5 text-xs"
+          >
+            <option value="Todos">SUNAT: Todos</option>
+            <option value="Aceptado">Aceptado</option>
+            <option value="Pendiente">Pendiente</option>
+            <option value="Rechazado">Rechazado</option>
+            <option value="De Baja">De Baja</option>
+          </select>
+
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className={`btn-secondary text-[11px] py-1.5 px-3 ${showAdvanced ? 'bg-slate-200 border-slate-400' : ''}`}
+          >
+            Filtros avanzados
+          </button>
+
           <button
             type="button"
             onClick={() => setShowUploadModal(true)}
@@ -247,7 +283,7 @@ export default function ComprobantesPage() {
             onClick={() => setShowNewModal(true)}
             className="btn-primary transition-all hover:scale-[1.02]"
           >
-            <Plus className="h-4 w-4" /> + Nuevo Comprobante
+            <Plus className="h-4 w-4" /> Nuevo
           </button>
         </div>
       </div>
@@ -259,10 +295,7 @@ export default function ComprobantesPage() {
       ) : (
       <>
       <ComprobantesFilters
-        search={search} setSearch={setSearch}
-        filterTipo={filterTipo as any} setFilterTipo={(v) => setFilterTipo(v === 'Todos' ? '' : v)}
-        filterEstado={filterEstado as any} setFilterEstado={(v) => setFilterEstado(v === 'Todos' ? '' : v)}
-        showAdvanced={showAdvanced} setShowAdvanced={setShowAdvanced}
+        showAdvanced={showAdvanced}
         fechaDesde={fechaDesde} setFechaDesde={setFechaDesde}
         fechaHasta={fechaHasta} setFechaHasta={setFechaHasta}
         montoMin={montoMin} setMontoMin={setMontoMin}
