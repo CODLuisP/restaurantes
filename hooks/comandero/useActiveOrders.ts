@@ -74,6 +74,7 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
   const { data: authSession } = useSession();
   const token = authSession?.accessToken;
   const mozoId = authSession?.user?.id ? Number(authSession.user.id) : undefined;
+  const isSuperAdmin = authSession?.user?.role === 'superadmin';
   const sucursalId = authSession?.user?.sucursalId ?? undefined;
 
   const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([]);
@@ -83,6 +84,8 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
    *  spinner de carga completa — evita el "parpadeo" de refresco en cada evento en tiempo real. */
   const loadActiveOrders = useCallback(async (opts?: { silent?: boolean }) => {
     if (!token) { setActiveOrdersLoading(false); return; }
+    // Superadmin no tiene sucursal fija y no opera Comandero/Despachar — nada que cargar aquí.
+    if (isSuperAdmin && !sucursalId) { setActiveOrders([]); setActiveOrdersLoading(false); return; }
     if (!opts?.silent) setActiveOrdersLoading(true);
     try {
       const [llevar, delivery] = await Promise.all([
@@ -102,7 +105,7 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
     } finally {
       if (!opts?.silent) setActiveOrdersLoading(false);
     }
-  }, [token, sucursalId, triggerToast]);
+  }, [token, isSuperAdmin, sucursalId, triggerToast]);
 
   useEffect(() => { loadActiveOrders(); }, [loadActiveOrders]);
 

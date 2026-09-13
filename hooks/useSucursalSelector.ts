@@ -7,6 +7,8 @@ import { getSucursales } from '@/lib/api/sucursales';
 export interface SucursalOption {
   id: number;
   nombre: string;
+  codEstablecimiento?: string | null;
+  sincronizadoFacturacion?: boolean;
 }
 
 /**
@@ -27,7 +29,10 @@ export function useSucursalSelector() {
     if (!token) return;
     getSucursales(token).then(lista => {
       const activas = lista.filter(s => s.activo);
-      setSucursales(activas.map(s => ({ id: s.id, nombre: s.nombre })));
+      setSucursales(activas.map(s => ({
+        id: s.id, nombre: s.nombre, codEstablecimiento: s.codEstablecimiento,
+        sincronizadoFacturacion: s.sincronizadoFacturacion,
+      })));
       const id = session?.user?.sucursalId ?? activas[0]?.id;
       if (id) setSId(id);
     }).catch(() => {});

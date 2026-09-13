@@ -9,7 +9,7 @@ import { Toggle, Modal, Button, Input, Spinner } from "@/components/ui";
 import { useCarta } from "@/context/CartaContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { useApp } from "@/context/AppContext";
-import { useSucursalSelector } from "@/hooks/useSucursalSelector";
+import type { SucursalOption } from "@/hooks/useSucursalSelector";
 import { useProductos } from "@/hooks/productos/useProductos";
 import { useCategorias } from "@/hooks/categorias/useCategorias";
 import type { ProfileTab } from "@/components/menu/ProfileHeader";
@@ -23,14 +23,21 @@ import { CATEGORY_ICON_BG, FEATURED_STORAGE_KEY } from "./productos/types";
 interface ProductosTabProps {
   onGoToImportar?: () => void;
   onGoToBanners?: () => void;
+  /** El selector de sucursal (superadmin) se renderiza en CartaPage, al final de la fila de tabs. */
+  isSuperAdmin: boolean;
+  sucursales: SucursalOption[];
+  resolvedSucursalId: number | null;
+  selectSucursal: (id: number) => void;
 }
 
 export default function ProductosTab({
   onGoToImportar,
   onGoToBanners,
+  isSuperAdmin,
+  sucursales,
+  resolvedSucursalId,
+  selectSucursal,
 }: ProductosTabProps) {
-  const { token, isSuperAdmin, sucursales, sId: resolvedSucursalId, selectSucursal } = useSucursalSelector();
-
   const {
     productos,
     loading: loadingProductos,
@@ -303,9 +310,6 @@ export default function ProductosTab({
 
       <MenuHeaderSection
         sucursalId={resolvedSucursalId}
-        isSuperAdmin={isSuperAdmin}
-        sucursales={sucursales}
-        onSucursalChange={selectSucursal}
         onGoToBanners={onGoToBanners}
         catTabs={catTabs}
         activeTab={effectiveCat}

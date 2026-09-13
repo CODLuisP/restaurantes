@@ -57,7 +57,7 @@ const FORM_VACIO: FormState = { nombre: '', username: '', email: '', rolId: '', 
 export default function UsuariosPage() {
   const { data: session } = useSession();
   const { currentUser } = useAuth();
-  const { triggerToast } = useApp();
+  const { triggerToast, searchQuery } = useApp();
   const token = session?.accessToken;
   const esSuperAdmin = session?.user.role === 'superadmin';
 
@@ -70,6 +70,9 @@ export default function UsuariosPage() {
   const [modal, setModal]     = useState(false);
   const [editando, setEditando] = useState<Usuario | null>(null);
   const [form, setForm]       = useState<FormState>(FORM_VACIO);
+
+  const [filtroSucursalId, setFiltroSucursalId] = useState('');
+  const [filtroRolId, setFiltroRolId] = useState('');
 
   const cargarDatos = useCallback(async () => {
     if (!token) return;
@@ -195,7 +198,14 @@ export default function UsuariosPage() {
 
   // "superadmin" solo es visible (en la lista y en el selector de rol) para quien tiene ese rol.
   const rolesVisibles = roles.filter(r => esSuperAdmin || r.nombre.toLowerCase() !== 'superadmin');
-  const usuariosVisibles = usuarios.filter(u => esSuperAdmin || u.rolNombre.toLowerCase() !== 'superadmin');
+  const query = searchQuery.trim().toLowerCase();
+  const usuariosVisibles = usuarios.filter(u => {
+    if (!esSuperAdmin && u.rolNombre.toLowerCase() === 'superadmin') return false;
+    if (filtroSucursalId && String(u.sucursalId ?? '') !== filtroSucursalId) return false;
+    if (filtroRolId && String(u.rolId) !== filtroRolId) return false;
+    if (query && !u.nombre.toLowerCase().includes(query) && !u.username.toLowerCase().includes(query)) return false;
+    return true;
+  });
 
   return (
     <div className="space-y-6 animate-section">
@@ -209,9 +219,25 @@ export default function UsuariosPage() {
             {usuariosVisibles.length} colaborador{usuariosVisibles.length === 1 ? '' : 'es'} registrado{usuariosVisibles.length === 1 ? '' : 's'}.
           </p>
         </div>
-        <Button variant="primary" icon={<UserPlus className="h-4 w-4" />} onClick={abrirCrear} disabled={loading}>
-          Agregar Personal
-        </Button>
+        <div className="flex items-center gap-2">
+          {esSuperAdmin && (
+            <div className="w-44 shrink-0">
+              <Select value={filtroSucursalId} onChange={e => setFiltroSucursalId(e.target.value)}>
+                <option value="">Todas las sucursales</option>
+                {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+              </Select>
+            </div>
+          )}
+          <div className="w-40 shrink-0">
+            <Select value={filtroRolId} onChange={e => setFiltroRolId(e.target.value)}>
+              <option value="">Todos los roles</option>
+              {rolesVisibles.map(r => <option key={r.id} value={r.id}>{labelRol(r.nombre)}</option>)}
+            </Select>
+          </div>
+          <Button variant="primary" icon={<UserPlus className="h-4 w-4" />} onClick={abrirCrear} disabled={loading}>
+            Agregar Personal
+          </Button>
+        </div>
       </div>
 
       {/* Tabla */}

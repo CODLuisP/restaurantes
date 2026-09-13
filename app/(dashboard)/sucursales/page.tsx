@@ -2,13 +2,24 @@
 
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { Store, Plus, Pencil, MapPin, Phone, Loader2 } from 'lucide-react';
-import { Modal, Input, Toggle, Button } from '@/components/ui';
+import { Store, Plus, Pencil, MapPin, Phone, Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Modal, Input, Toggle, Button, Alert } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import {
-  getSucursales, createSucursal, updateSucursal,
-  type Sucursal,
+  getSucursales, createSucursal, updateSucursal, sincronizarSucursalFacturacion, calcularSeriesPorDefecto,
+  type Sucursal, type SeriesFacturacionOverride,
 } from '@/lib/api/sucursales';
+
+const SERIE_FIELDS: { serie: keyof SeriesFacturacionOverride; correlativo: keyof SeriesFacturacionOverride; label: string }[] = [
+  { serie: 'serieFactura', correlativo: 'correlativoFactura', label: 'Factura' },
+  { serie: 'serieBoleta', correlativo: 'correlativoBoleta', label: 'Boleta' },
+  { serie: 'serieNotaCreditoFactura', correlativo: 'correlativoNotaCreditoFactura', label: 'Nota Créd. Fact.' },
+  { serie: 'serieNotaCreditoBoleta', correlativo: 'correlativoNotaCreditoBoleta', label: 'Nota Créd. Bol.' },
+  { serie: 'serieNotaDebitoFactura', correlativo: 'correlativoNotaDebitoFactura', label: 'Nota Déb. Fact.' },
+  { serie: 'serieNotaDebitoBoleta', correlativo: 'correlativoNotaDebitoBoleta', label: 'Nota Déb. Bol.' },
+];
+
+type SyncFormState = Record<string, string>;
 
 interface FormState {
   nombre: string;
@@ -35,6 +46,9 @@ export default function SucursalesPage() {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<number | null>(null);
+  const [sincronizandoId, setSincronizandoId] = useState<number | null>(null);
+  const [syncTarget, setSyncTarget] = useState<Sucursal | null>(null);
+  const [syncForm, setSyncForm] = useState<SyncFormState>({});
 
   const load = () => {
     if (!token) return;
@@ -86,6 +100,44 @@ export default function SucursalesPage() {
       triggerToast('No se pudo guardar la sucursal.', 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openSincronizar = (s: Sucursal) => {
+    const defaults = calcularSeriesPorDefecto(s.codEstablecimiento ?? '0000');
+    const form: SyncFormState = {};
+    for (const f of SERIE_FIELDS) {
+      form[f.serie] = defaults[f.serie as keyof typeof defaults];
+      form[f.correlativo] = '1';
+    }
+    setSyncForm(form);
+    setSyncTarget(s);
+  };
+
+  const closeSincronizar = () => setSyncTarget(null);
+
+  const handleSincronizar = async () => {
+    if (!token || !syncTarget) return;
+    setSincronizandoId(syncTarget.id);
+    try {
+      const series: SeriesFacturacionOverride = {};
+      for (const f of SERIE_FIELDS) {
+        (series as Record<string, unknown>)[f.serie] = syncForm[f.serie];
+        const correlativoNum = Number(syncForm[f.correlativo]);
+        (series as Record<string, unknown>)[f.correlativo] = Number.isFinite(correlativoNum) ? correlativoNum : undefined;
+      }
+      const actualizada = await sincronizarSucursalFacturacion(token, syncTarget.id, series);
+      setSucursales(prev => prev.map(x => (x.id === syncTarget.id ? actualizada : x)));
+      if (actualizada.sincronizadoFacturacion) {
+        triggerToast('Sucursal sincronizada con facturación.', 'success');
+        closeSincronizar();
+      } else {
+        triggerToast('No se pudo sincronizar todavía. Verifica la API de facturación e intenta de nuevo.', 'warning');
+      }
+    } catch {
+      triggerToast('No se pudo sincronizar la sucursal con facturación.', 'error');
+    } finally {
+      setSincronizandoId(null);
     }
   };
 
@@ -151,6 +203,11 @@ export default function SucursalesPage() {
                       <span className="text-[9px] font-mono font-semibold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">
                         #{s.codEstablecimiento ?? '0000'}
                       </span>
+                      {!s.sincronizadoFacturacion && (
+                        <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 flex items-center gap-1">
+                          <AlertTriangle className="h-2.5 w-2.5" /> No sincronizada
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -163,6 +220,19 @@ export default function SucursalesPage() {
                 <div className="flex items-center gap-1.5"><MapPin className="h-3 w-3 shrink-0" /> {s.direccion || 'Sin dirección'}</div>
                 <div className="flex items-center gap-1.5"><Phone className="h-3 w-3 shrink-0" /> {s.telefono || 'Sin teléfono'}</div>
               </div>
+
+              {!s.sincronizadoFacturacion && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => openSincronizar(s)}
+                  loading={sincronizandoId === s.id}
+                  icon={<RefreshCw className="h-3.5 w-3.5" />}
+                >
+                  Sincronizar con facturación
+                </Button>
+              )}
 
               <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                 <span className="text-xs font-medium text-slate-600">Sucursal activa</span>
@@ -197,6 +267,48 @@ export default function SucursalesPage() {
               <Toggle checked={form.activo} onChange={v => setForm(f => ({ ...f, activo: v }))} />
             </div>
           )}
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!syncTarget}
+        onClose={closeSincronizar}
+        title="Sincronizar con facturación"
+        subtitle={syncTarget ? `${syncTarget.nombre} · #${syncTarget.codEstablecimiento ?? '0000'}` : undefined}
+        size="lg"
+        fullHeight={false}
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeSincronizar} disabled={sincronizandoId === syncTarget?.id}>Cancelar</Button>
+            <Button onClick={handleSincronizar} loading={sincronizandoId === syncTarget?.id}>Sincronizar</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Alert variant="info">
+            Estas series se calcularon como sugerencia a partir del código de establecimiento. No todas las sucursales
+            deben usar la misma numeración — revísalas y ajústalas antes de sincronizar si hace falta.
+          </Alert>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {SERIE_FIELDS.map(f => (
+              <div key={f.serie} className="grid grid-cols-2 gap-2 items-end">
+                <Input
+                  label={`Serie ${f.label}`}
+                  value={syncForm[f.serie] ?? ''}
+                  maxLength={4}
+                  onChange={e => setSyncForm(prev => ({ ...prev, [f.serie]: e.target.value.toUpperCase() }))}
+                />
+                <Input
+                  label="Correlativo"
+                  type="number"
+                  min={1}
+                  value={syncForm[f.correlativo] ?? ''}
+                  onChange={e => setSyncForm(prev => ({ ...prev, [f.correlativo]: e.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
         </div>
       </Modal>
     </div>

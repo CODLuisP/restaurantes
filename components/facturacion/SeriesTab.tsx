@@ -23,7 +23,7 @@ const SERIE_FIELDS: { serie: keyof SeriesSucursal; correlativo: keyof SeriesSucu
 type FormState = Record<string, string>;
 
 function buildForm(s: SeriesSucursal): FormState {
-  const form: FormState = { nombre: s.nombre };
+  const form: FormState = { nombre: s.nombre, codEstablecimiento: s.codEstablecimiento };
   for (const f of SERIE_FIELDS) {
     form[f.serie] = String(s[f.serie] ?? '');
     form[f.correlativo] = String(s[f.correlativo] ?? '');
@@ -31,7 +31,13 @@ function buildForm(s: SeriesSucursal): FormState {
   return form;
 }
 
-export default function SeriesTab() {
+interface SeriesTabProps {
+  /** Código de establecimiento a mostrar en solitario (superadmin, con sucursal elegida en el selector).
+   *  null/undefined = mostrar todas las que devuelva el backend (admin ya recibe solo la suya). */
+  codEstablecimientoSeleccionado?: string | null;
+}
+
+export default function SeriesTab({ codEstablecimientoSeleccionado }: SeriesTabProps = {}) {
   const { data: session } = useSession();
   const token = session?.accessToken;
   const { triggerToast } = useApp();
@@ -67,7 +73,7 @@ export default function SeriesTab() {
     if (!token || !editing) return;
     setSaving(true);
     try {
-      const dto: EditarSucursalFacturacion = { nombre: form.nombre };
+      const dto: EditarSucursalFacturacion = { nombre: form.nombre, codEstablecimiento: form.codEstablecimiento };
       for (const f of SERIE_FIELDS) {
         (dto as Record<string, unknown>)[f.serie] = form[f.serie];
         const correlativoNum = Number(form[f.correlativo]);
@@ -97,11 +103,24 @@ export default function SeriesTab() {
     return <div className="py-10"><Alert variant="danger" title="No se pudo cargar">{error}</Alert></div>;
   }
 
+  const listaVisible = codEstablecimientoSeleccionado
+    ? lista.filter(s => s.codEstablecimiento === codEstablecimientoSeleccionado)
+    : lista;
+
   if (lista.length === 0) {
     return (
       <div className="py-16 flex flex-col items-center justify-center text-center gap-2">
         <ListOrdered className="h-8 w-8 text-slate-300" />
         <p className="text-xs font-semibold text-slate-600">No hay sucursales registradas en facturación.</p>
+      </div>
+    );
+  }
+
+  if (listaVisible.length === 0) {
+    return (
+      <div className="py-16 flex flex-col items-center justify-center text-center gap-2">
+        <ListOrdered className="h-8 w-8 text-slate-300" />
+        <p className="text-xs font-semibold text-slate-600">Esta sucursal aún no tiene series registradas en facturación.</p>
       </div>
     );
   }
@@ -113,7 +132,7 @@ export default function SeriesTab() {
       </p>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {lista.map(s => (
+        {listaVisible.map(s => (
           <div key={s.sucursalId} className="p-4 rounded-xl border border-slate-200 space-y-3">
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2.5 min-w-0">
@@ -164,11 +183,20 @@ export default function SeriesTab() {
         }
       >
         <div className="space-y-4">
-          <Input
-            label="Nombre de la sucursal"
-            value={form.nombre ?? ''}
-            onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Nombre de la sucursal"
+              value={form.nombre ?? ''}
+              onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
+            />
+            <Input
+              label="Código Establecimiento"
+              value={form.codEstablecimiento ?? ''}
+              maxLength={10}
+              onChange={e => setForm(f => ({ ...f, codEstablecimiento: e.target.value }))}
+              hint="Debe coincidir con el registrado en SUNAT para esta sucursal."
+            />
+          </div>
 
           <Alert variant="warning">
             Cambiar un correlativo manualmente puede causar rechazos de SUNAT si no coincide con el último comprobante emitido. Solo edítalo si sabes lo que haces.

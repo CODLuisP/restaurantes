@@ -17,6 +17,7 @@ const ESTADOS_ACTIVOS = ['pendiente', 'en_preparacion', 'listo'];
 export function useCocinaPedidos(triggerToast: (message: string, type?: Toast['type']) => void) {
   const { data: authSession } = useSession();
   const token = authSession?.accessToken;
+  const isSuperAdmin = authSession?.user?.role === 'superadmin';
   const sucursalId = authSession?.user?.sucursalId ?? undefined;
 
   const [pedidos, setPedidos] = useState<PedidoDto[]>([]);
@@ -24,6 +25,8 @@ export function useCocinaPedidos(triggerToast: (message: string, type?: Toast['t
 
   const load = useCallback(async () => {
     if (!token) { setLoading(false); return; }
+    // Superadmin no tiene sucursal fija y no opera Cocina/Comandero/Despachar — nada que cargar aquí.
+    if (isSuperAdmin && !sucursalId) { setPedidos([]); setLoading(false); return; }
     setLoading(true);
     try {
       setPedidos(await getCocina(token, sucursalId));
@@ -32,7 +35,7 @@ export function useCocinaPedidos(triggerToast: (message: string, type?: Toast['t
     } finally {
       setLoading(false);
     }
-  }, [token, sucursalId, triggerToast]);
+  }, [token, isSuperAdmin, sucursalId, triggerToast]);
 
   useEffect(() => { load(); }, [load]);
 

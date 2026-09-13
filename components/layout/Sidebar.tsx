@@ -23,11 +23,16 @@ import {
   Landmark,
   type LucideIcon,
 } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 import { useSidebar } from '@/context/SidebarContext';
 import { useAuth } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
 import { useCocinaPedidos } from '@/hooks/cocina/useCocinaPedidos';
 import type { Role } from '@/types';
+
+/* Pantallas operativas en tiempo real de una sola sucursal (mesas, pedidos en vivo, turno de
+   caja abierto) — no tiene sentido operacional que el superadmin las use de forma remota. */
+const HREFS_OCULTOS_SUPERADMIN = ['/comandero', '/cobrar', '/cocina', '/despachar'];
 
 type MenuItem = {
   href: string;
@@ -79,6 +84,8 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { isOpen, closeOpen, isCollapsed, toggleCollapsed } = useSidebar();
   const { currentUser } = useAuth();
+  const { data: session } = useSession();
+  const isSuperAdmin = session?.user?.role === 'superadmin';
   const { triggerToast, tables, activeOrders, impresoraCocina } = useApp();
   const { pedidos } = useCocinaPedidos(triggerToast);
   const isConfigRoute = pathname.startsWith('/configuracion');
@@ -98,6 +105,7 @@ export default function Sidebar() {
 
   const visibleItems = menuItems.filter(item => {
     if (item.href === '/cocina' && impresoraCocina) return false;
+    if (isSuperAdmin && HREFS_OCULTOS_SUPERADMIN.includes(item.href)) return false;
     return !item.roles || !currentUser || item.roles.includes(currentUser.role);
   });
 

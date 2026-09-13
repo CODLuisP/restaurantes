@@ -8,11 +8,11 @@ interface SucursalSelectorProps {
   onChange: (id: number) => void;
 }
 
-/** Selector de sucursal para superadmin, usado por las páginas de Configuración escopadas por sucursal. */
+/** Selector de sucursal compacto para superadmin, para insertar dentro de una fila de toolbar. */
 export function SucursalSelector({ visible, sucursales, sId, onChange }: SucursalSelectorProps) {
   if (!visible || sucursales.length === 0) return null;
   return (
-    <div className="flex justify-end">
+    <div className="w-44 shrink-0">
       <Select value={sId ?? ''} onChange={e => onChange(Number(e.target.value))}>
         {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
       </Select>

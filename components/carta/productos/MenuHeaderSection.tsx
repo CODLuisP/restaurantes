@@ -5,13 +5,12 @@ import { useSession } from "next-auth/react";
 import {
   ChevronLeft, ChevronRight, Image as ImageIcon, MapPin, Phone, Store,
 } from "lucide-react";
-import { Modal, Button, Input, SucursalSelector } from "@/components/ui";
+import { Modal, Button, Input } from "@/components/ui";
 import { useApp } from "@/context/AppContext";
 import { useBusiness } from "@/context/BusinessContext";
 import { ProfileHeader, type ProfileTab } from "@/components/menu/ProfileHeader";
 import { buildSocialLinks, SocialLinksRow } from "@/components/menu/SocialLinksRow";
 import { BusinessInfoSection } from "@/components/menu/BusinessInfoSection";
-import type { SucursalOption } from "@/hooks/useSucursalSelector";
 import { getSucursalById, updateSucursal } from "@/lib/api/sucursales";
 import { getConfiguracion, updateConfiguracion } from "@/lib/api/configuracion";
 import { getBanners } from "@/lib/api/banners";
@@ -22,9 +21,6 @@ import {
 
 interface MenuHeaderSectionProps {
   sucursalId: number | null;
-  isSuperAdmin: boolean;
-  sucursales: SucursalOption[];
-  onSucursalChange: (id: number) => void;
   onGoToBanners?: () => void;
   catTabs: ProfileTab[];
   activeTab: string;
@@ -33,7 +29,7 @@ interface MenuHeaderSectionProps {
 
 /** Cabecera del menú digital: banners/cover, datos del negocio, redes sociales y horarios. */
 export default function MenuHeaderSection({
-  sucursalId, isSuperAdmin, sucursales, onSucursalChange, onGoToBanners,
+  sucursalId, onGoToBanners,
   catTabs, activeTab, onTabChange,
 }: MenuHeaderSectionProps) {
   const { data: session } = useSession();
@@ -279,7 +275,6 @@ export default function MenuHeaderSection({
 
   return (
     <div className="mb-6">
-      <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sucursalId} onChange={onSucursalChange} />
       <ProfileHeader
         cover={cover}
         logo={sucursalLogo}

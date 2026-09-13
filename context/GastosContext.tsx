@@ -61,6 +61,10 @@ interface GastosContextType {
   removeCategoria: (id: string) => Promise<void>;
   addProveedor: (name: string) => Promise<void>;
   removeProveedor: (id: string) => Promise<void>;
+  /** Solo relevante para superadmin: sucursal elegida para filtrar (null = ninguna elegida aún). */
+  sucursalSeleccionadaId: number | null;
+  setSucursalSeleccionadaId: (id: number | null) => void;
+  isSuperAdmin: boolean;
 }
 
 const GastosContext = createContext<GastosContextType | null>(null);
@@ -68,7 +72,10 @@ const GastosContext = createContext<GastosContextType | null>(null);
 export function GastosProvider({ children }: { children: React.ReactNode }) {
   const { data: authSession } = useSession();
   const token = authSession?.accessToken;
-  const sucursalId = authSession?.user?.sucursalId ?? undefined;
+  const isSuperAdmin = authSession?.user?.role === 'superadmin';
+  const [sucursalSeleccionadaId, setSucursalSeleccionadaId] = useState<number | null>(null);
+  // El admin normal siempre usa su propia sucursal fija; el superadmin usa la que elija en el selector.
+  const sucursalId = isSuperAdmin ? (sucursalSeleccionadaId ?? undefined) : (authSession?.user?.sucursalId ?? undefined);
   const { triggerToast } = useApp();
 
   const [gastos, setGastos] = useState<Gasto[]>([]);
@@ -78,6 +85,9 @@ export function GastosProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!token) { setLoading(false); return; }
+    // Superadmin sin sucursal elegida todavía: no hay nada que pedir (evita el error
+    // "Debe indicar la sucursal" del backend en la carga inicial).
+    if (isSuperAdmin && sucursalSeleccionadaId === null) { setLoading(false); return; }
     let cancelled = false;
     setLoading(true);
     Promise.all([
@@ -203,6 +213,7 @@ export function GastosProvider({ children }: { children: React.ReactNode }) {
         addGasto, updateGasto, anularGasto,
         addCategoria, removeCategoria,
         addProveedor, removeProveedor,
+        sucursalSeleccionadaId, setSucursalSeleccionadaId, isSuperAdmin,
       }}
     >
       {children}

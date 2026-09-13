@@ -5,6 +5,8 @@ import { useRouter, usePathname } from 'next/navigation';
 import type { LucideIcon } from 'lucide-react';
 import { Package, Upload, Image, QrCode, Share2, Clock, CalendarClock } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { SucursalSelector } from '@/components/ui/SucursalSelector';
+import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import ProductosTab from '@/components/carta/ProductosTab';
 import ImportarTab from '@/components/carta/ImportarTab';
 import BannersTab from '@/components/carta/BannersTab';
@@ -33,6 +35,7 @@ export default function CartaPage() {
   const { currentUser } = useAuth();
   const readOnly = currentUser?.role === 'cocinero';
   const [tab, setTab] = useState<TabId>('carta');
+  const { isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
   /* Al cargar la página, respeta el tab de la URL (?tab=...) y si no hay ninguno, lo agrega */
   useEffect(() => {
@@ -78,12 +81,24 @@ export default function CartaPage() {
             </button>
           );
         })}
+        {tab === 'carta' && (
+          <div className="ml-auto pb-2">
+            <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sId} onChange={selectSucursal} />
+          </div>
+        )}
       </div>
 
       {/* Content */}
       <div className={`mt-4 ${readOnly ? 'pointer-events-none select-none' : ''}`} aria-disabled={readOnly}>
         {tab === 'carta' && (
-          <ProductosTab onGoToImportar={() => changeTab('importar')} onGoToBanners={() => changeTab('banners')} />
+          <ProductosTab
+            onGoToImportar={() => changeTab('importar')}
+            onGoToBanners={() => changeTab('banners')}
+            isSuperAdmin={isSuperAdmin}
+            sucursales={sucursales}
+            resolvedSucursalId={sId}
+            selectSucursal={selectSucursal}
+          />
         )}
         {tab === 'importar' && <ImportarTab />}
         {tab === 'banners' && <BannersTab />}

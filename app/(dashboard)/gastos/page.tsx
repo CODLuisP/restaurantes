@@ -7,6 +7,9 @@ import { Wallet, Tags, Truck } from 'lucide-react';
 import GastosTab from '@/components/gastos/GastosTab';
 import CategoriasTab from '@/components/gastos/CategoriasTab';
 import ProveedoresTab from '@/components/gastos/ProveedoresTab';
+import { useGastos } from '@/context/GastosContext';
+import { SucursalSelector } from '@/components/ui/SucursalSelector';
+import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 
 type TabId = 'gastos' | 'categorias' | 'proveedores';
 
@@ -22,6 +25,12 @@ export default function GastosPage() {
   const router = useRouter();
   const pathname = usePathname();
   const [tab, setTab] = useState<TabId>('gastos');
+  const { setSucursalSeleccionadaId } = useGastos();
+  const { isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
+
+  useEffect(() => {
+    setSucursalSeleccionadaId(sId);
+  }, [sId, setSucursalSeleccionadaId]);
 
   /* Al cargar la página, respeta el tab de la URL (?tab=...) y si no hay ninguno, lo agrega */
   useEffect(() => {
@@ -46,35 +55,45 @@ export default function GastosPage() {
           <p className="text-xs text-slate-500">Registra compras y cuentas por pagar, y descuéntalas de tu caja.</p>
         </div>
 
-        {/* Tabs */}
-        <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 shrink-0">
-          {TABS.map(t => {
-            const Icon = t.icon;
-            const isActive = tab === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => changeTab(t.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                  isActive
-                    ? 'bg-white text-brand shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {t.label}
-              </button>
-            );
-          })}
+        <div className="flex items-center gap-3 shrink-0">
+          <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sId} onChange={selectSucursal} />
+
+          {/* Tabs */}
+          <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 shrink-0">
+            {TABS.map(t => {
+              const Icon = t.icon;
+              const isActive = tab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => changeTab(t.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    isActive
+                      ? 'bg-white text-brand shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       {/* Content */}
       <div className="mt-2">
-        {tab === 'gastos' && <GastosTab />}
-        {tab === 'categorias' && <CategoriasTab />}
-        {tab === 'proveedores' && <ProveedoresTab />}
+        {isSuperAdmin && !sId ? (
+          <p className="text-xs text-slate-500 py-10 text-center">Elige una sucursal para ver sus gastos.</p>
+        ) : (
+          <>
+            {tab === 'gastos' && <GastosTab />}
+            {tab === 'categorias' && <CategoriasTab />}
+            {tab === 'proveedores' && <ProveedoresTab />}
+          </>
+        )}
       </div>
     </div>
   );

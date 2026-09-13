@@ -76,7 +76,7 @@ export interface KitchenOrder {
 
 /* ── Usuarios / Personal & Roles ───────────────────────────── */
 
-export type Role = 'admin' | 'cajero' | 'mozo' | 'cocinero' | 'repartidor';
+export type Role = 'admin' | 'cajero' | 'mozo' | 'cocinero' | 'repartidor' | 'superadmin';
 
 export interface User {
   id: string;

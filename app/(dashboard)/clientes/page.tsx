@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import ExcelJS from 'exceljs';
-import { Search, Download, Plus, Users, Eye, Pencil, Trash2, Check, MapPin, Loader2 } from 'lucide-react';
+import { Download, Plus, Users, Eye, Pencil, Trash2, Check, MapPin, Loader2 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { getSegment, SEGMENT_COLORS, SEGMENTS } from '@/components/clientes/segment';
 import { useClientes } from '@/hooks/clientes/useClientes';
@@ -135,10 +135,9 @@ async function exportClientesExcel(clientes: Cliente[], usuario: string, filtroS
 
 export default function ClientesPage() {
   const { data: session } = useSession();
-  const { triggerToast } = useApp();
-  const { clientes, setClientes, loading, fetchClientes } = useClientes();
+  const { triggerToast, searchQuery } = useApp();
+  const { clientes, setClientes, loading } = useClientes();
 
-  const [search, setSearch] = useState('');
   const [filterSegment, setFilterSegment] = useState<Segment | 'Todos'>('Todos');
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [editandoCliente, setEditandoCliente] = useState<Cliente | null>(null);
@@ -155,10 +154,11 @@ export default function ClientesPage() {
   }, [clientes]);
 
   const filtered = clientes.filter(c => {
-    const matchesSearch =
-      c.nombre.toLowerCase().includes(search.toLowerCase()) ||
-      (c.telefono ?? '').toLowerCase().includes(search.toLowerCase()) ||
-      (c.email ?? '').toLowerCase().includes(search.toLowerCase());
+    const query = searchQuery.trim().toLowerCase();
+    const matchesSearch = !query ||
+      c.nombre.toLowerCase().includes(query) ||
+      (c.telefono ?? '').toLowerCase().includes(query) ||
+      (c.email ?? '').toLowerCase().includes(query);
     const matchesSegment = filterSegment === 'Todos' || NIVEL_SEGMENT[c.nivel] === filterSegment;
     return matchesSearch && matchesSegment;
   });
@@ -213,19 +213,7 @@ export default function ClientesPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-1 min-w-65">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar por nombre, teléfono o email..."
-              className="input w-full pl-9 pr-3 py-2"
-            />
-          </div>
-          <button type="button" onClick={() => fetchClientes()} className="btn-secondary shrink-0">
-            Buscar
-          </button>
+        <div className="flex items-center gap-2 flex-1 min-w-65 justify-end">
           <select
             value={filterSegment}
             onChange={e => setFilterSegment(e.target.value as Segment | 'Todos')}

@@ -50,8 +50,8 @@ export default auth((req) => {
       return NextResponse.redirect(new URL(rutaPorDefecto, req.nextUrl.origin));
     }
 
-    // Dashboard ejecutivo (KPIs, ventas) es solo para admin.
-    if (pathname === '/dashboard' && role !== 'admin') {
+    // Dashboard ejecutivo (KPIs, ventas) es para admin y superadmin.
+    if (pathname === '/dashboard' && role !== 'admin' && role !== 'superadmin') {
       return NextResponse.redirect(new URL(rutaPorDefecto, req.nextUrl.origin));
     }
   }

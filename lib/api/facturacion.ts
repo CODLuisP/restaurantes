@@ -32,6 +32,7 @@ export function getSeriesFacturacion(token: string) {
 
 /** Campos editables de una sucursal en la API de facturación (series y correlativos). */
 export interface EditarSucursalFacturacion {
+  codEstablecimiento?: string;
   nombre?: string;
   direccion?: string;
   telefono?: string;

@@ -3,10 +3,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import type { LucideIcon } from 'lucide-react';
-import { Landmark, ShieldCheck, KeyRound, ListOrdered } from 'lucide-react';
+import { Landmark, ShieldCheck, KeyRound, ListOrdered, AlertTriangle } from 'lucide-react';
 import CertificadoTab from '@/components/facturacion/CertificadoTab';
 import CredencialesTab from '@/components/facturacion/CredencialesTab';
 import SeriesTab from '@/components/facturacion/SeriesTab';
+import { SucursalSelector } from '@/components/ui/SucursalSelector';
+import { Alert } from '@/components/ui';
+import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 
 type TabId = 'certificado' | 'credenciales' | 'series';
 
@@ -22,6 +25,7 @@ export default function FacturacionPage() {
   const router = useRouter();
   const pathname = usePathname();
   const [tab, setTab] = useState<TabId>('certificado');
+  const { isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
   useEffect(() => {
     const fromUrl = new URLSearchParams(window.location.search).get('tab');
@@ -35,6 +39,9 @@ export default function FacturacionPage() {
     setTab(id);
     router.replace(`${pathname}?tab=${id}`, { scroll: false });
   };
+
+  const sucursalSeleccionada = sucursales.find(s => s.id === sId);
+  const seriesBloqueadas = tab === 'series' && !!sucursalSeleccionada && !sucursalSeleccionada.sincronizadoFacturacion;
 
   return (
     <div className="space-y-0 animate-section">
@@ -70,13 +77,32 @@ export default function FacturacionPage() {
             </button>
           );
         })}
+        {/* Solo aplica a la tab de Series (certificado/credenciales son a nivel empresa) */}
+        {tab === 'series' && (
+          <div className="ml-auto pb-2">
+            <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sId} onChange={selectSucursal} />
+          </div>
+        )}
       </div>
 
       {/* Content */}
       <div className="card-lg p-3 mt-4">
         {tab === 'certificado' && <CertificadoTab />}
         {tab === 'credenciales' && <CredencialesTab />}
-        {tab === 'series' && <SeriesTab />}
+        {tab === 'series' && (
+          seriesBloqueadas ? (
+            <div className="py-10 px-4">
+              <Alert variant="warning" title="Sucursal no sincronizada" icon={<AlertTriangle className="h-4 w-4 shrink-0" />}>
+                "{sucursalSeleccionada!.nombre}" todavía no está sincronizada con la API de facturación.
+                Sincronízala primero desde Sucursales para poder ver y editar sus series y correlativos.
+              </Alert>
+            </div>
+          ) : (
+            <SeriesTab
+              codEstablecimientoSeleccionado={isSuperAdmin ? (sucursalSeleccionada?.codEstablecimiento ?? null) : null}
+            />
+          )
+        )}
       </div>
     </div>
   );

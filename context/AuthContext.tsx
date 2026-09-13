@@ -132,4 +132,5 @@ export const ROLE_LABELS: Record<Role, string> = {
   mozo:       'Mozo / Salón',
   cocinero:   'Cocina',
   repartidor: 'Repartidor',
+  superadmin: 'Super Administrador',
 };

@@ -11,12 +11,15 @@ import {
 
 interface UseComprobantesOptions {
   pageSize?: number;
+  /** Solo para superadmin: sucursal elegida en el selector. undefined = usa la del usuario (admin). */
+  sucursalIdOverride?: number | null;
 }
 
-export function useComprobantes({ pageSize = 10 }: UseComprobantesOptions = {}) {
+export function useComprobantes({ pageSize = 10, sucursalIdOverride }: UseComprobantesOptions = {}) {
   const { data: session } = useSession();
   const token = session?.accessToken;
-  const sucursalId = session?.user?.sucursalId ?? undefined;
+  const isSuperAdmin = session?.user?.role === 'superadmin';
+  const sucursalId = isSuperAdmin ? (sucursalIdOverride ?? undefined) : (session?.user?.sucursalId ?? undefined);
 
   const [data, setData] = useState<PaginatedResult<ComprobanteListItem> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,6 +50,8 @@ export function useComprobantes({ pageSize = 10 }: UseComprobantesOptions = {}) 
 
   const fetchData = useCallback(async () => {
     if (!token) return;
+    // Superadmin sin sucursal elegida todavía: no hay nada que pedir.
+    if (isSuperAdmin && !sucursalId) { setData(null); setLoading(false); return; }
     setLoading(true);
     setError(null);
 
@@ -69,7 +74,7 @@ export function useComprobantes({ pageSize = 10 }: UseComprobantesOptions = {}) 
     } finally {
       setLoading(false);
     }
-  }, [token, sucursalId, currentPage, pageSize, debouncedSearch, filterTipo, filterEstado, fechaDesde, fechaHasta]);
+  }, [token, isSuperAdmin, sucursalId, currentPage, pageSize, debouncedSearch, filterTipo, filterEstado, fechaDesde, fechaHasta]);
 
   useEffect(() => {
     fetchData();

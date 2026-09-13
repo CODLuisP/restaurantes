@@ -4,6 +4,8 @@ import { useMemo, useState, useEffect } from 'react';
 import { Plus, UploadCloud, FileText, Loader2 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { useComprobantes } from '@/hooks/useComprobantes';
+import { useSucursalSelector } from '@/hooks/useSucursalSelector';
+import { SucursalSelector } from '@/components/ui/SucursalSelector';
 import {
   getXmlUrl,
   getCdrUrl,
@@ -31,6 +33,7 @@ const ITEMS_PER_PAGE = 10;
 
 export default function ComprobantesPage() {
   const { triggerToast } = useApp();
+  const { isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
   const {
     token,
@@ -47,7 +50,7 @@ export default function ComprobantesPage() {
     filterEstado, setFilterEstado,
     fechaDesde, setFechaDesde,
     fechaHasta, setFechaHasta,
-  } = useComprobantes({ pageSize: ITEMS_PER_PAGE });
+  } = useComprobantes({ pageSize: ITEMS_PER_PAGE, sucursalIdOverride: sId });
 
   // Mapea datos de la API al formato que esperan los componentes existentes
   const comprobantes = useMemo(
@@ -231,6 +234,7 @@ export default function ComprobantesPage() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sId} onChange={selectSucursal} />
           <button
             type="button"
             onClick={() => setShowUploadModal(true)}
@@ -248,6 +252,12 @@ export default function ComprobantesPage() {
         </div>
       </div>
 
+      {isSuperAdmin && !sId ? (
+        <div className="card-lg p-12 flex flex-col items-center justify-center gap-2">
+          <p className="text-xs text-slate-500">Elige una sucursal para ver sus comprobantes.</p>
+        </div>
+      ) : (
+      <>
       <ComprobantesFilters
         search={search} setSearch={setSearch}
         filterTipo={filterTipo as any} setFilterTipo={(v) => setFilterTipo(v === 'Todos' ? '' : v)}
@@ -360,6 +370,8 @@ export default function ComprobantesPage() {
         }}
         triggerToast={triggerToast}
       />
+      </>
+      )}
     </div>
   );
 }
