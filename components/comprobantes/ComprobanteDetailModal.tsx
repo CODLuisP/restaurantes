@@ -1,6 +1,6 @@
 'use client';
 
-import { Download, Printer } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Download, Printer, XCircle } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Modal } from '@/components/ui';
 import type { EmpresaDto } from '@/lib/api/empresas';
@@ -28,6 +28,18 @@ export default function ComprobanteDetailModal({
   const esNota = selectedComprobante?.tipo === 'NotaCredito' || selectedComprobante?.tipo === 'NotaDebito';
   const igvPorcentaje = selectedComprobante?.igvPorcentaje ?? 18;
   const igvFactor = 1 + igvPorcentaje / 100;
+
+  /* Ayuda visual del estado ante SUNAT — solo informativo, no forma parte del documento
+     impreso (queda fuera de .comprobante-print-area). */
+  const estadoBanner = selectedComprobante?.tieneSunat && selectedComprobante.estadoSunat
+    ? ({
+        Aceptado:  { style: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: <CheckCircle2 className="h-4 w-4 shrink-0" />, texto: `La ${tipoLabel} ha sido aceptada por SUNAT.` },
+        Rechazado: { style: 'bg-rose-50 text-rose-700 border-rose-200',         icon: <XCircle className="h-4 w-4 shrink-0" />,      texto: `La ${tipoLabel} fue rechazada por SUNAT.` },
+        Pendiente: { style: 'bg-amber-50 text-amber-700 border-amber-200',      icon: <Clock className="h-4 w-4 shrink-0" />,         texto: `La ${tipoLabel} está pendiente de respuesta de SUNAT.` },
+        'De Baja': { style: 'bg-slate-100 text-slate-600 border-slate-200',     icon: <AlertTriangle className="h-4 w-4 shrink-0" />, texto: `La ${tipoLabel} fue dada de baja.` },
+      } as const)[selectedComprobante.estadoSunat]
+    : null;
+
   return (
       <Modal
         open={!!selectedComprobante}
@@ -67,6 +79,12 @@ export default function ComprobanteDetailModal({
           </div>
         }
       >
+        {estadoBanner && (
+          <div className={`flex items-center gap-2 rounded-lg px-4 py-2.5 mb-3 text-xs font-bold border ${estadoBanner.style}`}>
+            {estadoBanner.icon}
+            {estadoBanner.texto}
+          </div>
+        )}
         {selectedComprobante && (
           <div className="comprobante-print-area flex justify-center p-3 bg-slate-100 rounded-xl max-h-[60vh] overflow-y-auto">
             {/* Formato Ticket (80mm o 58mm) */}
