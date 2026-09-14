@@ -20,6 +20,7 @@ export interface Comprobante {
   clienteDoc: { type: 'DNI' | 'RUC' | string; number: string; name: string };
   monto: number;
   igv: number;
+  igvPorcentaje?: number;
   subtotal: number;
   estadoSunat: EstadoSunat | null;
   correoStatus: EnvioStatus;
@@ -141,10 +142,13 @@ export function mapApiToComprobante(item: {
     clienteDoc: {
       type: docTypeMap[item.clienteTipoDoc ?? ''] ?? (item.clienteTipoDoc?.toUpperCase() ?? '-'),
       number: item.clienteNumDoc ?? '-',
-      name: item.clienteRazonSocial ?? 'CLIENTE GENERAL',
+      name: item.clienteRazonSocial ?? 'Clientes Varios',
     },
     monto: item.total,
     igv: item.igv,
+    // La lista no trae el porcentaje configurado; se estima con subtotal/igv reales y se
+    // reemplaza por el valor exacto (igvPorcentaje) al abrir el detalle del comprobante.
+    igvPorcentaje: item.subtotal > 0 ? Math.round((item.igv / item.subtotal) * 100) : 18,
     subtotal: item.subtotal,
     estadoSunat: item.tieneSunat ? normalizeEstadoSunat(item.estadoSunat) : null,
     correoStatus: 'Pendiente',

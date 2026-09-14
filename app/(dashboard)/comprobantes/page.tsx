@@ -7,8 +7,8 @@ import { useComprobantes } from '@/hooks/useComprobantes';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import { SucursalSelector } from '@/components/ui/SucursalSelector';
 import {
-  getXmlUrl,
-  getCdrUrl,
+  downloadXmlBlob,
+  downloadCdrBlob,
   downloadPdfBlob,
   reenviarSunat,
   emitirComprobante,
@@ -88,6 +88,8 @@ export default function ComprobantesPage() {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   /** ventaId con una emisión/reenvío en curso, para deshabilitar el botón y evitar doble clic. */
   const [procesandoId, setProcesandoId] = useState<string | null>(null);
+  /** "{ventaId}-{tipo}" de una descarga XML/CDR en curso, para animar el botón mientras espera al backend. */
+  const [descargandoKey, setDescargandoKey] = useState<string | null>(null);
   const [notaModalData, setNotaModalData] = useState<{ open: boolean; comp: Comprobante | null; tipoNota: 'credito' | 'debito' }>({
     open: false, comp: null, tipoNota: 'credito',
   });
@@ -118,22 +120,24 @@ export default function ComprobantesPage() {
       comprobantes.find(c => c.id === ventaId)?.numero ?? ''
     ] || 'A4';
 
+    const key = `${ventaId}-${type}`;
+    if (type !== 'PDF') setDescargandoKey(key);
     try {
       if (type === 'PDF') {
         const tamano = size === 'Ticket 80mm' ? 'Ticket80mm' : size === 'Ticket 58mm' ? 'Ticket58mm' : size === 'A5' ? 'MediaCarta' : 'A4';
         await downloadPdfBlob(token, id, tamano);
         triggerToast(`Abriendo PDF del comprobante...`, 'info');
       } else if (type === 'XML') {
-        const url = await getXmlUrl(token, id);
-        window.open(url, '_blank');
-        triggerToast(`Descargando XML...`, 'info');
+        await downloadXmlBlob(token, id);
+        triggerToast(`XML descargado.`, 'success');
       } else if (type === 'CDR') {
-        const url = await getCdrUrl(token, id);
-        window.open(url, '_blank');
-        triggerToast(`Descargando CDR...`, 'info');
+        await downloadCdrBlob(token, id);
+        triggerToast(`CDR descargado.`, 'success');
       }
     } catch {
       triggerToast(`No se pudo descargar el ${type}. Verifique que el comprobante fue emitido correctamente.`, 'error');
+    } finally {
+      if (type !== 'PDF') setDescargandoKey(null);
     }
   };
 
@@ -213,6 +217,7 @@ export default function ComprobantesPage() {
       setSelectedComprobante({
         ...comp,
         items: itemsMapped,
+        igvPorcentaje: detalle.igvPorcentaje,
         numeroVentaAfectada: detalle.numeroVentaAfectada,
         codMotivo: detalle.codMotivo,
         desMotivo: detalle.desMotivo,
@@ -326,6 +331,7 @@ export default function ComprobantesPage() {
           activeMenuId={activeMenuId}
           setActiveMenuId={setActiveMenuId}
           procesandoId={procesandoId}
+          descargandoKey={descargandoKey}
           currentPage={currentPage}
           totalPages={totalPages}
           itemsPerPage={ITEMS_PER_PAGE}

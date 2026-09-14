@@ -26,6 +26,8 @@ export default function ComprobanteDetailModal({
     || '-';
   const tipoLabel = selectedComprobante ? TIPO_COMPROBANTE_LABEL[selectedComprobante.tipo] : '';
   const esNota = selectedComprobante?.tipo === 'NotaCredito' || selectedComprobante?.tipo === 'NotaDebito';
+  const igvPorcentaje = selectedComprobante?.igvPorcentaje ?? 18;
+  const igvFactor = 1 + igvPorcentaje / 100;
   return (
       <Modal
         open={!!selectedComprobante}
@@ -44,9 +46,7 @@ export default function ComprobanteDetailModal({
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  triggerToast('Imprimiendo comprobante en impresora predeterminada...', 'info');
-                }}
+                onClick={() => window.print()}
                 className="btn-secondary py-1.5 px-3 flex items-center gap-1 text-[11px]"
               >
                 <Printer className="h-3.5 w-3.5" /> Imprimir
@@ -68,7 +68,7 @@ export default function ComprobanteDetailModal({
         }
       >
         {selectedComprobante && (
-          <div className="flex justify-center p-3 bg-slate-100 rounded-xl max-h-[60vh] overflow-y-auto">
+          <div className="comprobante-print-area flex justify-center p-3 bg-slate-100 rounded-xl max-h-[60vh] overflow-y-auto">
             {/* Formato Ticket (80mm o 58mm) */}
             {((comprobanteSizes[selectedComprobante.numero] || 'A4') === 'Ticket 80mm' || 
               (comprobanteSizes[selectedComprobante.numero] || 'A4') === 'Ticket 58mm') ? (
@@ -131,7 +131,7 @@ export default function ComprobanteDetailModal({
                     <span>S/ {selectedComprobante.subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>I.G.V. (18%):</span>
+                    <span>I.G.V. ({igvPorcentaje}%):</span>
                     <span>S/ {selectedComprobante.igv.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between font-bold text-xs pt-1 border-t border-slate-200">
@@ -217,7 +217,7 @@ export default function ComprobanteDetailModal({
                         <td className="px-2 py-2 font-mono text-[10px] text-slate-400">{String(idx + 1).padStart(2, '0')}</td>
                         <td className="px-2 py-2 font-semibold text-slate-700 uppercase">{item.name}</td>
                         <td className="px-2 py-2 text-center">{item.quantity}</td>
-                        <td className="px-2 py-2 text-right">{(item.price / 1.18).toFixed(2)}</td>
+                        <td className="px-2 py-2 text-right">{(item.price / igvFactor).toFixed(2)}</td>
                         <td className="px-2 py-2 text-right">{(item.quantity * item.price).toFixed(2)}</td>
                       </tr>
                     ))}
@@ -247,7 +247,7 @@ export default function ComprobanteDetailModal({
                       <span className="font-mono text-slate-700">S/ {selectedComprobante.subtotal.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-500">I.G.V. (18%):</span>
+                      <span className="text-slate-500">I.G.V. ({igvPorcentaje}%):</span>
                       <span className="font-mono text-slate-700">S/ {selectedComprobante.igv.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-brand font-bold text-xs pt-1.5 border-t border-slate-200">

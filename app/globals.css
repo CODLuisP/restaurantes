@@ -6,6 +6,26 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+/* Impresión del comprobante (modal "Ver"): oculta todo excepto el área marcada. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .comprobante-print-area,
+  .comprobante-print-area * {
+    visibility: visible;
+  }
+  .comprobante-print-area {
+    position: fixed;
+    inset: 0;
+    max-height: none !important;
+    overflow: visible !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;

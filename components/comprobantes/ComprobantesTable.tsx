@@ -2,7 +2,7 @@
 
 import {
   AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clock, Download, Eye,
-  FileText, Mail, MessageCircle, MoreVertical, PlusCircle, MinusCircle, RefreshCw, Send, Trash2, X,
+  FileText, Loader2, Mail, MessageCircle, MoreVertical, PlusCircle, MinusCircle, RefreshCw, Send, Trash2, X,
 } from 'lucide-react';
 import { TIPO_COMPROBANTE_LABEL, type Comprobante, type FormatoImpresion } from './types';
 
@@ -15,6 +15,8 @@ interface ComprobantesTableProps {
   setActiveMenuId: (id: string | null) => void;
   /** ventaId con una emisión/reenvío en curso; deshabilita esas acciones para esa fila. */
   procesandoId: string | null;
+  /** "{ventaId}-{tipo}" de una descarga XML/CDR en curso; anima el botón correspondiente. */
+  descargandoKey: string | null;
   currentPage: number;
   totalPages: number;
   itemsPerPage: number;
@@ -35,7 +37,7 @@ interface ComprobantesTableProps {
 /** Tabla de comprobantes emitidos con acciones por fila y paginación. */
 export default function ComprobantesTable({
   paginatedComprobantes, filteredCount, comprobanteSizes, setComprobanteSizes,
-  activeMenuId, setActiveMenuId, procesandoId, currentPage, totalPages, itemsPerPage, setCurrentPage,
+  activeMenuId, setActiveMenuId, procesandoId, descargandoKey, currentPage, totalPages, itemsPerPage, setCurrentPage,
   setSelectedComprobante, setEmailModalData, setWhatsappModalData,
   onDownload, onBaja, onReenviarSunat, onEmitir, onGenerarNota, onDuplicar, onEliminar, triggerToast,
 }: ComprobantesTableProps) {
@@ -153,34 +155,44 @@ export default function ComprobantesTable({
 
                       {/* XML */}
                       <td className="px-2 py-3.5 text-center">
-                        <button
-                          onClick={() => !esTicket && onDownload(comp.id, 'XML')}
-                          disabled={esTicket}
-                          className={`p-1.5 rounded-lg border border-transparent transition-colors ${
-                            esTicket
-                              ? 'text-slate-300 cursor-not-allowed'
-                              : 'text-emerald-600 hover:bg-emerald-50 hover:border-emerald-100'
-                          }`}
-                          title={esTicket ? 'No disponible para tickets' : 'Descargar XML'}
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                        </button>
+                        {(() => {
+                          const descargando = descargandoKey === `${comp.id}-XML`;
+                          return (
+                            <button
+                              onClick={() => !esTicket && !descargando && onDownload(comp.id, 'XML')}
+                              disabled={esTicket || descargando}
+                              className={`p-1.5 rounded-lg border border-transparent transition-colors ${
+                                esTicket
+                                  ? 'text-slate-300 cursor-not-allowed'
+                                  : 'text-emerald-600 hover:bg-emerald-50 hover:border-emerald-100'
+                              }`}
+                              title={esTicket ? 'No disponible para tickets' : 'Descargar XML'}
+                            >
+                              {descargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                            </button>
+                          );
+                        })()}
                       </td>
 
                       {/* CDR */}
                       <td className="px-2 py-3.5 text-center">
-                        <button
-                          onClick={() => !esTicket && onDownload(comp.id, 'CDR')}
-                          disabled={esTicket}
-                          className={`p-1.5 rounded-lg border border-transparent transition-colors ${
-                            esTicket
-                              ? 'text-slate-300 cursor-not-allowed'
-                              : 'text-indigo-600 hover:bg-indigo-50 hover:border-indigo-100'
-                          }`}
-                          title={esTicket ? 'No disponible para tickets' : 'Descargar CDR'}
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                        </button>
+                        {(() => {
+                          const descargando = descargandoKey === `${comp.id}-CDR`;
+                          return (
+                            <button
+                              onClick={() => !esTicket && !descargando && onDownload(comp.id, 'CDR')}
+                              disabled={esTicket || descargando}
+                              className={`p-1.5 rounded-lg border border-transparent transition-colors ${
+                                esTicket
+                                  ? 'text-slate-300 cursor-not-allowed'
+                                  : 'text-indigo-600 hover:bg-indigo-50 hover:border-indigo-100'
+                              }`}
+                              title={esTicket ? 'No disponible para tickets' : 'Descargar CDR'}
+                            >
+                              {descargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                            </button>
+                          );
+                        })()}
                       </td>
 
                       {/* Estado SUNAT */}

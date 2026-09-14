@@ -30,9 +30,28 @@ export default function ChargePanel({
   useEffect(() => {
     const token = session?.accessToken;
     if (!token) return;
-    getSeriesFacturacion(token)
-      .then(data => { if (data.length > 0) setSeries(data[0]); })
-      .catch(() => { /* sin series no bloqueamos el cobro */ });
+
+    let cancelado = false;
+    const MAX_INTENTOS = 3;
+
+    const cargarSeries = async () => {
+      for (let intento = 1; intento <= MAX_INTENTOS; intento++) {
+        try {
+          const data = await getSeriesFacturacion(token);
+          if (cancelado) return;
+          if (data.length > 0) setSeries(data[0]);
+          return;
+        } catch {
+          if (cancelado || intento === MAX_INTENTOS) return;
+          // Reintento silencioso: un hipo transitorio del proveedor de facturación
+          // no debe dejar el cobro sin serie-correlativo visible.
+          await new Promise(r => setTimeout(r, 600 * intento));
+        }
+      }
+    };
+
+    cargarSeries();
+    return () => { cancelado = true; };
   }, [session?.accessToken]);
 
   /* Solo se ofrecen los métodos habilitados en /configuracion/metodos-pago. "Yape / Plin" es un
@@ -73,22 +92,50 @@ export default function ChargePanel({
     getClientes(token).then(setClientes).catch(() => { /* buscador queda vacío, no bloquea el cobro */ });
   }, [session?.accessToken]);
 
+  /* Factura exige RUC (11 dígitos) y Boleta exige DNI (8 dígitos): el buscador del CRM solo
+     debe ofrecer clientes cuyo documento calce con el tipo de comprobante activo. */
   const clienteMatches = useMemo(() => {
     const q = clienteQuery.trim().toLowerCase();
     if (!q) return [];
+    const docLen = docType === 'Factura' ? 11 : 8;
     return clientes
+      .filter(c => onlyDigits(c.numeroDocumento ?? '').length === docLen)
       .filter(c => c.nombre.toLowerCase().includes(q) || (c.numeroDocumento ?? '').includes(q))
       .slice(0, 8);
-  }, [clientes, clienteQuery]);
+  }, [clientes, clienteQuery, docType]);
+
+  /* Handler único del campo fusionado DNI/RUC + nombre: acepta tanto dígitos como texto libre
+     (nombre a buscar). Si lo tipeado son solo dígitos, se limita a la longitud del documento
+     activo (8 DNI / 11 RUC) igual que antes; si el documento queda incompleto, se limpia el
+     nombre resuelto para no dejar un nombre "pegado" a un número que ya no es ese. */
+  const handlePersonInput = (raw: string) => {
+    const maxLen = docType === 'Factura' ? 11 : 8;
+    const digitsOnly = onlyDigits(raw);
+    const isNumericQuery = raw !== '' && digitsOnly === raw;
+    const displayValue = isNumericQuery ? digitsOnly.slice(0, maxLen) : raw;
+
+    setClienteQuery(displayValue);
+    setShowClienteResults(true);
+
+    const digits = digitsOnly.slice(0, maxLen);
+    setDocNumber(digits);
+    if (digits.length !== maxLen) {
+      setDocName('');
+      setClienteId(undefined);
+    }
+  };
 
   const selectCliente = (c: Cliente) => {
     setClienteId(c.id);
-    setClienteQuery(c.nombre);
     setShowClienteResults(false);
     setDocName(c.nombre);
     if (c.numeroDocumento) {
       setDocType(c.numeroDocumento.length === 11 ? 'Factura' : 'Boleta');
       setDocNumber(c.numeroDocumento);
+      setClienteQuery(c.numeroDocumento);
+    } else {
+      setDocNumber('');
+      setClienteQuery('');
     }
   };
 
@@ -112,8 +159,8 @@ export default function ChargePanel({
     const local = clientes.find(c => onlyDigits(c.numeroDocumento ?? '') === digits);
     if (local) {
       setClienteId(local.id);
-      setClienteQuery(local.nombre);
       setDocName(local.nombre);
+      setShowClienteResults(false);
       return;
     }
     setClienteId(undefined);
@@ -136,6 +183,7 @@ export default function ChargePanel({
           const { nombres, apellido_paterno, apellido_materno } = data.data ?? {};
           setDocName([nombres, apellido_paterno, apellido_materno].filter(Boolean).join(' ').trim());
         }
+        setShowClienteResults(false);
       })
       .catch(() => { if (!cancelado) triggerToast(`Error al consultar el ${isRuc ? 'RUC' : 'DNI'}.`, 'error'); })
       .finally(() => { if (!cancelado) setConsultandoDoc(false); });
@@ -425,47 +473,6 @@ export default function ChargePanel({
         )}
       </div>
 
-      {/* Cliente (CRM) */}
-      <div className="border-t border-slate-200 pt-3 space-y-2">
-        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Cliente</p>
-        <div className="relative">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-            <input
-              value={clienteQuery}
-              onChange={e => { setClienteQuery(e.target.value); setClienteId(undefined); setShowClienteResults(true); }}
-              onFocus={() => setShowClienteResults(true)}
-              onBlur={() => setTimeout(() => setShowClienteResults(false), 150)}
-              placeholder="Buscar cliente por nombre o documento..."
-              className="input w-full pl-8 pr-16 py-2 text-xs"
-            />
-            {clienteId && (
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
-                CRM ✓
-              </span>
-            )}
-          </div>
-          {showClienteResults && clienteMatches.length > 0 && (
-            <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
-              {clienteMatches.map(c => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onMouseDown={() => selectCliente(c)}
-                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 flex justify-between items-center gap-2"
-                >
-                  <span className="font-semibold text-slate-700 truncate">{c.nombre}</span>
-                  <span className="text-slate-400 font-mono text-[10px] shrink-0">{c.numeroDocumento ?? '—'}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <p className="text-[10px] text-slate-400">
-          Opcional — vincula la venta al cliente para su historial y nivel en Clientes. Si escribes su DNI/RUC abajo y ya está en el CRM, se detecta solo.
-        </p>
-      </div>
-
       {/* Comprobante */}
       <div className="border-t border-slate-200 pt-3 space-y-2">
         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Comprobante</p>
@@ -491,19 +498,37 @@ export default function ChargePanel({
         {docType === 'Boleta' && (
           <div className="space-y-2">
             <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               <input
-                value={docNumber}
-                onChange={e => {
-                  const digits = onlyDigits(e.target.value).slice(0, 8);
-                  setDocNumber(digits);
-                  if (digits === '') { setDocName(''); clearCliente(); }
-                }}
-                inputMode="numeric"
-                placeholder="DNI (opcional)"
-                className="input w-full pl-3 pr-8 py-2 text-xs"
+                value={clienteQuery}
+                onChange={e => handlePersonInput(e.target.value)}
+                onFocus={() => setShowClienteResults(true)}
+                onBlur={() => setTimeout(() => setShowClienteResults(false), 150)}
+                placeholder="DNI o nombre del cliente (opcional)"
+                className="input w-full pl-8 pr-16 py-2 text-xs"
               />
               {consultandoDoc && (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 absolute right-8 top-1/2 -translate-y-1/2" />
+              )}
+              {clienteId && (
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                  CRM ✓
+                </span>
+              )}
+              {showClienteResults && clienteMatches.length > 0 && (
+                <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                  {clienteMatches.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onMouseDown={() => selectCliente(c)}
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 flex justify-between items-center gap-2"
+                    >
+                      <span className="font-semibold text-slate-700 truncate">{c.nombre}</span>
+                      <span className="text-slate-400 font-mono text-[10px] shrink-0">{c.numeroDocumento ?? '—'}</span>
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
             <input
@@ -513,7 +538,7 @@ export default function ChargePanel({
               className="input w-full px-3 py-2 text-xs"
             />
             <p className="text-[10px] text-slate-400 flex items-center gap-1">
-              <Users className="h-3 w-3" /> Sin DNI se emite como <strong>&nbsp;Cliente varios</strong> (público general).
+              <Users className="h-3 w-3" /> Sin DNI se emite como <strong>&nbsp;Cliente varios</strong> (público general). Escribe el DNI o busca por nombre — primero en tu CRM local, y si no está, en RENIEC.
             </p>
           </div>
         )}
@@ -521,19 +546,37 @@ export default function ChargePanel({
         {docType === 'Factura' && (
           <div className="space-y-2">
             <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               <input
-                value={docNumber}
-                onChange={e => {
-                  const digits = onlyDigits(e.target.value).slice(0, 11);
-                  setDocNumber(digits);
-                  if (digits === '') { setDocName(''); clearCliente(); }
-                }}
-                inputMode="numeric"
-                placeholder="RUC (11 dígitos) *"
-                className="input w-full pl-3 pr-8 py-2 text-xs"
+                value={clienteQuery}
+                onChange={e => handlePersonInput(e.target.value)}
+                onFocus={() => setShowClienteResults(true)}
+                onBlur={() => setTimeout(() => setShowClienteResults(false), 150)}
+                placeholder="RUC (11 dígitos) o razón social *"
+                className="input w-full pl-8 pr-16 py-2 text-xs"
               />
               {consultandoDoc && (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 absolute right-8 top-1/2 -translate-y-1/2" />
+              )}
+              {clienteId && (
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                  CRM ✓
+                </span>
+              )}
+              {showClienteResults && clienteMatches.length > 0 && (
+                <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                  {clienteMatches.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onMouseDown={() => selectCliente(c)}
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 flex justify-between items-center gap-2"
+                    >
+                      <span className="font-semibold text-slate-700 truncate">{c.nombre}</span>
+                      <span className="text-slate-400 font-mono text-[10px] shrink-0">{c.numeroDocumento ?? '—'}</span>
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
             <input

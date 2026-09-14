@@ -156,12 +156,23 @@ export function getHtmlUrl(ventaId: number, tamano: string = 'Ticket80mm') {
   return `${API_URL}/api/comprobantes/${ventaId}/html?tamano=${encodeURIComponent(tamano)}`;
 }
 
-export async function getXmlUrl(token: string, ventaId: number) {
-  const result = await apiFetch<{ url: string }>(`/api/comprobantes/${ventaId}/xml`, { token });
-  return result.url;
+/** Descarga un blob con el header Authorization y dispara la descarga real del archivo (sin abrir pestaña). */
+async function downloadBlob(token: string, url: string, filename: string, errorMsg: string) {
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new ApiError(errorMsg, res.status);
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(objectUrl);
 }
 
-export async function getCdrUrl(token: string, ventaId: number) {
-  const result = await apiFetch<{ url: string }>(`/api/comprobantes/${ventaId}/cdr`, { token });
-  return result.url;
+export function downloadXmlBlob(token: string, ventaId: number) {
+  return downloadBlob(token, `${API_URL}/api/comprobantes/${ventaId}/xml`, `comprobante-${ventaId}.xml`, 'No se pudo descargar el XML.');
+}
+
+export function downloadCdrBlob(token: string, ventaId: number) {
+  return downloadBlob(token, `${API_URL}/api/comprobantes/${ventaId}/cdr`, `comprobante-${ventaId}-cdr.zip`, 'No se pudo descargar el CDR.');
 }
