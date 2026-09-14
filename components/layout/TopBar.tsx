@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Search, Bell, ChevronDown, Command, Menu, LogOut } from 'lucide-react';
+import { Search, ChevronDown, Command, Menu, LogOut } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { useSidebar } from '@/context/SidebarContext';
 import { useAuth, ROLE_LABELS } from '@/context/AuthContext';
@@ -32,17 +32,10 @@ function initials(name: string) {
   return name.split(' ').filter(Boolean).slice(0, 2).map(n => n[0]).join('').toUpperCase();
 }
 
-const NOTIFICATIONS = [
-  { id: 1, text: 'Stock crítico: "Arroz con Mariscos" menor a 5 porciones.', type: 'danger', time: 'Hace 5 min' },
-  { id: 2, text: 'Mesa 4 ha solicitado pre-cuenta.', type: 'info', time: 'Hace 8 min' },
-  { id: 3, text: 'Pedido para delivery #1402 de Carlos R. listo para despacho.', type: 'success', time: 'Hace 12 min' },
-];
-
 export default function TopBar() {
   const pathname = usePathname();
-  const { searchQuery, setSearchQuery, triggerToast } = useApp();
+  const { searchQuery, setSearchQuery } = useApp();
   const { currentUser, logout } = useAuth();
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const { toggleOpen, isCollapsed, toggleCollapsed } = useSidebar();
 
@@ -100,57 +93,10 @@ export default function TopBar() {
 
       {/* Right Controls */}
       <div className="flex items-center gap-4">
-        <span className="hidden sm:inline-block text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-200/60 px-2 py-1 rounded-lg font-bold uppercase tracking-wider font-mono">
-          Modo ECO-LIGHT Activo
-        </span>
-
-        {/* Notifications */}
-        <div className="relative">
-          <button
-            onClick={() => { setShowNotifications(v => !v); setShowProfileMenu(false); }}
-            className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 transition-colors relative"
-          >
-            <Bell className="h-4 w-4 stroke-[2]" />
-            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-rose-500 pulse-active" />
-          </button>
-
-          {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-lg py-2 z-50">
-              <div className="px-4 py-2 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <span className="text-xs font-semibold text-slate-800">Notificaciones del Sistema</span>
-                <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-bold">3 de Hoy</span>
-              </div>
-              <div className="max-h-60 overflow-y-auto">
-                {NOTIFICATIONS.map(notif => (
-                  <div key={notif.id} className="p-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer">
-                    <div className="flex gap-2 items-start">
-                      <div className={`mt-1.5 h-1.5 w-1.5 rounded-full shrink-0 ${
-                        notif.type === 'danger' ? 'bg-rose-500' : notif.type === 'success' ? 'bg-emerald-500' : 'bg-sky-500'
-                      }`} />
-                      <div>
-                        <p className="text-xs text-slate-700 leading-snug">{notif.text}</p>
-                        <span className="text-[9px] text-slate-400 font-mono">{notif.time}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="px-4 py-2 border-t border-slate-100 text-center">
-                <button
-                  onClick={() => { setShowNotifications(false); triggerToast('Notificaciones marcadas como leídas', 'success'); }}
-                  className="text-[11px] text-brand hover:underline font-medium"
-                >
-                  Marcar todas como leídas
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* User Profile */}
         <div className="relative">
           <button
-            onClick={() => { setShowProfileMenu(v => !v); setShowNotifications(false); }}
+            onClick={() => setShowProfileMenu(v => !v)}
             className="flex items-center gap-2 hover:bg-slate-200/60 p-1.5 rounded-xl transition-colors cursor-pointer"
           >
             <div className="h-8 w-8 rounded-lg bg-emerald-700 text-white font-bold flex items-center justify-center border border-white/20 text-xs shadow-inner">

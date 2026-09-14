@@ -1,9 +1,19 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { DollarSign, TrendingUp, ShoppingCart, Utensils, Users, FileText, Sparkles, ShieldAlert } from 'lucide-react';
+import { DollarSign, TrendingUp, ShoppingCart, Utensils, Users, FileText, Sparkles, ShieldAlert, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
+import { useSucursalSelector } from '@/hooks/useSucursalSelector';
+import { SucursalSelector } from '@/components/ui/SucursalSelector';
+import {
+  getDashboardResumen, getVentasComparativo, getVentasPorHora,
+  type DashboardResumenDto, type VentasResumenDto, type VentaPorHoraDto,
+} from '@/lib/api/dashboard';
+import { getVentas, type VentaDto } from '@/lib/api/ventas';
+import { getClientes } from '@/lib/api/clientes';
+import { toFechaParam } from '@/lib/api/reportes';
 
 /* Recharts es pesado y solo corre en cliente — se carga aparte del bundle inicial. */
 const RevenueChart = dynamic(() => import('@/components/dashboard/RevenueChart'), {
@@ -11,11 +21,146 @@ const RevenueChart = dynamic(() => import('@/components/dashboard/RevenueChart')
   loading: () => <div className="h-44 animate-pulse bg-slate-100 rounded-lg" />,
 });
 
+const money = (n: number) => `S/. ${n.toFixed(2)}`;
+
+function pctCambio(actual: number, anterior: number): number | null {
+  if (anterior <= 0) return null;
+  return ((actual - anterior) / anterior) * 100;
+}
+
+/** Lunes de la semana de `d` (semana con inicio Lima/Perú). */
+function inicioSemana(d: Date): Date {
+  const dia = d.getDay(); // 0=domingo .. 6=sábado
+  const offset = dia === 0 ? 6 : dia - 1;
+  const lunes = new Date(d);
+  lunes.setDate(d.getDate() - offset);
+  lunes.setHours(0, 0, 0, 0);
+  return lunes;
+}
+
+const METODO_LABEL: Record<string, string> = {
+  efectivo: 'Efectivo',
+  tarjeta: 'Tarjeta',
+  yape: 'Yape',
+  plin: 'Plin',
+  otro: 'Otro',
+};
+
+const METODO_BADGE: Record<string, string> = {
+  efectivo: 'bg-amber-100 text-amber-800',
+  tarjeta: 'bg-brand/10 text-brand',
+  yape: 'bg-emerald-100 text-emerald-800',
+  plin: 'bg-emerald-100 text-emerald-800',
+  otro: 'bg-slate-100 text-slate-700',
+};
+
+function descargarCsv(ventas: VentaDto[]) {
+  const header = ['Código', 'Hora', 'Mesa', 'Comprobante', 'Items', 'Método de Pago', 'Monto Total'];
+  const filas = ventas.map(v => [
+    `S-${v.id}`,
+    new Date(v.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+    v.mesaNumero ?? '-',
+    v.numeroComprobante ?? '-',
+    String(v.items.reduce((acc, i) => acc + i.cantidad, 0)),
+    METODO_LABEL[v.metodoPago] ?? v.metodoPago,
+    v.total.toFixed(2),
+  ]);
+  const csv = [header, ...filas].map(f => f.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `ventas-${toFechaParam(new Date())}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function DashboardPage() {
   const { currentUser } = useAuth();
-  const { kpiStats, salesHistory, triggerToast } = useApp();
+  const { triggerToast } = useApp();
+  const { token, isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
-  if (currentUser?.role !== 'admin') {
+  const [resumen, setResumen] = useState<DashboardResumenDto | null>(null);
+  const [ventasHoy, setVentasHoy] = useState<VentasResumenDto | null>(null);
+  const [ventasAyer, setVentasAyer] = useState<VentasResumenDto | null>(null);
+  const [ventasMes, setVentasMes] = useState<VentasResumenDto | null>(null);
+  const [ventasMesAnterior, setVentasMesAnterior] = useState<VentasResumenDto | null>(null);
+  const [ventasPorHora, setVentasPorHora] = useState<VentaPorHoraDto[]>([]);
+  const [ventasRecientes, setVentasRecientes] = useState<VentaDto[]>([]);
+  const [clientesStats, setClientesStats] = useState<{ total: number; nuevos: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const puedeVer = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
+
+  useEffect(() => {
+    if (!token || !puedeVer) return;
+    if (isSuperAdmin && !sId) return;
+
+    const hoy = new Date();
+    const lunes = inicioSemana(hoy);
+    const hoyStr = toFechaParam(hoy);
+
+    setLoading(true);
+    setError(null);
+
+    Promise.all([
+      getDashboardResumen(token, sId ?? undefined),
+      getVentasComparativo(token, sId ?? undefined),
+      getVentasPorHora(token, hoy, sId ?? undefined),
+      getVentas(token, { sucursalId: sId ?? undefined, fechaInicio: hoyStr, fechaFin: hoyStr }),
+      getClientes(token),
+    ])
+      .then(([resumenRes, comparativoRes, horaRes, ventasRes, clientesRes]) => {
+        setResumen(resumenRes);
+        setVentasHoy(comparativoRes.hoy);
+        setVentasAyer(comparativoRes.ayer);
+        setVentasMes(comparativoRes.mesActual);
+        setVentasMesAnterior(comparativoRes.mesAnterior);
+        setVentasPorHora(horaRes);
+        setVentasRecientes(ventasRes.slice().sort((a, b) => b.pagadoAt.localeCompare(a.pagadoAt)));
+        setClientesStats({
+          total: clientesRes.length,
+          nuevos: clientesRes.filter(c => new Date(c.creadoEn) >= lunes).length,
+        });
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'Error al cargar el dashboard.');
+      })
+      .finally(() => setLoading(false));
+  }, [token, sId, isSuperAdmin, puedeVer]);
+
+  const pctVsAyer = useMemo(
+    () => pctCambio(ventasHoy?.totalVentas ?? 0, ventasAyer?.totalVentas ?? 0),
+    [ventasHoy, ventasAyer]
+  );
+  const pctVsMesAnterior = useMemo(
+    () => pctCambio(ventasMes?.totalVentas ?? 0, ventasMesAnterior?.totalVentas ?? 0),
+    [ventasMes, ventasMesAnterior]
+  );
+
+  const metodosPago = useMemo(() => {
+    if (!ventasHoy || ventasHoy.totalVentas <= 0) return [];
+    const entradas: { key: string; monto: number }[] = [
+      { key: 'yape', monto: ventasHoy.totalYape },
+      { key: 'plin', monto: ventasHoy.totalPlin },
+      { key: 'tarjeta', monto: ventasHoy.totalTarjeta },
+      { key: 'efectivo', monto: ventasHoy.totalEfectivo },
+      { key: 'otro', monto: ventasHoy.totalOtro },
+    ];
+    return entradas
+      .filter(e => e.monto > 0)
+      .map(e => ({ ...e, pct: Math.round((e.monto / ventasHoy.totalVentas) * 100) }))
+      .sort((a, b) => b.pct - a.pct);
+  }, [ventasHoy]);
+
+  const tipComercial = useMemo(() => {
+    if (metodosPago.length === 0) return null;
+    const top = metodosPago[0];
+    return `${METODO_LABEL[top.key] ?? top.key} lidera los cobros de hoy con ${top.pct}% del total.`;
+  }, [metodosPago]);
+
+  if (!puedeVer) {
     return (
       <div className="card-lg max-w-md mx-auto my-16 p-8 text-center space-y-3 animate-section">
         <div className="mx-auto w-14 h-14 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center">
@@ -27,6 +172,34 @@ export default function DashboardPage() {
     );
   }
 
+  const kpis = [
+    {
+      label: 'Ventas del Día', icon: DollarSign, color: '#007542',
+      value: money(resumen?.ventasHoy ?? 0),
+      sub: pctVsAyer === null ? 'Sin ventas ayer para comparar' : `${pctVsAyer >= 0 ? '+' : ''}${pctVsAyer.toFixed(1)}% vs ayer`,
+    },
+    {
+      label: 'Ventas del Mes', icon: TrendingUp, color: '#1E8C45',
+      value: money(ventasMes?.totalVentas ?? 0),
+      sub: pctVsMesAnterior === null ? 'Sin ventas el mes anterior para comparar' : `${pctVsMesAnterior >= 0 ? '+' : ''}${pctVsMesAnterior.toFixed(1)}% vs mes anterior`,
+    },
+    {
+      label: 'Pedidos Activos', icon: ShoppingCart, color: '#3AA346',
+      value: `${resumen?.pedidosEnCocinaAhora ?? 0}`,
+      sub: `${resumen?.pedidosHoy ?? 0} pedidos hoy`,
+    },
+    {
+      label: 'Ticket Promedio', icon: Utensils, color: '#58BB43',
+      value: money(ventasHoy?.ticketPromedio ?? 0),
+      sub: 'Sobre ventas cobradas hoy',
+    },
+    {
+      label: 'Clientes CRM', icon: Users, color: '#1E8C45',
+      value: `${clientesStats?.total ?? 0}`,
+      sub: `+${clientesStats?.nuevos ?? 0} nuevos esta semana`,
+    },
+  ];
+
   return (
     <div className="space-y-5 animate-section">
       {/* Header */}
@@ -37,21 +210,27 @@ export default function DashboardPage() {
             Monitoreo en tiempo real de operaciones gastronómicas — RestoPro Perú.
           </p>
         </div>
-        <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-lg">
-          <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 pulse-active" />
-          <span className="text-[10px] font-semibold text-brand font-mono">POS EN SINCRO: ONLINE</span>
-        </div>
+        <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sId} onChange={selectSucursal} />
       </div>
 
+      {isSuperAdmin && !sId ? (
+        <div className="card-lg p-12 flex flex-col items-center justify-center gap-2">
+          <p className="text-xs text-slate-500">Elige una sucursal para ver su dashboard.</p>
+        </div>
+      ) : loading ? (
+        <div className="card-lg p-12 flex flex-col items-center justify-center gap-3">
+          <Loader2 className="h-8 w-8 text-brand animate-spin" />
+          <p className="text-sm text-slate-500 font-medium">Cargando dashboard...</p>
+        </div>
+      ) : error ? (
+        <div className="card-lg p-6 border-rose-200 bg-rose-50">
+          <p className="text-sm text-rose-700 font-medium">{error}</p>
+        </div>
+      ) : (
+      <>
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-        {[
-          { label: 'Ventas del Día',   value: `S/. ${kpiStats.ventasDia.toFixed(2)}`,      icon: DollarSign,   color: '#007542', sub: '+14.2% vs ayer S/. 710' },
-          { label: 'Ventas del Mes',   value: `S/. ${kpiStats.ventasMes.toFixed(2)}`,      icon: TrendingUp,   color: '#1E8C45', sub: '+8.1% — Meta: S/. 90k' },
-          { label: 'Pedidos Activos',  value: `${kpiStats.pedidosActivos}`,                 icon: ShoppingCart, color: '#3AA346', sub: '1 preparado en cocina' },
-          { label: 'Ticket Promedio',  value: `S/. ${kpiStats.ticketPromedio.toFixed(2)}`,  icon: Utensils,     color: '#58BB43', sub: 'Sobre ventas reales' },
-          { label: 'Clientes CRM',     value: `${kpiStats.clientesAtendidos}`,              icon: Users,        color: '#1E8C45', sub: '+5 nuevos esta semana' },
-        ].map((kpi, i) => {
+        {kpis.map((kpi, i) => {
           const Icon = kpi.icon;
           return (
             <div key={i} className="card px-4 py-3 hover:shadow-md transition-all group duration-300">
@@ -72,42 +251,45 @@ export default function DashboardPage() {
         <div className="card p-4 lg:col-span-8 space-y-3">
           <div className="pb-2 border-b border-slate-200">
             <h4 className="text-xs font-semibold text-slate-800">Curva de Ingresos Diarios (S/.)</h4>
-            <p className="text-[10px] text-slate-500 mt-0.5">Ingresos cobrados hoy, acumulados por hora — turno día vs turno noche</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Ingresos cobrados hoy, acumulados por hora</p>
           </div>
-          <RevenueChart salesHistory={salesHistory} />
+          <RevenueChart ventasPorHora={ventasPorHora} />
         </div>
 
         {/* Payment methods */}
         <div className="card p-4 lg:col-span-4 space-y-3">
           <div>
             <h4 className="text-xs font-semibold text-slate-800">Métodos de Pago</h4>
-            <p className="text-[10px] text-slate-500 mt-0.5">Preferencia de pago de clientes RestoPro</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Sobre las ventas cobradas hoy</p>
           </div>
-          <div className="space-y-3">
-            {[
-              { label: 'Yape / Plin (QR Digital)', pct: 52, color: 'bg-emerald-500' },
-              { label: 'Tarjeta de Crédito/Débito', pct: 38, color: 'bg-brand' },
-              { label: 'Efectivo Físico (Soles)',   pct: 10, color: 'bg-amber-500' },
-            ].map(m => (
-              <div key={m.label}>
-                <div className="flex justify-between text-[11px] text-slate-700 font-medium mb-1">
-                  <span>{m.label}</span>
-                  <span className="font-mono">{m.pct}%</span>
+          {metodosPago.length === 0 ? (
+            <p className="text-[11px] text-slate-400">Todavía no hay ventas cobradas hoy.</p>
+          ) : (
+            <div className="space-y-3">
+              {metodosPago.map(m => (
+                <div key={m.key}>
+                  <div className="flex justify-between text-[11px] text-slate-700 font-medium mb-1">
+                    <span>{METODO_LABEL[m.key] ?? m.key}</span>
+                    <span className="font-mono">{m.pct}%</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${m.key === 'efectivo' ? 'bg-amber-500' : m.key === 'tarjeta' ? 'bg-brand' : 'bg-emerald-500'}`}
+                      style={{ width: `${m.pct}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                  <div className={`h-full ${m.color} rounded-full`} style={{ width: `${m.pct}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="bg-brand/10 border border-brand/20 p-3 rounded-lg space-y-1">
-            <p className="text-[11px] font-semibold text-brand flex items-center gap-1.5">
-              <Sparkles className="h-3 w-3 shrink-0" /> Tip Comercial
-            </p>
-            <p className="text-[10px] text-slate-600 leading-snug">
-              Yape y Plin lideran los cobros digitales hoy. Promueve postres con banners QR directos.
-            </p>
-          </div>
+              ))}
+            </div>
+          )}
+          {tipComercial && (
+            <div className="bg-brand/10 border border-brand/20 p-3 rounded-lg space-y-1">
+              <p className="text-[11px] font-semibold text-brand flex items-center gap-1.5">
+                <Sparkles className="h-3 w-3 shrink-0" /> Tip Comercial
+              </p>
+              <p className="text-[10px] text-slate-600 leading-snug">{tipComercial}</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -116,10 +298,13 @@ export default function DashboardPage() {
         <div className="flex justify-between items-center mb-3">
           <div>
             <h4 className="text-xs font-semibold text-gray-800">Ventas Recientes Registradas (POS)</h4>
-            <p className="text-[10px] text-gray-400">Historial transaccional activo de la sesión actual</p>
+            <p className="text-[10px] text-gray-400">Ventas cobradas hoy</p>
           </div>
           <button
-            onClick={() => triggerToast('Generador de PDF simulado ejecutado.', 'success')}
+            onClick={() => {
+              if (ventasRecientes.length === 0) { triggerToast('No hay ventas para exportar.', 'info'); return; }
+              descargarCsv(ventasRecientes);
+            }}
             className="btn-ghost"
           >
             <FileText className="h-3 w-3" /> Exportar (.CSV)
@@ -139,43 +324,44 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {salesHistory.map(item => (
-                <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="p-3 font-mono font-semibold text-gray-800">{item.id}</td>
-                  <td className="p-3 text-gray-500">{item.time}</td>
-                  <td className="p-3">
-                    <span className="bg-gray-100 px-2 py-0.5 rounded font-medium">{item.table}</span>
+              {ventasRecientes.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="p-6 text-center text-slate-400">Todavía no hay ventas cobradas hoy.</td>
+                </tr>
+              )}
+              {ventasRecientes.map(v => (
+                <tr key={v.id} className="hover:bg-gray-50/50 transition-colors">
+                  <td className="p-3 font-mono font-semibold text-gray-800">S-{v.id}</td>
+                  <td className="p-3 text-gray-500">
+                    {new Date(v.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}
                   </td>
                   <td className="p-3">
-                    {item.comprobante ? (
-                      <span className="font-mono text-[11px] text-slate-600">
-                        {item.docType === 'Factura' ? '🧾' : '🧾'} {item.comprobante}
-                      </span>
+                    <span className="bg-gray-100 px-2 py-0.5 rounded font-medium">
+                      {v.mesaNumero ? `Mesa ${v.mesaNumero}` : '—'}
+                    </span>
+                  </td>
+                  <td className="p-3">
+                    {v.numeroComprobante ? (
+                      <span className="font-mono text-[11px] text-slate-600">{v.numeroComprobante}</span>
                     ) : (
                       <span className="text-slate-300">—</span>
                     )}
                   </td>
-                  <td className="p-3 font-mono">{item.itemsCount}</td>
+                  <td className="p-3 font-mono">{v.items.reduce((acc, i) => acc + i.cantidad, 0)}</td>
                   <td className="p-3">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
-                      item.paymentMethod === 'Yape / Plin'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : item.paymentMethod === 'Tarjeta'
-                        ? 'bg-brand/10 text-brand'
-                        : 'bg-amber-100 text-amber-800'
-                    }`}>
-                      {item.paymentMethod}
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${METODO_BADGE[v.metodoPago] ?? 'bg-slate-100 text-slate-700'}`}>
+                      {METODO_LABEL[v.metodoPago] ?? v.metodoPago}
                     </span>
                   </td>
-                  <td className="p-3 text-right font-mono font-bold text-gray-900">
-                    S/. {item.total.toFixed(2)}
-                  </td>
+                  <td className="p-3 text-right font-mono font-bold text-gray-900">{money(v.total)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

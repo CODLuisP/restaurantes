@@ -1,8 +1,8 @@
 'use client';
 
 import {
-  AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clock, Download, Eye,
-  FileText, Loader2, Mail, MessageCircle, MoreVertical, PlusCircle, MinusCircle, RefreshCw, Send, Trash2, X,
+  AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clock, Eye,
+  FileText, Loader2, Mail, MessageCircle, MoreVertical, PlusCircle, MinusCircle, RefreshCw, Send, X,
 } from 'lucide-react';
 import { TIPO_COMPROBANTE_LABEL, type Comprobante, type FormatoImpresion } from './types';
 
@@ -25,12 +25,9 @@ interface ComprobantesTableProps {
   setEmailModalData: (data: { open: boolean; comp: Comprobante | null; email: string }) => void;
   setWhatsappModalData: (data: { open: boolean; comp: Comprobante | null; phone: string }) => void;
   onDownload: (num: string, type: 'PDF' | 'XML' | 'CDR') => void;
-  onBaja: (id: string, num: string) => void;
   onReenviarSunat: (id: string, num: string) => void;
   onEmitir: (id: string, num: string) => void;
   onGenerarNota: (comp: Comprobante, tipoNota: 'credito' | 'debito') => void;
-  onDuplicar: (comp: Comprobante) => void;
-  onEliminar: (id: string, num: string) => void;
   triggerToast: (message: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
 }
 
@@ -39,7 +36,7 @@ export default function ComprobantesTable({
   paginatedComprobantes, filteredCount, comprobanteSizes, setComprobanteSizes,
   activeMenuId, setActiveMenuId, procesandoId, descargandoKey, currentPage, totalPages, itemsPerPage, setCurrentPage,
   setSelectedComprobante, setEmailModalData, setWhatsappModalData,
-  onDownload, onBaja, onReenviarSunat, onEmitir, onGenerarNota, onDuplicar, onEliminar, triggerToast,
+  onDownload, onReenviarSunat, onEmitir, onGenerarNota, triggerToast,
 }: ComprobantesTableProps) {
   return (
     <>
@@ -144,13 +141,19 @@ export default function ComprobantesTable({
 
                       {/* PDF */}
                       <td className="px-2 py-3.5 text-center">
-                        <button
-                          onClick={() => onDownload(comp.id, 'PDF')}
-                          className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-100 transition-colors"
-                          title="Descargar PDF"
-                        >
-                          <FileText className="h-4 w-4" />
-                        </button>
+                        {(() => {
+                          const descargando = descargandoKey === `${comp.id}-PDF`;
+                          return (
+                            <button
+                              onClick={() => !descargando && onDownload(comp.id, 'PDF')}
+                              disabled={descargando}
+                              className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-100 transition-colors"
+                              title="Descargar PDF"
+                            >
+                              {descargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                            </button>
+                          );
+                        })()}
                       </td>
 
                       {/* XML */}
@@ -168,7 +171,7 @@ export default function ComprobantesTable({
                               }`}
                               title={esTicket ? 'No disponible para tickets' : 'Descargar XML'}
                             >
-                              {descargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                              <RefreshCw className={`h-4 w-4 ${descargando ? 'animate-spin' : ''}`} />
                             </button>
                           );
                         })()}
@@ -189,7 +192,7 @@ export default function ComprobantesTable({
                               }`}
                               title={esTicket ? 'No disponible para tickets' : 'Descargar CDR'}
                             >
-                              {descargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                              <RefreshCw className={`h-4 w-4 ${descargando ? 'animate-spin' : ''}`} />
                             </button>
                           );
                         })()}
@@ -273,18 +276,6 @@ export default function ComprobantesTable({
                             onClick={e => e.stopPropagation()}
                             className="absolute right-3 mt-1 w-48 bg-white rounded-lg border border-slate-200 shadow-lg z-30 py-1 text-left animate-section"
                           >
-                            {!esTicket && comp.estadoSunat === 'Aceptado' && (
-                              <button
-                                onClick={() => {
-                                  onBaja(comp.id, comp.numero);
-                                  setActiveMenuId(null);
-                                }}
-                                className="w-full px-3 py-2 text-[11px] text-slate-700 hover:bg-slate-50 hover:text-rose-600 flex items-center gap-2 border-b border-slate-100"
-                              >
-                                <Trash2 className="h-3.5 w-3.5 text-slate-400" /> Dar de Baja SUNAT
-                              </button>
-                            )}
-
                             {nuncaEmitido && (
                               <button
                                 onClick={() => {
@@ -327,46 +318,12 @@ export default function ComprobantesTable({
                                     onGenerarNota(comp, 'debito');
                                     setActiveMenuId(null);
                                   }}
-                                  className="w-full px-3 py-2 text-[11px] text-slate-700 hover:bg-slate-50 flex items-center gap-2 border-b border-slate-100"
+                                  className="w-full px-3 py-2 text-[11px] text-slate-700 hover:bg-slate-50 flex items-center gap-2"
                                 >
                                   <PlusCircle className="h-3.5 w-3.5 text-slate-400" /> Generar Nota de Débito
                                 </button>
                               </>
                             )}
-
-                            <button
-                              onClick={() => {
-                                onDuplicar(comp);
-                                setActiveMenuId(null);
-                              }}
-                              className="w-full px-3 py-2 text-[11px] text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                            >
-                              <PlusCircle className="h-3.5 w-3.5 text-slate-400" /> Duplicar Comprobante
-                            </button>
-
-                            {!esTicket && (
-                              <button
-                                onClick={() => {
-                                  onDownload(comp.id, 'PDF');
-                                  onDownload(comp.id, 'XML');
-                                  onDownload(comp.id, 'CDR');
-                                  setActiveMenuId(null);
-                                }}
-                                className="w-full px-3 py-2 text-[11px] text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                              >
-                                <Download className="h-3.5 w-3.5 text-slate-400" /> Descargar Todo (ZIP)
-                              </button>
-                            )}
-
-                            <button
-                              onClick={() => {
-                                onEliminar(comp.id, comp.numero);
-                                setActiveMenuId(null);
-                              }}
-                              className="w-full px-3 py-2 text-[11px] text-rose-600 hover:bg-rose-50 flex items-center gap-2 border-t border-slate-100"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" /> Eliminar Registro
-                            </button>
                           </div>
                         )}
                       </td>

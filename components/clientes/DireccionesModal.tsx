@@ -13,7 +13,7 @@ interface DireccionesModalProps {
   onUpdated: (cliente: Cliente) => void;
 }
 
-const TIPO_LABELS = { fiscal: 'Fiscal', entrega: 'Entrega', ambos: 'Ambos' };
+const TIPO_LABELS: Record<string, string> = { fiscal: 'Fiscal', entrega: 'Entrega', ambos: 'Ambos' };
 
 const FORM_EMPTY: CreateClienteDireccionDto = {
   departamento: '', provincia: '', distrito: '', direccion: '', ubigeo: '', tipo: 'fiscal',
@@ -86,7 +86,7 @@ export default function DireccionesModal({ cliente, open, onClose, onUpdated }: 
         </div>
         <div className="space-y-1">
           <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tipo</label>
-          <select className="input w-full px-3 py-2" value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value as CreateClienteDireccionDto['tipo'] }))}>
+          <select className="input w-full px-3 py-2" value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}>
             <option value="fiscal">Fiscal</option>
             <option value="entrega">Entrega</option>
             <option value="ambos">Ambos</option>
@@ -132,7 +132,7 @@ export default function DireccionesModal({ cliente, open, onClose, onUpdated }: 
                   <p className="text-[11px] text-slate-500">
                     {[dir.distrito, dir.provincia, dir.departamento].filter(Boolean).join(', ')}
                   </p>
-                  <span className="text-[10px] font-semibold text-brand">{TIPO_LABELS[dir.tipo]}</span>
+                  <span className="text-[10px] font-semibold text-brand">{TIPO_LABELS[dir.tipo] ?? dir.tipo}</span>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <button onClick={() => iniciarEdicion(dir)} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50">

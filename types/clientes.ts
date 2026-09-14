@@ -8,7 +8,9 @@ export interface ClienteDireccion {
   distrito?: string;
   direccion?: string;
   ubigeo?: string;
-  tipo: 'fiscal' | 'entrega' | 'ambos';
+  /* Antes era un enum cerrado ('fiscal' | 'entrega' | 'ambos'); el backend solo lo guarda como
+     texto libre, así que se relaja a string para permitir tipos de dirección personalizados. */
+  tipo: string;
   activo: boolean;
 }
 
@@ -30,6 +32,7 @@ export interface Cliente {
   fechaRegistro: string;
   estado: boolean;
   notas?: string;
+  creadoEn: string;
   direcciones: ClienteDireccion[];
 }
 
@@ -41,7 +44,7 @@ export interface CreateClienteDireccionDto {
   distrito?: string;
   direccion?: string;
   ubigeo?: string;
-  tipo: 'fiscal' | 'entrega' | 'ambos';
+  tipo: string;
 }
 
 export interface UpdateClienteDireccionDto extends CreateClienteDireccionDto {

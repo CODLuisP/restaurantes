@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
-import { Plus, UploadCloud, FileText, Loader2 } from 'lucide-react';
+import { FileText, Loader2 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { useComprobantes } from '@/hooks/useComprobantes';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
@@ -121,7 +121,7 @@ export default function ComprobantesPage() {
     ] || 'A4';
 
     const key = `${ventaId}-${type}`;
-    if (type !== 'PDF') setDescargandoKey(key);
+    setDescargandoKey(key);
     try {
       if (type === 'PDF') {
         const tamano = size === 'Ticket 80mm' ? 'Ticket80mm' : size === 'Ticket 58mm' ? 'Ticket58mm' : size === 'A5' ? 'MediaCarta' : 'A4';
@@ -137,12 +137,8 @@ export default function ComprobantesPage() {
     } catch {
       triggerToast(`No se pudo descargar el ${type}. Verifique que el comprobante fue emitido correctamente.`, 'error');
     } finally {
-      if (type !== 'PDF') setDescargandoKey(null);
+      setDescargandoKey(null);
     }
-  };
-
-  const handleBaja = (id: string, num: string) => {
-    triggerToast(`Funcionalidad de baja para ${num} próximamente disponible.`, 'info');
   };
 
   const handleReenviarSunat = async (id: string, num: string) => {
@@ -194,14 +190,6 @@ export default function ComprobantesPage() {
       triggerToast(`La nota se registró pero SUNAT respondió: ${result.mensaje ?? 'sin detalle'}.`, 'warning');
     }
     refetch();
-  };
-
-  const handleDuplicar = (comp: Comprobante) => {
-    triggerToast(`Funcionalidad de duplicar comprobante próximamente disponible.`, 'info');
-  };
-
-  const handleEliminar = (id: string, num: string) => {
-    triggerToast(`Los comprobantes emitidos no pueden eliminarse del registro.`, 'warning');
   };
 
   const handleVerDetalle = async (comp: Comprobante | null) => {
@@ -276,20 +264,6 @@ export default function ComprobantesPage() {
             Filtros avanzados
           </button>
 
-          <button
-            type="button"
-            onClick={() => setShowUploadModal(true)}
-            className="btn-secondary transition-all hover:bg-slate-200"
-          >
-            <UploadCloud className="h-4 w-4" /> Carga Masiva
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowNewModal(true)}
-            className="btn-primary transition-all hover:scale-[1.02]"
-          >
-            <Plus className="h-4 w-4" /> Nuevo
-          </button>
         </div>
       </div>
 
@@ -340,12 +314,9 @@ export default function ComprobantesPage() {
           setEmailModalData={setEmailModalData}
           setWhatsappModalData={setWhatsappModalData}
           onDownload={handleDownload}
-          onBaja={handleBaja}
           onReenviarSunat={handleReenviarSunat}
           onEmitir={handleEmitir}
           onGenerarNota={handleGenerarNota}
-          onDuplicar={handleDuplicar}
-          onEliminar={handleEliminar}
           triggerToast={triggerToast}
         />
       )}
