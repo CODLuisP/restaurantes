@@ -52,10 +52,11 @@ export function getDashboardVentas(
   return apiFetch<VentasResumenDto>(`/api/dashboard/ventas?${query.toString()}`, { token });
 }
 
-/** Ventas de hoy/ayer/mes actual/mes anterior en una sola llamada — reemplaza 4 llamadas a getDashboardVentas. */
-export function getVentasComparativo(token: string, sucursalId?: number) {
-  const qs = sucursalId ? `?sucursalId=${sucursalId}` : '';
-  return apiFetch<VentasComparativoDto>(`/api/dashboard/ventas-comparativo${qs}`, { token });
+/** Ventas del día elegido/día anterior/mes del día elegido/mes anterior en una sola llamada — reemplaza 4 llamadas a getDashboardVentas. */
+export function getVentasComparativo(token: string, fecha: Date, sucursalId?: number) {
+  const query = new URLSearchParams({ fecha: toFechaParam(fecha) });
+  if (sucursalId) query.set('sucursalId', String(sucursalId));
+  return apiFetch<VentasComparativoDto>(`/api/dashboard/ventas-comparativo?${query.toString()}`, { token });
 }
 
 export function getVentasPorHora(token: string, fecha: Date, sucursalId?: number) {

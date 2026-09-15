@@ -54,7 +54,7 @@ const METODO_BADGE: Record<string, string> = {
   otro: 'bg-slate-100 text-slate-700',
 };
 
-function descargarCsv(ventas: VentaDto[]) {
+function descargarCsv(ventas: VentaDto[], fecha: Date) {
   const header = ['Código', 'Hora', 'Mesa', 'Comprobante', 'Items', 'Método de Pago', 'Monto Total'];
   const filas = ventas.map(v => [
     `S-${v.id}`,
@@ -70,7 +70,7 @@ function descargarCsv(ventas: VentaDto[]) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `ventas-${toFechaParam(new Date())}.csv`;
+  link.download = `ventas-${toFechaParam(fecha)}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -90,25 +90,27 @@ export default function DashboardPage() {
   const [clientesStats, setClientesStats] = useState<{ total: number; nuevos: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(() => new Date());
 
   const puedeVer = currentUser?.role === 'admin' || currentUser?.role === 'superadmin';
+  const hoyStr = toFechaParam(new Date());
+  const esHoy = toFechaParam(fechaSeleccionada) === hoyStr;
 
   useEffect(() => {
     if (!token || !puedeVer) return;
     if (isSuperAdmin && !sId) return;
 
-    const hoy = new Date();
-    const lunes = inicioSemana(hoy);
-    const hoyStr = toFechaParam(hoy);
+    const lunes = inicioSemana(fechaSeleccionada);
+    const fechaStr = toFechaParam(fechaSeleccionada);
 
     setLoading(true);
     setError(null);
 
     Promise.all([
       getDashboardResumen(token, sId ?? undefined),
-      getVentasComparativo(token, sId ?? undefined),
-      getVentasPorHora(token, hoy, sId ?? undefined),
-      getVentas(token, { sucursalId: sId ?? undefined, fechaInicio: hoyStr, fechaFin: hoyStr }),
+      getVentasComparativo(token, fechaSeleccionada, sId ?? undefined),
+      getVentasPorHora(token, fechaSeleccionada, sId ?? undefined),
+      getVentas(token, { sucursalId: sId ?? undefined, fechaInicio: fechaStr, fechaFin: fechaStr }),
       getClientes(token),
     ])
       .then(([resumenRes, comparativoRes, horaRes, ventasRes, clientesRes]) => {
@@ -128,7 +130,7 @@ export default function DashboardPage() {
         setError(err instanceof Error ? err.message : 'Error al cargar el dashboard.');
       })
       .finally(() => setLoading(false));
-  }, [token, sId, isSuperAdmin, puedeVer]);
+  }, [token, sId, isSuperAdmin, puedeVer, fechaSeleccionada]);
 
   const pctVsAyer = useMemo(
     () => pctCambio(ventasHoy?.totalVentas ?? 0, ventasAyer?.totalVentas ?? 0),
@@ -157,7 +159,7 @@ export default function DashboardPage() {
   const tipComercial = useMemo(() => {
     if (metodosPago.length === 0) return null;
     const top = metodosPago[0];
-    return `${METODO_LABEL[top.key] ?? top.key} lidera los cobros de hoy con ${top.pct}% del total.`;
+    return `${METODO_LABEL[top.key] ?? top.key} lidera los cobros con ${top.pct}% del total.`;
   }, [metodosPago]);
 
   if (!puedeVer) {
@@ -174,9 +176,9 @@ export default function DashboardPage() {
 
   const kpis = [
     {
-      label: 'Ventas del Día', icon: DollarSign, color: '#007542',
-      value: money(resumen?.ventasHoy ?? 0),
-      sub: pctVsAyer === null ? 'Sin ventas ayer para comparar' : `${pctVsAyer >= 0 ? '+' : ''}${pctVsAyer.toFixed(1)}% vs ayer`,
+      label: esHoy ? 'Ventas del Día' : 'Ventas del Día Elegido', icon: DollarSign, color: '#007542',
+      value: money(ventasHoy?.totalVentas ?? 0),
+      sub: pctVsAyer === null ? 'Sin ventas el día anterior para comparar' : `${pctVsAyer >= 0 ? '+' : ''}${pctVsAyer.toFixed(1)}% vs día anterior`,
     },
     {
       label: 'Ventas del Mes', icon: TrendingUp, color: '#1E8C45',
@@ -186,17 +188,17 @@ export default function DashboardPage() {
     {
       label: 'Pedidos Activos', icon: ShoppingCart, color: '#3AA346',
       value: `${resumen?.pedidosEnCocinaAhora ?? 0}`,
-      sub: `${resumen?.pedidosHoy ?? 0} pedidos hoy`,
+      sub: `En vivo · ${resumen?.pedidosHoy ?? 0} pedidos hoy`,
     },
     {
       label: 'Ticket Promedio', icon: Utensils, color: '#58BB43',
       value: money(ventasHoy?.ticketPromedio ?? 0),
-      sub: 'Sobre ventas cobradas hoy',
+      sub: esHoy ? 'Sobre ventas cobradas hoy' : 'Sobre ventas del día elegido',
     },
     {
       label: 'Clientes CRM', icon: Users, color: '#1E8C45',
       value: `${clientesStats?.total ?? 0}`,
-      sub: `+${clientesStats?.nuevos ?? 0} nuevos esta semana`,
+      sub: `+${clientesStats?.nuevos ?? 0} nuevos esa semana`,
     },
   ];
 
@@ -207,11 +209,27 @@ export default function DashboardPage() {
         <div>
           <h3 className="text-lg font-bold text-slate-800 tracking-tight">Resumen Ejecutivo de Ventas</h3>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            Monitoreo en tiempo real de operaciones gastronómicas — RestoPro Perú.
+            Monitoreo de operaciones gastronómicas — RestoPro Perú.
           </p>
         </div>
-        <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sId} onChange={selectSucursal} />
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={toFechaParam(fechaSeleccionada)}
+            max={hoyStr}
+            onChange={e => e.target.value && setFechaSeleccionada(new Date(`${e.target.value}T00:00:00`))}
+            className="input px-3 py-1.5 text-xs"
+          />
+          <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sId} onChange={selectSucursal} />
+        </div>
       </div>
+
+      {!esHoy && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-medium px-3 py-2 rounded-lg">
+          Viendo datos del {fechaSeleccionada.toLocaleDateString('es-PE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+          {' '}— "Pedidos Activos" siempre muestra el estado en vivo, no el de la fecha elegida.
+        </div>
+      )}
 
       {isSuperAdmin && !sId ? (
         <div className="card-lg p-12 flex flex-col items-center justify-center gap-2">
@@ -251,7 +269,9 @@ export default function DashboardPage() {
         <div className="card p-4 lg:col-span-8 space-y-3">
           <div className="pb-2 border-b border-slate-200">
             <h4 className="text-xs font-semibold text-slate-800">Curva de Ingresos Diarios (S/.)</h4>
-            <p className="text-[10px] text-slate-500 mt-0.5">Ingresos cobrados hoy, acumulados por hora</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">
+              Ingresos cobrados {esHoy ? 'hoy' : 'ese día'}, acumulados por hora
+            </p>
           </div>
           <RevenueChart ventasPorHora={ventasPorHora} />
         </div>
@@ -260,10 +280,10 @@ export default function DashboardPage() {
         <div className="card p-4 lg:col-span-4 space-y-3">
           <div>
             <h4 className="text-xs font-semibold text-slate-800">Métodos de Pago</h4>
-            <p className="text-[10px] text-slate-500 mt-0.5">Sobre las ventas cobradas hoy</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Sobre las ventas cobradas {esHoy ? 'hoy' : 'ese día'}</p>
           </div>
           {metodosPago.length === 0 ? (
-            <p className="text-[11px] text-slate-400">Todavía no hay ventas cobradas hoy.</p>
+            <p className="text-[11px] text-slate-400">Todavía no hay ventas cobradas {esHoy ? 'hoy' : 'ese día'}.</p>
           ) : (
             <div className="space-y-3">
               {metodosPago.map(m => (
@@ -298,12 +318,12 @@ export default function DashboardPage() {
         <div className="flex justify-between items-center mb-3">
           <div>
             <h4 className="text-xs font-semibold text-gray-800">Ventas Recientes Registradas (POS)</h4>
-            <p className="text-[10px] text-gray-400">Ventas cobradas hoy</p>
+            <p className="text-[10px] text-gray-400">Ventas cobradas {esHoy ? 'hoy' : 'ese día'}</p>
           </div>
           <button
             onClick={() => {
               if (ventasRecientes.length === 0) { triggerToast('No hay ventas para exportar.', 'info'); return; }
-              descargarCsv(ventasRecientes);
+              descargarCsv(ventasRecientes, fechaSeleccionada);
             }}
             className="btn-ghost"
           >
@@ -326,7 +346,7 @@ export default function DashboardPage() {
             <tbody className="divide-y divide-gray-100">
               {ventasRecientes.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="p-6 text-center text-slate-400">Todavía no hay ventas cobradas hoy.</td>
+                  <td colSpan={7} className="p-6 text-center text-slate-400">Todavía no hay ventas cobradas {esHoy ? 'hoy' : 'ese día'}.</td>
                 </tr>
               )}
               {ventasRecientes.map(v => (
