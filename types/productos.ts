@@ -16,6 +16,7 @@ export interface ProductoDto {
   unidad?: string;
   bajoMinimo?: boolean;
   variantes?: ProductoVarianteDto[];
+  extras?: ProductoExtraDto[];
 }
 
 export interface CreateProductoDto {
@@ -66,6 +67,28 @@ export interface CreateProductoVarianteDto {
 }
 
 export interface UpdateProductoVarianteDto {
+  nombre: string;
+  precio: number;
+  disponible: boolean;
+}
+
+/** Extra/personalización de un producto (ej. "Crema huancaína") con precio propio, que se puede
+ *  elegir junto con otros al agregar el plato al pedido (selección múltiple, no reemplaza el precio base). */
+export interface ProductoExtraDto {
+  id: number;
+  productoId: number;
+  nombre: string;
+  precio: number;
+  disponible: boolean;
+}
+
+export interface CreateProductoExtraDto {
+  productoId: number;
+  nombre: string;
+  precio: number;
+}
+
+export interface UpdateProductoExtraDto {
   nombre: string;
   precio: number;
   disponible: boolean;

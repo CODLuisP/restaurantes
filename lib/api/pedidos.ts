@@ -1,5 +1,11 @@
 import { apiFetch } from './client';
 
+export interface PedidoItemExtraDto {
+  productoExtraId?: number | null;
+  nombre: string;
+  precio: number;
+}
+
 export interface PedidoItemDto {
   id: number;
   productoId?: number | null;
@@ -12,6 +18,8 @@ export interface PedidoItemDto {
   precioUnitario: number;
   notas?: string | null;
   estado: string;
+  /** Extras elegidos para esta línea — solo informativos (ya están sumados en precioUnitario). */
+  extras: PedidoItemExtraDto[];
 }
 
 export interface PedidoDto {
@@ -38,6 +46,8 @@ export interface CreatePedidoItemDto {
   comboId?: number;
   cantidad: number;
   notas?: string;
+  /** Ids de ProductoExtra elegidos (solo válido junto con productoId, no con combos). */
+  extraIds?: number[];
 }
 
 export interface CreatePedidoDto {

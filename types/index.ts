@@ -10,6 +10,9 @@ export interface Product {
   unit: string;
   /** Variantes disponibles del producto en el catálogo (ej. "Helada"/"Al tiempo") — no aplica a un ítem ya en el carrito. */
   variants?: { id: number; name: string; price: number }[];
+  /** Extras disponibles del producto en el catálogo (ej. "Crema huancaína +S/.2.00"), seleccionables
+   *  varios a la vez — no aplica a un ítem ya en el carrito, ahí ya quedaron sumados al precio. */
+  extras?: { id: number; name: string; price: number }[];
 }
 
 export interface OrderItem {

@@ -92,7 +92,7 @@ export default function ComprobanteDetailModal({
               (comprobanteSizes[selectedComprobante.numero] || 'A4') === 'Ticket 58mm') ? (
               <div 
                 className={`bg-white p-6 shadow-sm border border-slate-200 font-mono text-slate-800 text-[11px] leading-tight select-text ${
-                  (comprobanteSizes[selectedComprobante.numero] || 'A4') === 'Ticket 58mm' ? 'w-[230px]' : 'w-[300px]'
+                  (comprobanteSizes[selectedComprobante.numero] || 'A4') === 'Ticket 58mm' ? 'w-57.5' : 'w-75'
                 }`}
               >
                 {/* Logo y Encabezado de Ticket */}
@@ -133,7 +133,7 @@ export default function ComprobanteDetailModal({
                   <tbody>
                     {selectedComprobante.items.map((item, idx) => (
                       <tr key={idx} className="border-b border-slate-100 last:border-0">
-                        <td className="py-1 uppercase max-w-[120px] truncate">{item.name}</td>
+                        <td className="py-1 uppercase max-w-30 truncate">{item.name}</td>
                         <td className="py-1 text-center">{item.quantity}</td>
                         <td className="py-1 text-right">{item.price.toFixed(2)}</td>
                         <td className="py-1 text-right">{(item.quantity * item.price).toFixed(2)}</td>
@@ -178,7 +178,7 @@ export default function ComprobanteDetailModal({
               </div>
             ) : (
               /* Formato Documento (A4 o A5) */
-              <div className="bg-white p-8 shadow-sm border border-slate-200 text-slate-800 font-sans text-xs w-[540px] select-text">
+              <div className="bg-white p-8 shadow-sm border border-slate-200 text-slate-800 font-sans text-xs w-135 select-text">
                 {/* Cabecera A4 */}
                 <div className="grid grid-cols-2 gap-4 pb-6 border-b border-slate-200">
                   <div className="space-y-1">
@@ -255,7 +255,6 @@ export default function ComprobanteDetailModal({
                     <div className="space-y-1">
                       <div className="text-[9px] font-mono text-slate-500">
                         Representación impresa de la {tipoLabel} Electrónica.<br />
-                        Código Hash: <span className="font-bold">{selectedComprobante.hash}</span>
                       </div>
                     </div>
                   </div>

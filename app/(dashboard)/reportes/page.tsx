@@ -6,7 +6,7 @@ import ExcelJS from 'exceljs';
 import { useApp } from '@/context/AppContext';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import { SucursalSelector } from '@/components/ui';
-import { getReporteResumen, toFechaParam, type ReporteResumenDto } from '@/lib/api/reportes';
+import { getReporteResumen, getRankingProductos, toFechaParam, type ReporteResumenDto, type RankingProductosDto } from '@/lib/api/reportes';
 
 const CATEGORY_COLORS = ['bg-brand', 'bg-brand-hover', 'bg-emerald-500', 'bg-amber-500', 'bg-indigo-500', 'bg-rose-500'];
 
@@ -26,6 +26,8 @@ export default function ReportesPage() {
   const [fechaInicio, setFechaInicio] = useState(() => toFechaParam(primerDiaDelMes()));
   const [fechaFin, setFechaFin] = useState(() => toFechaParam(new Date()));
   const [reporte, setReporte] = useState<ReporteResumenDto | null>(null);
+  const [ranking, setRanking] = useState<RankingProductosDto | null>(null);
+  const [rankingTab, setRankingTab] = useState<'top' | 'bottom'>('top');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -34,8 +36,14 @@ export default function ReportesPage() {
     if (!token || !sId) return;
     setLoading(true);
     setError(false);
-    getReporteResumen(token, { sucursalId: sId, fechaInicio, fechaFin })
-      .then(setReporte)
+    Promise.all([
+      getReporteResumen(token, { sucursalId: sId, fechaInicio, fechaFin }),
+      getRankingProductos(token, { sucursalId: sId, fechaInicio, fechaFin }),
+    ])
+      .then(([resumenRes, rankingRes]) => {
+        setReporte(resumenRes);
+        setRanking(rankingRes);
+      })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [token, sId, fechaInicio, fechaFin]);
@@ -80,6 +88,24 @@ export default function ReportesPage() {
       ];
       reporte.aforo.forEach(a => aforoSheet.addRow({ hora: fmtHora24(a.hora), cantidad: a.cantidad }));
       aforoSheet.getRow(1).font = { bold: true };
+
+      if (ranking) {
+        const productosSheet = workbook.addWorksheet('Ranking de productos');
+        productosSheet.columns = [
+          { header: 'Ranking', key: 'ranking', width: 10 },
+          { header: 'Producto', key: 'nombre', width: 30 },
+          { header: 'Cantidad vendida', key: 'cantidad', width: 18 },
+          { header: 'Total vendido (S/.)', key: 'total', width: 20 },
+        ];
+        ranking.top.forEach((p, i) =>
+          productosSheet.addRow({ ranking: `Top ${i + 1}`, nombre: p.productoNombre, cantidad: p.cantidadVendida, total: p.totalVendido })
+        );
+        ranking.bottom.forEach((p, i) =>
+          productosSheet.addRow({ ranking: `Bottom ${i + 1}`, nombre: p.productoNombre, cantidad: p.cantidadVendida, total: p.totalVendido })
+        );
+        productosSheet.getRow(1).font = { bold: true };
+        productosSheet.getColumn('total').numFmt = '"S/." #,##0.00';
+      }
 
       const buffer = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -208,6 +234,46 @@ export default function ReportesPage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {!loading && !error && ranking && (
+        <div className="card-lg p-5 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Ranking de Productos</h4>
+            <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5">
+              <button
+                onClick={() => setRankingTab('top')}
+                className={`text-[11px] font-semibold px-3 py-1 rounded-md transition-colors ${rankingTab === 'top' ? 'bg-white text-brand shadow-sm' : 'text-slate-500'}`}
+              >
+                Top 10
+              </button>
+              <button
+                onClick={() => setRankingTab('bottom')}
+                className={`text-[11px] font-semibold px-3 py-1 rounded-md transition-colors ${rankingTab === 'bottom' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500'}`}
+              >
+                Menos vendidos
+              </button>
+            </div>
+          </div>
+          {(rankingTab === 'top' ? ranking.top : ranking.bottom).length === 0 ? (
+            <p className="text-xs text-slate-400 italic py-6 text-center">Sin ventas en el rango seleccionado.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
+              {(rankingTab === 'top' ? ranking.top : ranking.bottom).map((p, i) => (
+                <div key={p.productoId} className="flex items-center justify-between gap-3 py-1.5 border-b border-slate-100 last:border-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[10px] font-mono text-slate-400 shrink-0 w-5">{i + 1}.</span>
+                    <span className="text-xs text-slate-700 truncate">{p.productoNombre}</span>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-[10px] text-slate-400 font-mono">{p.cantidadVendida} und.</span>
+                    <span className="text-xs font-mono font-bold text-slate-800">S/. {p.totalVendido.toFixed(2)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -463,7 +463,7 @@ export default function ProductosTab({
         open={deleteConfirm !== null}
         onClose={() => { setDeleteConfirm(null); setDeleteTargetName(""); }}
         title="Eliminar producto"
-        subtitle={`¿Estás seguro de eliminar "${deleteTargetName}"? Esta acción no se puede deshacer.`}
+        subtitle={`"${deleteTargetName}" dejará de mostrarse en tu carta, Comandero y el menú público. Sus pedidos y comprobantes ya emitidos se conservan igual.`}
         size="sm"
         fullHeight={false}
         footer={

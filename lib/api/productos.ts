@@ -8,6 +8,9 @@ import type {
   ProductoVarianteDto,
   CreateProductoVarianteDto,
   UpdateProductoVarianteDto,
+  ProductoExtraDto,
+  CreateProductoExtraDto,
+  UpdateProductoExtraDto,
 } from '@/types/productos';
 
 export interface ProductosFilters {
@@ -79,4 +82,30 @@ export function updateVariante(token: string, id: number, dto: UpdateProductoVar
 
 export function deleteVariante(token: string, id: number) {
   return apiFetch<void>(`/api/productos/variantes/${id}`, { token, method: 'DELETE' });
+}
+
+// ── Extras (personalizaciones con precio propio, selección múltiple) ──
+
+export function getExtras(token: string, productoId: number) {
+  return apiFetch<ProductoExtraDto[]>(`/api/productos/${productoId}/extras`, { token });
+}
+
+export function createExtra(token: string, productoId: number, dto: CreateProductoExtraDto) {
+  return apiFetch<ProductoExtraDto>(`/api/productos/${productoId}/extras`, {
+    token,
+    method: 'POST',
+    body: dto,
+  });
+}
+
+export function updateExtra(token: string, id: number, dto: UpdateProductoExtraDto) {
+  return apiFetch<ProductoExtraDto>(`/api/productos/extras/${id}`, {
+    token,
+    method: 'PUT',
+    body: dto,
+  });
+}
+
+export function deleteExtra(token: string, id: number) {
+  return apiFetch<void>(`/api/productos/extras/${id}`, { token, method: 'DELETE' });
 }

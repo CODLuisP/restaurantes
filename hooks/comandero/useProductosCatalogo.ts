@@ -38,6 +38,7 @@ export function useProductosCatalogo(orderType: OrderType, triggerToast: (messag
     sku: String(p.id),
     unit: p.unidad ?? 'Porción',
     variants: p.variantes?.map(v => ({ id: v.id, name: v.nombre, price: v.precio })),
+    extras: p.extras?.filter(e => e.disponible).map(e => ({ id: e.id, name: e.nombre, price: e.precio })),
   })), [productos, orderType]);
 
   const categories = useMemo(

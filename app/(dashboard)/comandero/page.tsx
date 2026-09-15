@@ -169,12 +169,22 @@ export default function ComanderoPage() {
     resetDraft();
   };
 
-  const handleAddToCart = (product: Product, varianteId?: number | null) => {
+  const handleAddToCart = (product: Product, varianteId?: number | null, extraIds?: number[]) => {
     const variante = varianteId ? product.variants?.find(v => v.id === varianteId) : undefined;
-    const lineId = cartLineId(product.id, varianteId);
-    const lineProduct: Product = variante
-      ? { ...product, id: lineId, name: `${product.name} (${variante.name})`, price: variante.price }
-      : { ...product, id: lineId };
+    const extrasElegidos = extraIds?.length ? product.extras?.filter(e => extraIds.includes(e.id)) ?? [] : [];
+    const lineId = cartLineId(product.id, varianteId, extraIds);
+
+    const precioBase = variante ? variante.price : product.price;
+    const totalExtras = extrasElegidos.reduce((a, e) => a + e.price, 0);
+    const sufijoExtras = extrasElegidos.length > 0 ? ` (+ ${extrasElegidos.map(e => e.name).join(', ')})` : '';
+    const nombreVariante = variante ? ` (${variante.name})` : '';
+
+    const lineProduct: Product = {
+      ...product,
+      id: lineId,
+      name: `${product.name}${nombreVariante}${sufijoExtras}`,
+      price: precioBase + totalExtras,
+    };
 
     setCart(prev => {
       const existing = prev.find(i => i.product.id === lineId);

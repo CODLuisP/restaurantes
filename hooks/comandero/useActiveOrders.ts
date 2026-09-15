@@ -144,8 +144,8 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
           mozoId,
           origen: 'mozo',
           items: items.map(i => {
-            const { productoId, varianteId } = parseCartLineId(i.product.id);
-            return { productoId, varianteId, cantidad: i.quantity };
+            const { productoId, varianteId, extraIds } = parseCartLineId(i.product.id);
+            return { productoId, varianteId, extraIds, cantidad: i.quantity };
           }),
         });
         const order = sesionPedidoToActiveOrder(sesion, pedido);
@@ -169,8 +169,8 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
 
       try {
         const pedido = await agregarItemsPedido(token, order.pedidoId, items.map(i => {
-          const { productoId, varianteId } = parseCartLineId(i.product.id);
-          return { productoId, varianteId, cantidad: i.quantity };
+          const { productoId, varianteId, extraIds } = parseCartLineId(i.product.id);
+          return { productoId, varianteId, extraIds, cantidad: i.quantity };
         }));
         setActiveOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...pedidoToFields(pedido) } : o));
         triggerToast('Se agregaron platos al pedido y se enviaron a cocina.', 'success');

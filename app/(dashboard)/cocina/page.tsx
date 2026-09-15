@@ -134,8 +134,15 @@ export default function CocinaPage() {
                             return (
                               <div key={it.id} className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 first:border-t-0 first:pt-0">
                                 <div className={`text-xs font-medium flex-1 min-w-0 ${col.status === 'listo' ? 'text-slate-500 line-through' : 'text-slate-800'}`}>
-                                  <span className="truncate">{itemName(it)}</span>
-                                  <span className="font-mono ml-1 text-slate-400">x{it.cantidad}</span>
+                                  <div>
+                                    <span className="truncate">{itemName(it)}</span>
+                                    <span className="font-mono ml-1 text-slate-400">x{it.cantidad}</span>
+                                  </div>
+                                  {it.extras.length > 0 && (
+                                    <p className="text-[10px] text-brand font-normal truncate">
+                                      + {it.extras.map(e => e.nombre).join(', ')}
+                                    </p>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-1 shrink-0">
                                   {busy ? (

@@ -17,27 +17,35 @@ interface MenuCatalogProps {
   activeCategory: string;
   setSelectedCategory: (c: string) => void;
   filteredProducts: Product[];
-  onAddToCart: (product: Product, varianteId?: number | null) => void;
+  onAddToCart: (product: Product, varianteId?: number | null, extraIds?: number[]) => void;
   onBack: () => void;
 }
 
 function ProductCard({
-  product, selectedVariantId, onSelectVariant, onAddToCart,
+  product, selectedVariantId, onSelectVariant, selectedExtraIds, onToggleExtra, onAddToCart,
 }: {
   product: Product;
   selectedVariantId: number | null;
   onSelectVariant: (id: number | null) => void;
-  onAddToCart: (product: Product, varianteId?: number | null) => void;
+  selectedExtraIds: number[];
+  onToggleExtra: (id: number) => void;
+  onAddToCart: (product: Product, varianteId?: number | null, extraIds?: number[]) => void;
 }) {
   const tieneVariantes = !!product.variants && product.variants.length > 0;
-  const precioEfectivo = tieneVariantes
+  const tieneExtras = !!product.extras && product.extras.length > 0;
+  const tieneOpciones = tieneVariantes || tieneExtras;
+  const precioBase = tieneVariantes
     ? (product.variants!.find(v => v.id === selectedVariantId)?.price ?? product.price)
     : product.price;
+  const totalExtras = product.extras
+    ?.filter(e => selectedExtraIds.includes(e.id))
+    .reduce((a, e) => a + e.price, 0) ?? 0;
+  const precioEfectivo = precioBase + totalExtras;
 
   return (
     <div
-      onClick={() => { if (!tieneVariantes) onAddToCart(product); }}
-      className={`card-lg hover:shadow-md hover:-translate-y-0.5 overflow-hidden transition-all duration-200 flex flex-col group border border-slate-100/60 ${tieneVariantes ? '' : 'cursor-pointer'}`}
+      onClick={() => { if (!tieneOpciones) onAddToCart(product); }}
+      className={`card-lg hover:shadow-md hover:-translate-y-0.5 overflow-hidden transition-all duration-200 flex flex-col group border border-slate-100/60 ${tieneOpciones ? '' : 'cursor-pointer'}`}
     >
       <div className="relative h-28 w-full bg-slate-100 overflow-hidden">
         {product.image ? (
@@ -63,13 +71,27 @@ function ProductCard({
               ))}
             </div>
           )}
+          {tieneExtras && (
+            <div className="flex flex-wrap gap-1 mt-1.5" onClick={e => e.stopPropagation()}>
+              {product.extras!.map(ex => (
+                <button
+                  key={ex.id}
+                  type="button"
+                  onClick={() => onToggleExtra(ex.id)}
+                  className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full transition-colors ${selectedExtraIds.includes(ex.id) ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                >
+                  + {ex.name}{ex.price > 0 ? ` (S/.${ex.price.toFixed(2)})` : ''}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
           <span className="text-[11px] font-mono font-bold text-slate-700">S/. {precioEfectivo.toFixed(2)}</span>
-          {tieneVariantes ? (
+          {tieneOpciones ? (
             <button
               type="button"
-              onClick={e => { e.stopPropagation(); onAddToCart(product, selectedVariantId); }}
+              onClick={e => { e.stopPropagation(); onAddToCart(product, selectedVariantId, selectedExtraIds); }}
               className="bg-emerald-50 hover:bg-emerald-100 p-1.5 rounded-lg text-brand shrink-0 transition-colors cursor-pointer"
               aria-label={`Agregar ${product.name}`}
             >
@@ -91,6 +113,22 @@ export default function MenuCatalog({
 }: MenuCatalogProps) {
   /* Variante elegida por producto (chips) antes de agregarlo a la comanda. */
   const [variantSelections, setVariantSelections] = useState<Record<string, number | null>>({});
+  /* Extras elegidos por producto (multi-selección) antes de agregarlo a la comanda. */
+  const [extraSelections, setExtraSelections] = useState<Record<string, number[]>>({});
+
+  const toggleExtra = (productId: string, extraId: number) => {
+    setExtraSelections(prev => {
+      const current = prev[productId] ?? [];
+      const next = current.includes(extraId) ? current.filter(id => id !== extraId) : [...current, extraId];
+      return { ...prev, [productId]: next };
+    });
+  };
+
+  /** Envuelve onAddToCart para limpiar los extras elegidos de ese producto tras agregarlo. */
+  const handleAdd = (product: Product, varianteId?: number | null, extraIds?: number[]) => {
+    onAddToCart(product, varianteId, extraIds);
+    if (extraIds && extraIds.length > 0) setExtraSelections(prev => ({ ...prev, [product.id]: [] }));
+  };
 
   /* En "Todos" se agrupa la carta completa por categoría en vez de una grilla plana. */
   const groupedByCategory = activeCategory === 'Todos' && !isSearching
@@ -186,7 +224,9 @@ export default function MenuCatalog({
                           product={product}
                           selectedVariantId={variantSelections[product.id] ?? null}
                           onSelectVariant={id => setVariantSelections(prev => ({ ...prev, [product.id]: id }))}
-                          onAddToCart={onAddToCart}
+                          selectedExtraIds={extraSelections[product.id] ?? []}
+                          onToggleExtra={id => toggleExtra(product.id, id)}
+                          onAddToCart={handleAdd}
                         />
                       ))}
                     </div>
@@ -201,7 +241,9 @@ export default function MenuCatalog({
                     product={product}
                     selectedVariantId={variantSelections[product.id] ?? null}
                     onSelectVariant={id => setVariantSelections(prev => ({ ...prev, [product.id]: id }))}
-                    onAddToCart={onAddToCart}
+                    selectedExtraIds={extraSelections[product.id] ?? []}
+                    onToggleExtra={id => toggleExtra(product.id, id)}
+                    onAddToCart={handleAdd}
                   />
                 ))}
               </div>

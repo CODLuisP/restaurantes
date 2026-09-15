@@ -27,6 +27,18 @@ export interface ReporteResumenDto {
   aforo: AforoHoraDto[];
 }
 
+export interface ProductoVentaDto {
+  productoId: number;
+  productoNombre: string;
+  cantidadVendida: number;
+  totalVendido: number;
+}
+
+export interface RankingProductosDto {
+  top: ProductoVentaDto[];
+  bottom: ProductoVentaDto[];
+}
+
 /** Formatea una fecha local (no UTC) como YYYY-MM-DD para los query params del backend. */
 export const toFechaParam = (d: Date) => {
   const y = d.getFullYear();
@@ -42,4 +54,13 @@ export function getReporteResumen(
   const query = new URLSearchParams({ fechaInicio: params.fechaInicio, fechaFin: params.fechaFin });
   if (params.sucursalId) query.set('sucursalId', String(params.sucursalId));
   return apiFetch<ReporteResumenDto>(`/api/reportes/resumen?${query.toString()}`, { token });
+}
+
+export function getRankingProductos(
+  token: string,
+  params: { sucursalId?: number; fechaInicio: string; fechaFin: string }
+) {
+  const query = new URLSearchParams({ fechaInicio: params.fechaInicio, fechaFin: params.fechaFin });
+  if (params.sucursalId) query.set('sucursalId', String(params.sucursalId));
+  return apiFetch<RankingProductosDto>(`/api/reportes/productos?${query.toString()}`, { token });
 }
