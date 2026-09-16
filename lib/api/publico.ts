@@ -13,6 +13,7 @@ export interface ProductoMenuPublicoDto {
   descripcion: string;
   imagenUrl: string;
   variantes: { id: number; nombre: string; precio: number }[];
+  extras: { id: number; nombre: string; precio: number }[];
 }
 
 export interface CategoriaMenuPublicoDto {
@@ -75,6 +76,7 @@ export interface CrearPedidoClienteItemDto {
   comboId?: number;
   cantidad: number;
   notas?: string;
+  extraIds?: number[];
 }
 
 export interface CrearPedidoClienteDto {

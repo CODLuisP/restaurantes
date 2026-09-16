@@ -21,13 +21,18 @@ export const LIBRARIES: ('places' | 'geometry')[] = ['places'];
 export { cartLineId, parseCartLineId } from '@/lib/cart/cartLineId';
 import { cartLineId } from '@/lib/cart/cartLineId';
 
-/** Adapta un plato del menú público (y, si eligió una, su variante) al producto que usa el carrito. */
-export function productoToCartItem(p: ProductoMenu, varianteId?: number | null): Product {
+/** Adapta un plato del menú público (y, si eligió, su variante y extras) al producto que usa el carrito. */
+export function productoToCartItem(p: ProductoMenu, varianteId?: number | null, extraIds?: number[]): Product {
   const variante = varianteId ? p.variantes?.find(v => v.id === varianteId) : undefined;
+  const extrasElegidos = extraIds?.length ? p.extras?.filter(e => extraIds.includes(e.id)) ?? [] : [];
+  const totalExtras = extrasElegidos.reduce((a, e) => a + e.precio, 0);
+  const sufijoExtras = extrasElegidos.length > 0 ? ` (+ ${extrasElegidos.map(e => e.nombre).join(', ')})` : '';
+  const nombreVariante = variante ? ` (${variante.nombre})` : '';
+
   return {
-    id: cartLineId(p.id, varianteId),
-    name: variante ? `${p.nombre} (${variante.nombre})` : p.nombre,
-    price: variante ? variante.precio : p.precio,
+    id: cartLineId(p.id, varianteId, extraIds),
+    name: `${p.nombre}${nombreVariante}${sufijoExtras}`,
+    price: (variante ? variante.precio : p.precio) + totalExtras,
     category: p.categoriaNombre,
     image: p.imagenUrl ?? '',
     status: 'available' as const,

@@ -198,7 +198,9 @@ export default function ComprobantesPage() {
     try {
       const detalle = await getComprobanteDetalle(token, parseInt(comp.id));
       const itemsMapped = detalle.items.map(i => ({
-        name: i.productoNombre || i.comboNombre || 'Producto',
+        name: i.productoNombre
+          ? (i.varianteNombre ? `${i.productoNombre} (${i.varianteNombre})` : i.productoNombre)
+          : i.comboNombre || 'Producto',
         quantity: i.cantidad,
         price: i.precioUnitario,
       }));

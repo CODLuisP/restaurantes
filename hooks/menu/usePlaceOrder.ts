@@ -59,8 +59,8 @@ export function usePlaceOrder({ form, cart, setCart, mesaToken, sucursalId, onSu
     setSubmitting(true);
     try {
       const items = cart.map(i => {
-        const { productoId, varianteId } = parseCartLineId(i.product.id);
-        return { productoId, varianteId, cantidad: i.quantity };
+        const { productoId, varianteId, extraIds } = parseCartLineId(i.product.id);
+        return { productoId, varianteId, extraIds, cantidad: i.quantity };
       });
 
       const pedido = orderType === 'mesa'

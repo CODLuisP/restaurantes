@@ -229,7 +229,10 @@ export default function VentasDelDiaPage() {
                   <div className="space-y-2">
                     {seleccionada.items.map(item => (
                       <div key={item.id} className="flex justify-between items-center gap-2 text-xs">
-                        <span className="text-slate-700 truncate">{item.productoNombre ?? item.comboNombre ?? 'Producto'} <span className="text-slate-400">x{item.cantidad}</span></span>
+                        <span className="text-slate-700 truncate">
+                          {item.productoNombre ? (item.varianteNombre ? `${item.productoNombre} (${item.varianteNombre})` : item.productoNombre) : item.comboNombre ?? 'Producto'}
+                          {' '}<span className="text-slate-400">x{item.cantidad}</span>
+                        </span>
                         <span className="font-mono font-bold text-slate-800 shrink-0">{money(item.precioUnitario * item.cantidad)}</span>
                       </div>
                     ))}

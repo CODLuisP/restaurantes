@@ -5,15 +5,15 @@ import { useSession } from 'next-auth/react';
 import type { Table, OrderItem, Toast } from '@/types';
 import { ApiError } from '@/lib/api/client';
 import {
-  createMesa, deleteMesa, getMesasEstado, setMesaEstado, unirMesas, separarGrupoMesas,
-  type MesaEstadoDto, type MesaEstado,
+  createMesa, deleteMesa, getMesasTablero, setMesaEstado, unirMesas, separarGrupoMesas,
+  type MesaTableroDto, type MesaEstado,
 } from '@/lib/api/mesas';
 import {
   getPedidoBySesion, crearPedido, agregarItemsPedido,
   actualizarItemPedido, eliminarItemPedido, cancelarPedido, confirmarPedido, marcarPedidoEntregado, type PedidoDto,
 } from '@/lib/api/pedidos';
 import { crearSesionMesa, cerrarSesionMesa } from '@/lib/api/sesionesMesa';
-import { getVentasBySesion, cantidadFacturadaPorItem, restarFacturado } from '@/lib/api/ventas';
+import { restarFacturado } from '@/lib/api/ventas';
 import { parseCartLineId } from '@/lib/cart/cartLineId';
 import { usePedidoEvents } from '@/hooks/realtime/usePedidoEvents';
 import { useSesionCerradaEvents, type SesionCerradaPayload } from '@/hooks/realtime/useSesionCerradaEvents';
@@ -49,23 +49,24 @@ function mapPedidoItems(pedido: PedidoDto | null): OrderItem[] {
     }));
 }
 
-function mesaEstadoToTable(mesa: MesaEstadoDto, pedido: PedidoDto | null, facturado: Map<string, number>): Table {
-  const items = restarFacturado(mapPedidoItems(pedido), facturado);
+function mesaEstadoToTable(m: MesaTableroDto): Table {
+  const facturado = new Map(Object.entries(m.facturado));
+  const items = restarFacturado(mapPedidoItems(m.pedido), facturado);
   const cuenta = items.reduce((a, i) => a + i.product.price * i.quantity, 0);
   return {
-    id: String(mesa.mesaId),
-    name: String(mesa.numero),
-    ubicacion: mesa.ubicacion ?? '',
-    capacidad: mesa.capacidad,
-    status: ESTADO_TO_STATUS[mesa.estado],
-    groupId: mesa.grupoId ?? undefined,
+    id: String(m.mesaId),
+    name: String(m.numero),
+    ubicacion: m.ubicacion ?? '',
+    capacidad: m.capacidad,
+    status: ESTADO_TO_STATUS[m.estado],
+    groupId: m.grupoId ?? undefined,
     cuenta,
     items,
-    waiter: pedido?.mozoNombre ?? undefined,
-    sesionMesaId: mesa.sesionId ?? undefined,
-    pedidoId: pedido?.id,
-    pedidoEstado: pedido?.estado,
-    nombreCliente: mesa.nombreCliente ?? undefined,
+    waiter: m.pedido?.mozoNombre ?? undefined,
+    sesionMesaId: m.sesionId ?? undefined,
+    pedidoId: m.pedido?.id,
+    pedidoEstado: m.pedido?.estado,
+    nombreCliente: m.nombreCliente ?? undefined,
   };
 }
 
@@ -81,26 +82,26 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
   const sucursalId = authSession?.user?.sucursalId ?? undefined;
 
   const [tables, setTables] = useState<Table[]>([]);
-  const [mesasEstado, setMesasEstado] = useState<MesaEstadoDto[]>([]);
+  const [mesasEstado, setMesasEstado] = useState<MesaTableroDto[]>([]);
   const [mesasLoading, setMesasLoading] = useState(true);
 
   /** `silent`: recarga en segundo plano (disparada por el WebSocket) sin mostrar de nuevo el
-   *  spinner de carga completa — evita el "parpadeo" de refresco en cada evento en tiempo real. */
+   *  spinner de carga completa — evita el "parpadeo" de refresco en cada evento en tiempo real.
+   *
+   *  Un solo request al backend (/api/mesas/tablero), que ya trae mesa + pedido + facturado de
+   *  todas las mesas resuelto server-side. Antes era 1 (mesas) + N (pedido de cada mesa ocupada) +
+   *  N (ventas de cada mesa ocupada) requests por cada carga — con la base de datos en un host
+   *  remoto, esa latencia acumulada era la causa real de la demora al enviar/cobrar. */
   const loadMesas = useCallback(async (opts?: { silent?: boolean }) => {
     if (!token) { setMesasLoading(false); return; }
     if (!opts?.silent) setMesasLoading(true);
     try {
-      const mesas = await getMesasEstado(token, sucursalId);
-      setMesasEstado(mesas);
-      const [pedidos, ventasPorSesion] = await Promise.all([
-        Promise.all(mesas.map(m => (m.sesionId ? getPedidoBySesion(token, m.sesionId).catch(() => null) : Promise.resolve(null)))),
-        Promise.all(mesas.map(m => (m.sesionId ? getVentasBySesion(token, m.sesionId).catch(() => []) : Promise.resolve([])))),
-      ]);
+      const tablero = await getMesasTablero(token, sucursalId);
+      setMesasEstado(tablero);
       setTables(prev => {
         const prevById = new Map(prev.map(t => [t.id, t]));
-        return mesas.map((m, i) => {
-          const facturado = cantidadFacturadaPorItem(ventasPorSesion[i]);
-          const built = mesaEstadoToTable(m, pedidos[i], facturado);
+        return tablero.map(m => {
+          const built = mesaEstadoToTable(m);
           const local = prevById.get(built.id);
           // x/y son puramente decorativos (posición en el plano) y no vienen del backend.
           return local ? { ...built, x: local.x, y: local.y } : built;
@@ -164,18 +165,26 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
     [token, triggerToast]
   );
 
-  /** Mozo: envía la comanda de una mesa a cocina. Si ya hay sesión/pedido abiertos, agrega los ítems ahí. */
+  /** Mozo: envía la comanda de una mesa a cocina. Si ya hay sesión/pedido abiertos, agrega los ítems ahí.
+   *
+   *  Devuelve también el pedido completo resultante y si el pedido YA existía como
+   *  "pendiente_confirmacion" (armado por el cliente vía QR, nunca confirmado explícitamente) —
+   *  porque agregar un ítem ahí lo saca de ese estado como efecto secundario (ver
+   *  PedidoService.RecalcularEstadoAsync), sin pasar por confirmarPedidoCliente. Sin esta señal,
+   *  el llamador solo sabe imprimir los ítems nuevos y los platos originales del cliente nunca
+   *  salen impresos. */
   const sendOrderToKitchen = useCallback(
-    async (tableName: string, nombreComensal: string | undefined, items: OrderItem[]) => {
-      if (!token || !mozoId) { triggerToast('Sesión expirada.', 'error'); return false; }
-      if (items.length === 0) { triggerToast('La comanda está vacía. Agregue platos antes de enviar.', 'warning'); return false; }
+    async (tableName: string, nombreComensal: string | undefined, items: OrderItem[]): Promise<{ ok: boolean; pedido?: PedidoDto; eraPendienteConfirmacion?: boolean }> => {
+      if (!token || !mozoId) { triggerToast('Sesión expirada.', 'error'); return { ok: false }; }
+      if (items.length === 0) { triggerToast('La comanda está vacía. Agregue platos antes de enviar.', 'warning'); return { ok: false }; }
 
       const mesa = mesasEstado.find(m => String(m.numero) === tableName);
-      if (!mesa) { triggerToast('La mesa ya no existe.', 'error'); return false; }
+      if (!mesa) { triggerToast('La mesa ya no existe.', 'error'); return { ok: false }; }
 
       try {
         let sesionId = mesa.sesionId ?? undefined;
         let pedidoId: number | undefined;
+        let eraPendienteConfirmacion = false;
 
         if (!sesionId) {
           const sesion = await crearSesionMesa(token, {
@@ -186,21 +195,23 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
         } else {
           const pedidoActual = await getPedidoBySesion(token, sesionId).catch(() => null);
           pedidoId = pedidoActual?.id;
+          eraPendienteConfirmacion = pedidoActual?.estado === 'pendiente_confirmacion';
         }
 
         const itemsDto = items.map(i => {
           const { productoId, varianteId, extraIds } = parseCartLineId(i.product.id);
           return { productoId, varianteId, extraIds, cantidad: i.quantity };
         });
-        if (pedidoId) await agregarItemsPedido(token, pedidoId, itemsDto);
-        else await crearPedido(token, { sesionMesaId: sesionId, mozoId, origen: 'mozo', items: itemsDto });
+        const pedido = pedidoId
+          ? await agregarItemsPedido(token, pedidoId, itemsDto)
+          : await crearPedido(token, { sesionMesaId: sesionId, mozoId, origen: 'mozo', items: itemsDto });
 
         await loadMesas();
         triggerToast(`Comanda de Mesa ${tableName} enviada a cocina.`, 'success');
-        return true;
+        return { ok: true, pedido, eraPendienteConfirmacion };
       } catch (err) {
         triggerToast(err instanceof ApiError ? err.message : 'No se pudo enviar la comanda.', 'error');
-        return false;
+        return { ok: false };
       }
     },
     [token, mozoId, mesasEstado, triggerToast, loadMesas]
@@ -239,18 +250,22 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
     [token, triggerToast, loadMesas]
   );
 
-  /** El mozo confirma un pedido que armó el cliente por QR: recién ahí se manda a cocina. */
+  /** El mozo confirma un pedido que armó el cliente por QR: recién ahí se manda a cocina.
+   *  Devuelve el pedido confirmado (con sus items) para que, con "Impresora en cocina" activo,
+   *  el llamador pueda imprimir la comanda — si no, esos platos nunca salían impresos. */
   const confirmarPedidoCliente = useCallback(
-    async (tableName: string) => {
-      if (!token) return;
+    async (tableName: string): Promise<PedidoDto | null> => {
+      if (!token) return null;
       const table = tables.find(t => t.name === tableName);
-      if (!table?.pedidoId) return;
+      if (!table?.pedidoId) return null;
       try {
-        await confirmarPedido(token, table.pedidoId);
+        const pedido = await confirmarPedido(token, table.pedidoId);
         await loadMesas();
         triggerToast(`Pedido de Mesa ${tableName} confirmado y enviado a cocina.`, 'success');
+        return pedido;
       } catch (err) {
         triggerToast(err instanceof ApiError ? err.message : 'No se pudo confirmar el pedido.', 'error');
+        return null;
       }
     },
     [token, tables, triggerToast, loadMesas]

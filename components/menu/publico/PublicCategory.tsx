@@ -23,7 +23,7 @@ export default function PublicCategory({
   title: string;
   items: ProductoMenu[];
   cart: OrderItem[];
-  onAdd: (item: ProductoMenu, varianteId?: number | null) => void;
+  onAdd: (item: ProductoMenu, varianteId?: number | null, extraIds?: number[]) => void;
   onUpdateQty: (productId: string, delta: number) => void;
   collapsed: boolean;
   onToggle: () => void;
@@ -32,6 +32,15 @@ export default function PublicCategory({
   highlight?: boolean;
 }) {
   const [variantSelections, setVariantSelections] = useState<Record<number, number | null>>({});
+  const [extraSelections, setExtraSelections] = useState<Record<number, number[]>>({});
+
+  const toggleExtra = (productId: number, extraId: number) => {
+    setExtraSelections(prev => {
+      const current = prev[productId] ?? [];
+      const next = current.includes(extraId) ? current.filter(id => id !== extraId) : [...current, extraId];
+      return { ...prev, [productId]: next };
+    });
+  };
   return (
     <div
       className={`rounded-2xl border overflow-hidden ${highlight ? "border-amber-200 bg-linear-to-r from-amber-50 via-white to-purple-50" : "border-slate-200 bg-white"}`}
@@ -64,7 +73,8 @@ export default function PublicCategory({
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5 animate-section">
             {items.map((item) => {
               const selectedVariantId = variantSelections[item.id] ?? null;
-              const lineId = cartLineId(item.id, selectedVariantId);
+              const selectedExtraIds = extraSelections[item.id] ?? [];
+              const lineId = cartLineId(item.id, selectedVariantId, selectedExtraIds);
               const cartItem = cart.find((ci) => ci.product.id === lineId);
               const qty = cartItem ? cartItem.quantity : 0;
               return (
@@ -72,10 +82,15 @@ export default function PublicCategory({
                   key={item.id}
                   item={item}
                   quantity={qty}
-                  onAdd={() => onAdd(item, selectedVariantId)}
+                  onAdd={() => {
+                    onAdd(item, selectedVariantId, selectedExtraIds);
+                    if (selectedExtraIds.length > 0) setExtraSelections(prev => ({ ...prev, [item.id]: [] }));
+                  }}
                   onUpdateQty={(delta) => onUpdateQty(lineId, delta)}
                   selectedVariantId={selectedVariantId}
                   onSelectVariant={(vid) => setVariantSelections(prev => ({ ...prev, [item.id]: vid }))}
+                  selectedExtraIds={selectedExtraIds}
+                  onToggleExtra={(eid) => toggleExtra(item.id, eid)}
                 />
               );
             })}

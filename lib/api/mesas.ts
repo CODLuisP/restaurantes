@@ -1,4 +1,5 @@
 import { apiFetch } from './client';
+import type { PedidoDto } from './pedidos';
 
 export type MesaEstado = 'libre' | 'ocupada' | 'reservada';
 
@@ -44,6 +45,29 @@ export interface MesaEstadoDto {
 export function getMesasEstado(token: string, sucursalId?: number) {
   const query = sucursalId ? `?sucursalId=${sucursalId}` : '';
   return apiFetch<MesaEstadoDto[]>(`/api/mesas/estado${query}`, { token });
+}
+
+/** Como MesaEstadoDto, pero con el pedido completo (items/variantes/extras) y lo ya facturado de
+ *  cada mesa ocupada ya resuelto en el backend — evita 1+N+N requests al cargar el tablero. */
+export interface MesaTableroDto {
+  mesaId: number;
+  numero: number;
+  capacidad: number;
+  estado: MesaEstado;
+  ubicacion?: string | null;
+  grupoId?: string | null;
+  sesionId?: number | null;
+  nombreCliente?: string | null;
+  numComensales?: number | null;
+  abiertaAt?: string | null;
+  pedido: PedidoDto | null;
+  /** pedidoItemId (como string, así llega el JSON) → cantidad ya facturada. */
+  facturado: Record<string, number>;
+}
+
+export function getMesasTablero(token: string, sucursalId?: number) {
+  const query = sucursalId ? `?sucursalId=${sucursalId}` : '';
+  return apiFetch<MesaTableroDto[]>(`/api/mesas/tablero${query}`, { token });
 }
 
 export function setMesaEstado(token: string, id: number, estado: MesaEstado) {

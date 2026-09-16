@@ -106,16 +106,27 @@ function renderBlock(block: TicketBlock, data: TicketOrderData): string {
 
 /** Arma el HTML completo (con la misma hoja de estilos que el mecanismo de impresión ya usado en
  *  QrTab/TicketEditor: ventana nueva + document.write + window.print()) a partir de la plantilla
- *  "cocina" configurada en /configuracion/tickets y los datos reales del pedido. */
+ *  "cocina" configurada en /configuracion/tickets y los datos reales del pedido.
+ *
+ *  Un ticket físico POR ÍTEM del pedido (no uno solo con todos los platos listados adentro) — así
+ *  cada plato se puede repartir/pegar por separado en cocina. Se arma como una sola página HTML con
+ *  un salto de página entre cada ticket, para que salgan todos de un solo trabajo de impresión. */
 export function renderComandaHtml(blocks: TicketBlock[], paper: PaperSize, data: TicketOrderData): string {
   const widthMm = paper === '58mm' ? 58 : 80;
-  const body = blocks.map(b => renderBlock(b, data)).join('');
+
+  const tickets = data.items.length > 0 ? data.items : [null];
+  const pages = tickets.map((item, i) => {
+    const ticketData: TicketOrderData = item ? { ...data, items: [item] } : data;
+    const body = blocks.map(b => renderBlock(b, ticketData)).join('');
+    const breakStyle = i < tickets.length - 1 ? 'page-break-after:always' : '';
+    return `<div style="${breakStyle}">${body}</div>`;
+  }).join('');
 
   return `<!DOCTYPE html><html><head><title>Comanda</title><style>
     @page { size: ${widthMm}mm auto; margin: 0; }
     body { font-family: 'Courier New', monospace; width: ${widthMm}mm; margin: 0; padding: 8px 10px; color: #000; }
   </style></head><body>
-    ${body}
+    ${pages}
     <script>window.onload=function(){window.print();window.close()}<\/script>
   </body></html>`;
 }

@@ -35,6 +35,7 @@ export interface ComprobanteDetailItem {
   id: number;
   pedidoItemId: number;
   productoNombre: string | null;
+  varianteNombre: string | null;
   comboNombre: string | null;
   cantidad: number;
   precioUnitario: number;

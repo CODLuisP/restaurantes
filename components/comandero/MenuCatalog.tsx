@@ -78,7 +78,7 @@ function ProductCard({
                   key={ex.id}
                   type="button"
                   onClick={() => onToggleExtra(ex.id)}
-                  className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full transition-colors ${selectedExtraIds.includes(ex.id) ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                  className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full transition-colors ${selectedExtraIds.includes(ex.id) ? 'bg-orange-400 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
                 >
                   + {ex.name}{ex.price > 0 ? ` (S/.${ex.price.toFixed(2)})` : ''}
                 </button>

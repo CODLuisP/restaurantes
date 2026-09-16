@@ -170,30 +170,77 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     mergeTables: mergeTablesBackend, unmergeTable: unmergeTableBackend,
     sendOrderToKitchen: sendOrderToKitchenBackend,
     updateTableItemQty: updateTableItemQtyBackend, removeTableItem: removeTableItemBackend,
-    cancelTableOrder, confirmarPedidoCliente, marcarMesaEntregada,
+    cancelTableOrder, confirmarPedidoCliente: confirmarPedidoClienteBackend, marcarMesaEntregada,
   } = useMesasCatalogo(triggerToast);
 
   /* Con "Impresora en cocina" activo, cada envío de comanda se imprime directo en vez de mostrarse
-     en el KDS — el cocinero avisa al mozo de viva voz cuando está lista. */
+     en el KDS — el cocinero avisa al mozo de viva voz cuando está lista.
+     Si el pedido YA estaba "pendiente_confirmacion" (lo armó el cliente por QR y nunca se confirmó
+     explícitamente), agregar un ítem lo saca de ese estado como efecto secundario en el backend —
+     así que acá se imprime el pedido COMPLETO devuelto (platos originales + el nuevo), no solo lo
+     que el mozo acaba de agregar; si no, los platos del cliente nunca salían impresos. */
   const sendOrderToKitchen = useCallback(
     async (tableName: string, nombreComensal: string | undefined, items: OrderItem[]) => {
-      const ok = await sendOrderToKitchenBackend(tableName, nombreComensal, items);
+      const { ok, pedido, eraPendienteConfirmacion } = await sendOrderToKitchenBackend(tableName, nombreComensal, items);
       if (ok && impresoraCocina) {
+        const ahora = new Date();
+        const itemsAImprimir = eraPendienteConfirmacion && pedido
+          ? pedido.items.map(i => ({
+              nombre: [
+                i.productoNombre ?? i.comboNombre ?? 'Producto',
+                i.varianteNombre ? `(${i.varianteNombre})` : '',
+                i.extras.length > 0 ? `+ ${i.extras.map(e => e.nombre).join(', ')}` : '',
+              ].filter(Boolean).join(' '),
+              cantidad: i.cantidad,
+              precio: i.precioUnitario,
+            }))
+          : items.map(i => ({ nombre: i.product.name, cantidad: i.quantity, precio: i.product.price }));
+
+        imprimirComanda(cocinaBlocks, ticketPaperSize, {
+          businessName: ticketBusinessName,
+          logoUrl: ticketLogoUrl,
+          mesa: tableName,
+          mozo: authSession?.user?.name ?? undefined,
+          clienteName: nombreComensal ?? pedido?.nombreCliente ?? undefined,
+          fecha: ahora.toLocaleDateString('es-PE'),
+          hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+          items: itemsAImprimir,
+        });
+      }
+      return ok;
+    },
+    [sendOrderToKitchenBackend, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
+  );
+
+  /* El pedido que arma el cliente por QR (/menu) recién se manda a cocina cuando el mozo lo
+     confirma. Con "Impresora en cocina" activo, faltaba justo esta impresión — solo se imprimían
+     los platos que el mozo agregaba DESPUÉS, nunca los que trajo el pedido original del cliente. */
+  const confirmarPedidoCliente = useCallback(
+    async (tableName: string) => {
+      const pedido = await confirmarPedidoClienteBackend(tableName);
+      if (pedido && impresoraCocina && pedido.items.length > 0) {
         const ahora = new Date();
         imprimirComanda(cocinaBlocks, ticketPaperSize, {
           businessName: ticketBusinessName,
           logoUrl: ticketLogoUrl,
           mesa: tableName,
           mozo: authSession?.user?.name ?? undefined,
-          clienteName: nombreComensal,
+          clienteName: pedido.nombreCliente ?? undefined,
           fecha: ahora.toLocaleDateString('es-PE'),
           hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-          items: items.map(i => ({ nombre: i.product.name, cantidad: i.quantity, precio: i.product.price })),
+          items: pedido.items.map(i => ({
+            nombre: [
+              i.productoNombre ?? i.comboNombre ?? 'Producto',
+              i.varianteNombre ? `(${i.varianteNombre})` : '',
+              i.extras.length > 0 ? `+ ${i.extras.map(e => e.nombre).join(', ')}` : '',
+            ].filter(Boolean).join(' '),
+            cantidad: i.cantidad,
+            precio: i.precioUnitario,
+          })),
         });
       }
-      return ok;
     },
-    [sendOrderToKitchenBackend, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
+    [confirmarPedidoClienteBackend, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
   );
 
   /* Con "Impresora en cocina" activo, reducir o quitar un plato ya enviado imprime un ticket de
@@ -235,8 +282,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     activeOrders, activeOrdersLoading, loadActiveOrders, createActiveOrder,
     addItemsToActiveOrder: addItemsToActiveOrderBackend,
     updateActiveOrderItemQty, removeActiveOrderItem, cancelActiveOrder,
-    confirmarActiveOrder, marcarActiveOrderEntregado,
+    confirmarActiveOrder: confirmarActiveOrderBackend, marcarActiveOrderEntregado,
   } = useActiveOrders(triggerToast);
+
+  /* Mismo caso que confirmarPedidoCliente (mesas): con "Impresora en cocina" activo, confirmar un
+     pedido de llevar/delivery armado por el cliente nunca imprimía sus platos originales. */
+  const confirmarActiveOrder = useCallback(
+    async (orderId: string) => {
+      const pedido = await confirmarActiveOrderBackend(orderId);
+      if (pedido && impresoraCocina && pedido.items.length > 0) {
+        const ahora = new Date();
+        imprimirComanda(cocinaBlocks, ticketPaperSize, {
+          businessName: ticketBusinessName,
+          logoUrl: ticketLogoUrl,
+          orderNumber: orderId,
+          mozo: authSession?.user?.name ?? undefined,
+          clienteName: pedido.nombreCliente ?? undefined,
+          fecha: ahora.toLocaleDateString('es-PE'),
+          hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+          items: pedido.items.map(i => ({
+            nombre: [
+              i.productoNombre ?? i.comboNombre ?? 'Producto',
+              i.varianteNombre ? `(${i.varianteNombre})` : '',
+              i.extras.length > 0 ? `+ ${i.extras.map(e => e.nombre).join(', ')}` : '',
+            ].filter(Boolean).join(' '),
+            cantidad: i.cantidad,
+            precio: i.precioUnitario,
+          })),
+        });
+      }
+    },
+    [confirmarActiveOrderBackend, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
+  );
 
   /* Aviso en vivo a todo mozo: cuando cocina marca un pedido como "listo", cualquiera puede recogerlo y servirlo. */
   const onPedidoListoParaMozo = useCallback((pedido: PedidoDto) => {
@@ -494,22 +571,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   /* Igual que sendOrderToKitchen para mesas: agregar platos a un pedido de llevar/delivery YA
-     enviado también imprime su propia comanda (solo con los ítems nuevos) cuando corresponde. */
+     enviado también imprime su propia comanda. Si el pedido estaba "pendiente_confirmacion", se
+     imprime completo (platos originales del cliente + el nuevo) en vez de solo lo agregado. */
   const addItemsToActiveOrder = useCallback(
     async (orderId: string, items: OrderItem[]) => {
-      const ok = await addItemsToActiveOrderBackend(orderId, items);
+      const { ok, pedido, eraPendienteConfirmacion } = await addItemsToActiveOrderBackend(orderId, items);
       if (ok && impresoraCocina) {
         const order = activeOrders.find(o => o.id === orderId);
         const ahora = new Date();
+        const itemsAImprimir = eraPendienteConfirmacion && pedido
+          ? pedido.items.map(i => ({
+              nombre: [
+                i.productoNombre ?? i.comboNombre ?? 'Producto',
+                i.varianteNombre ? `(${i.varianteNombre})` : '',
+                i.extras.length > 0 ? `+ ${i.extras.map(e => e.nombre).join(', ')}` : '',
+              ].filter(Boolean).join(' '),
+              cantidad: i.cantidad,
+              precio: i.precioUnitario,
+            }))
+          : items.map(i => ({ nombre: i.product.name, cantidad: i.quantity, precio: i.product.price }));
+
         imprimirComanda(cocinaBlocks, ticketPaperSize, {
           businessName: ticketBusinessName,
           logoUrl: ticketLogoUrl,
           orderNumber: orderId,
           mozo: authSession?.user?.name ?? undefined,
-          clienteName: order?.customer,
+          clienteName: order?.customer ?? pedido?.nombreCliente ?? undefined,
           fecha: ahora.toLocaleDateString('es-PE'),
           hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-          items: items.map(i => ({ nombre: i.product.name, cantidad: i.quantity, precio: i.product.price })),
+          items: itemsAImprimir,
         });
       }
       return ok;

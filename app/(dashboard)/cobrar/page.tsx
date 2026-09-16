@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import {
   Receipt, Lock, ShieldAlert, Search, X, Clock, MapPin, Phone, ClipboardList, CheckCircle2,
 } from 'lucide-react';
@@ -11,15 +12,31 @@ import type { OrderType } from '@/types';
 import { StatCard } from '@/components/ui';
 import ChargePanel from '@/components/cobrar/ChargePanel';
 import { money, TYPE_META, type Chargeable, type Filter } from '@/components/cobrar/types';
+import { getVentas } from '@/lib/api/ventas';
+import { toFechaParam } from '@/lib/api/reportes';
 
 export default function CobrarPage() {
-  const { tables, activeOrders, salesHistory, sucursalCajaAbierta: isCajaOpen } = useApp();
+  const { tables, activeOrders, sucursalCajaAbierta: isCajaOpen } = useApp();
   const { currentUser } = useAuth();
+  const { data: authSession } = useSession();
   const router = useRouter();
 
   const [filter, setFilter] = useState<Filter>('todos');
   const [search, setSearch] = useState('');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+
+  /* "Completadas" son las ventas reales del backend cobradas hoy — no el historial mock del
+     prototipo, que nunca se conectó y se quedaba mostrando datos de ejemplo aunque la base esté vacía. */
+  const [completadasHoy, setCompletadasHoy] = useState(0);
+  useEffect(() => {
+    const token = authSession?.accessToken;
+    const sucursalId = authSession?.user?.sucursalId ?? undefined;
+    if (!token) return;
+    const hoy = toFechaParam(new Date());
+    getVentas(token, { sucursalId, fechaInicio: hoy, fechaFin: hoy })
+      .then(ventas => setCompletadasHoy(ventas.length))
+      .catch(() => {});
+  }, [authSession]);
 
   const canCharge = currentUser?.role === 'admin' || currentUser?.role === 'cajero';
 
@@ -77,7 +94,7 @@ export default function CobrarPage() {
     delivery: chargeables.filter(c => c.kind === 'delivery').length,
   };
   const pendientes = chargeables.length;
-  const completadas = salesHistory.length;
+  const completadas = completadasHoy;
   const total = pendientes + completadas;
 
   return (

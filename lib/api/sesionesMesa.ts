@@ -1,4 +1,5 @@
 import { apiFetch } from './client';
+import type { PedidoDto } from './pedidos';
 
 export type SesionMesaTipo = 'local' | 'delivery' | 'para_llevar';
 
@@ -52,6 +53,28 @@ export function getSesionesActivas(token: string, tipo: SesionMesaTipo, sucursal
   const query = new URLSearchParams({ tipo });
   if (sucursalId) query.set('sucursalId', String(sucursalId));
   return apiFetch<SesionMesaDto[]>(`/api/sesiones-mesa?${query.toString()}`, { token });
+}
+
+/** Como SesionMesaDto, pero con el pedido completo (items/variantes/extras) y lo ya facturado de
+ *  cada sesión ya resuelto en el backend — evita 1+N+N requests al cargar llevar/delivery. */
+export interface SesionActivaTableroDto {
+  id: number;
+  sucursalId: number;
+  tipo: SesionMesaTipo;
+  mozoNombre?: string | null;
+  nombreCliente?: string | null;
+  numComensales: number;
+  abiertaAt: string;
+  estado: string;
+  delivery?: DeliveryInfoDto | null;
+  pedido: PedidoDto | null;
+  facturado: Record<string, number>;
+}
+
+export function getSesionesActivasTablero(token: string, tipo: SesionMesaTipo, sucursalId?: number) {
+  const query = new URLSearchParams({ tipo });
+  if (sucursalId) query.set('sucursalId', String(sucursalId));
+  return apiFetch<SesionActivaTableroDto[]>(`/api/sesiones-mesa/tablero?${query.toString()}`, { token });
 }
 
 export function getSesionMesa(token: string, id: number) {

@@ -10,6 +10,8 @@ export default function PublicProductCard({
   onUpdateQty,
   selectedVariantId,
   onSelectVariant,
+  selectedExtraIds = [],
+  onToggleExtra,
 }: {
   item: ProductoMenu;
   quantity?: number;
@@ -17,9 +19,16 @@ export default function PublicProductCard({
   onUpdateQty: (delta: number) => void;
   selectedVariantId?: number | null;
   onSelectVariant?: (variantId: number | null) => void;
+  selectedExtraIds?: number[];
+  onToggleExtra?: (extraId: number) => void;
 }) {
-  const precioEfectivo = item.variantes?.find(v => v.id === selectedVariantId)?.precio ?? item.precio;
+  const precioBase = item.variantes?.find(v => v.id === selectedVariantId)?.precio ?? item.precio;
+  const totalExtras = item.extras
+    ?.filter(e => selectedExtraIds.includes(e.id))
+    .reduce((a, e) => a + e.precio, 0) ?? 0;
+  const precioEfectivo = precioBase + totalExtras;
   const tieneVariantes = item.variantes && item.variantes.length > 0;
+  const tieneExtras = item.extras && item.extras.length > 0;
   return (
     <div className="group rounded-xl border border-slate-100 bg-white overflow-hidden flex flex-col shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
       <div className="relative aspect-16/10 w-full bg-slate-100 overflow-hidden">
@@ -65,6 +74,19 @@ export default function PublicProductCard({
                   className={`text-[10px] font-semibold px-2 py-0.5 rounded-full transition-colors ${selectedVariantId === v.id ? 'bg-brand text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
                 >
                   {v.nombre}
+                </button>
+              ))}
+            </div>
+          )}
+          {tieneExtras && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {item.extras.map((ex) => (
+                <button
+                  key={ex.id}
+                  onClick={() => onToggleExtra?.(ex.id)}
+                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-full transition-colors ${selectedExtraIds.includes(ex.id) ? 'bg-orange-400 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                >
+                  + {ex.nombre}{ex.precio > 0 ? ` (S/.${ex.precio.toFixed(2)})` : ''}
                 </button>
               ))}
             </div>

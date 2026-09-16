@@ -5,7 +5,8 @@ import { useSession } from 'next-auth/react';
 import type { ActiveOrder, OrderItem, OrderType, Toast } from '@/types';
 import { ApiError } from '@/lib/api/client';
 import {
-  getSesionesActivas, crearSesionMesa, cerrarSesionMesa, type SesionMesaDto,
+  getSesionesActivasTablero, crearSesionMesa, cerrarSesionMesa,
+  type SesionActivaTableroDto, type SesionMesaDto,
 } from '@/lib/api/sesionesMesa';
 import {
   getPedidoById, getPedidoBySesion, crearPedido, agregarItemsPedido,
@@ -13,7 +14,7 @@ import {
 } from '@/lib/api/pedidos';
 import { usePedidoEvents } from '@/hooks/realtime/usePedidoEvents';
 import { useSesionCerradaEvents, type SesionCerradaPayload } from '@/hooks/realtime/useSesionCerradaEvents';
-import { getVentasBySesion, cantidadFacturadaPorItem, restarFacturado } from '@/lib/api/ventas';
+import { restarFacturado } from '@/lib/api/ventas';
 import { parseCartLineId } from '@/lib/cart/cartLineId';
 
 /** Ítems del pedido → OrderItem, usando el id de la FILA (pedido_item) como product.id
@@ -47,21 +48,46 @@ function pedidoToFields(pedido: PedidoDto, facturado: Map<string, number> = new 
   return { items, total, itemsCount, pedidoId: pedido.id, pedidoEstado: pedido.estado };
 }
 
-function sesionPedidoToActiveOrder(sesion: SesionMesaDto, pedido: PedidoDto | null, facturado: Map<string, number> = new Map()): ActiveOrder {
-  const { items, total, itemsCount, pedidoEstado } = pedidoToFields(pedido ?? { id: 0, sesionMesaId: sesion.id, origen: '', estado: '', createdAt: '', items: [] }, facturado);
+/** Para un pedido recién creado (sesión + pedido sueltos, sin pasar por el tablero) — nada
+ *  facturado todavía, así que no necesita el mapa de facturado. */
+function sesionPedidoToActiveOrder(sesion: SesionMesaDto, pedido: PedidoDto): ActiveOrder {
+  const { items, total, itemsCount, pedidoEstado } = pedidoToFields(pedido);
   return {
-    id: String(pedido?.id ?? `sesion-${sesion.id}`),
+    id: String(pedido.id),
     type: sesion.tipo === 'delivery' ? 'delivery' : 'llevar',
     sesionMesaId: sesion.id,
-    pedidoId: pedido?.id,
-    pedidoEstado: pedido ? pedidoEstado : undefined,
+    pedidoId: pedido.id,
+    pedidoEstado,
     customer: sesion.nombreCliente?.trim() || (sesion.tipo === 'delivery' ? 'Cliente delivery' : 'Cliente mostrador'),
     phone: sesion.delivery?.telefono || undefined,
     address: sesion.delivery?.direccion || undefined,
     items,
     total,
     itemsCount,
-    waiter: pedido?.mozoNombre ?? sesion.mozoNombre ?? undefined,
+    waiter: pedido.mozoNombre ?? sesion.mozoNombre ?? undefined,
+    createdAt: new Date(sesion.abiertaAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+  };
+}
+
+function sesionTableroToActiveOrder(sesion: SesionActivaTableroDto): ActiveOrder {
+  const facturado = new Map(Object.entries(sesion.facturado));
+  const { items, total, itemsCount, pedidoEstado } = pedidoToFields(
+    sesion.pedido ?? { id: 0, sesionMesaId: sesion.id, origen: '', estado: '', createdAt: '', items: [] },
+    facturado
+  );
+  return {
+    id: String(sesion.pedido?.id ?? `sesion-${sesion.id}`),
+    type: sesion.tipo === 'delivery' ? 'delivery' : 'llevar',
+    sesionMesaId: sesion.id,
+    pedidoId: sesion.pedido?.id,
+    pedidoEstado: sesion.pedido ? pedidoEstado : undefined,
+    customer: sesion.nombreCliente?.trim() || (sesion.tipo === 'delivery' ? 'Cliente delivery' : 'Cliente mostrador'),
+    phone: sesion.delivery?.telefono || undefined,
+    address: sesion.delivery?.direccion || undefined,
+    items,
+    total,
+    itemsCount,
+    waiter: sesion.pedido?.mozoNombre ?? sesion.mozoNombre ?? undefined,
     createdAt: new Date(sesion.abiertaAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
   };
 }
@@ -81,7 +107,11 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
   const [activeOrdersLoading, setActiveOrdersLoading] = useState(true);
 
   /** `silent`: recarga en segundo plano (disparada por el WebSocket) sin mostrar de nuevo el
-   *  spinner de carga completa — evita el "parpadeo" de refresco en cada evento en tiempo real. */
+   *  spinner de carga completa — evita el "parpadeo" de refresco en cada evento en tiempo real.
+   *
+   *  2 requests (uno por tipo), cada uno ya con pedido + facturado resuelto server-side — antes
+   *  eran 2 (sesiones) + N (pedido de cada una) + N (ventas de cada una), la misma causa de lentitud
+   *  que en el tablero de mesas (ver useMesasCatalogo.loadMesas). */
   const loadActiveOrders = useCallback(async (opts?: { silent?: boolean }) => {
     if (!token) { setActiveOrdersLoading(false); return; }
     // Superadmin no tiene sucursal fija y no opera Comandero/Despachar — nada que cargar aquí.
@@ -89,17 +119,10 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
     if (!opts?.silent) setActiveOrdersLoading(true);
     try {
       const [llevar, delivery] = await Promise.all([
-        getSesionesActivas(token, 'para_llevar', sucursalId),
-        getSesionesActivas(token, 'delivery', sucursalId),
+        getSesionesActivasTablero(token, 'para_llevar', sucursalId),
+        getSesionesActivasTablero(token, 'delivery', sucursalId),
       ]);
-      const sesiones = [...llevar, ...delivery];
-      const [pedidos, ventasPorSesion] = await Promise.all([
-        Promise.all(sesiones.map(s => getPedidoBySesion(token, s.id).catch(() => null))),
-        Promise.all(sesiones.map(s => getVentasBySesion(token, s.id).catch(() => []))),
-      ]);
-      setActiveOrders(sesiones.map((s, i) =>
-        sesionPedidoToActiveOrder(s, pedidos[i], cantidadFacturadaPorItem(ventasPorSesion[i]))
-      ));
+      setActiveOrders([...llevar, ...delivery].map(sesionTableroToActiveOrder));
     } catch {
       if (!opts?.silent) triggerToast('No se pudieron cargar los pedidos para llevar/delivery.', 'error');
     } finally {
@@ -160,12 +183,17 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
     [token, mozoId, sucursalId, triggerToast]
   );
 
+  /** Igual que sendOrderToKitchen (mesas): si el pedido YA estaba "pendiente_confirmacion" (armado
+   *  por el cliente vía QR, nunca confirmado explícitamente), agregar un ítem lo saca de ese estado
+   *  como efecto secundario en el backend — devuelve esa señal + el pedido completo para que el
+   *  llamador imprima TODO (platos originales + el nuevo), no solo lo recién agregado. */
   const addItemsToActiveOrder = useCallback(
-    async (orderId: string, items: OrderItem[]) => {
-      if (!token) { triggerToast('Sesión expirada.', 'error'); return false; }
-      if (items.length === 0) { triggerToast('Agregue platos antes de enviar.', 'warning'); return false; }
+    async (orderId: string, items: OrderItem[]): Promise<{ ok: boolean; pedido?: PedidoDto; eraPendienteConfirmacion?: boolean }> => {
+      if (!token) { triggerToast('Sesión expirada.', 'error'); return { ok: false }; }
+      if (items.length === 0) { triggerToast('Agregue platos antes de enviar.', 'warning'); return { ok: false }; }
       const order = activeOrders.find(o => o.id === orderId);
-      if (!order?.pedidoId) { triggerToast('El pedido ya no está disponible.', 'warning'); return false; }
+      if (!order?.pedidoId) { triggerToast('El pedido ya no está disponible.', 'warning'); return { ok: false }; }
+      const eraPendienteConfirmacion = order.pedidoEstado === 'pendiente_confirmacion';
 
       try {
         const pedido = await agregarItemsPedido(token, order.pedidoId, items.map(i => {
@@ -174,10 +202,10 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
         }));
         setActiveOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...pedidoToFields(pedido) } : o));
         triggerToast('Se agregaron platos al pedido y se enviaron a cocina.', 'success');
-        return true;
+        return { ok: true, pedido, eraPendienteConfirmacion };
       } catch (err) {
         triggerToast(err instanceof ApiError ? err.message : 'No se pudieron agregar los platos.', 'error');
-        return false;
+        return { ok: false };
       }
     },
     [token, activeOrders, triggerToast]
@@ -228,18 +256,22 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
     [token, activeOrders, triggerToast]
   );
 
-  /** El mozo confirma un pedido que armó el cliente por el menú público: recién ahí se manda a cocina. */
+  /** El mozo confirma un pedido que armó el cliente por el menú público: recién ahí se manda a cocina.
+   *  Devuelve el pedido confirmado (con sus items) para que, con "Impresora en cocina" activo, el
+   *  llamador pueda imprimir la comanda — si no, esos platos nunca salían impresos. */
   const confirmarActiveOrder = useCallback(
-    async (orderId: string) => {
-      if (!token) return;
+    async (orderId: string): Promise<PedidoDto | null> => {
+      if (!token) return null;
       const order = activeOrders.find(o => o.id === orderId);
-      if (!order?.pedidoId) return;
+      if (!order?.pedidoId) return null;
       try {
-        await confirmarPedido(token, order.pedidoId);
+        const pedido = await confirmarPedido(token, order.pedidoId);
         await loadActiveOrders();
         triggerToast(`Pedido ${order.id} confirmado y enviado a cocina.`, 'success');
+        return pedido;
       } catch (err) {
         triggerToast(err instanceof ApiError ? err.message : 'No se pudo confirmar el pedido.', 'error');
+        return null;
       }
     },
     [token, activeOrders, triggerToast, loadActiveOrders]

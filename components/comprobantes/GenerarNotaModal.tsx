@@ -172,7 +172,9 @@ export default function GenerarNotaModal({
             {!cargandoItems && itemsDetalle.length > 0 && (
               <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-56 overflow-y-auto">
                 {itemsDetalle.map(it => {
-                  const nombre = it.productoNombre || it.comboNombre || 'Producto';
+                  const nombre = it.productoNombre
+                    ? (it.varianteNombre ? `${it.productoNombre} (${it.varianteNombre})` : it.productoNombre)
+                    : it.comboNombre || 'Producto';
                   const cantidadSel = cantidadesSeleccionadas[it.id] ?? 0;
                   const checked = cantidadSel > 0;
                   return (

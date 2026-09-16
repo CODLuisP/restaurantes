@@ -214,9 +214,9 @@ export default function PublicMenu({
         ? []
         : groupedCategories.filter((g) => g.category === tab);
 
-  const addToCart = (product: ProductoMenu, varianteId?: number | null) => {
+  const addToCart = (product: ProductoMenu, varianteId?: number | null, extraIds?: number[]) => {
     setCart((prev) => {
-      const lineId = cartLineId(product.id, varianteId);
+      const lineId = cartLineId(product.id, varianteId, extraIds);
       const existing = prev.find((i) => i.product.id === lineId);
       if (existing) {
         return prev.map((i) =>
@@ -225,7 +225,7 @@ export default function PublicMenu({
             : i,
         );
       }
-      return [...prev, { product: productoToCartItem(product, varianteId), quantity: 1 }];
+      return [...prev, { product: productoToCartItem(product, varianteId, extraIds), quantity: 1 }];
     });
   };
 
