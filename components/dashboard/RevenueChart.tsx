@@ -16,15 +16,21 @@ interface HourPoint {
   monto: number;
 }
 
-/** Ingresos cobrados hoy, acumulados por hora (un solo turno). */
+/**
+ * Ingresos cobrados en el día elegido, acumulados por hora (un solo turno). El rango va desde
+ * la primera hora con una venta hasta la última hora con una venta — no se muestran horas en
+ * cero antes de la primera venta. Un día con una sola venta se ve como un único punto (correcto:
+ * no hay rango que mostrar todavía).
+ */
 function buildHourlySeries(ventasPorHora: VentaPorHoraDto[]): HourPoint[] {
+  if (ventasPorHora.length === 0) return [];
+
   const porHora: Record<number, number> = {};
   for (const v of ventasPorHora) porHora[v.hora] = v.monto;
 
-  const horaActual = new Date().getHours();
   const horas = ventasPorHora.map(v => v.hora);
-  const primeraHora = horas.length ? Math.min(...horas) : 8;
-  const ultimaHora = Math.max(horaActual, ...horas, primeraHora);
+  const primeraHora = Math.min(...horas);
+  const ultimaHora = Math.max(...horas);
 
   let acumulado = 0;
   const points: HourPoint[] = [];
@@ -45,7 +51,7 @@ function ChartTooltip({ active, payload, label }: TooltipContentProps) {
   );
 }
 
-export default function RevenueChart({ ventasPorHora }: { ventasPorHora: VentaPorHoraDto[] }) {
+export default function RevenueChart({ ventasPorHora, esHoy = true }: { ventasPorHora: VentaPorHoraDto[]; esHoy?: boolean }) {
   const data = useMemo(() => buildHourlySeries(ventasPorHora), [ventasPorHora]);
   const last = data[data.length - 1];
 
@@ -54,14 +60,14 @@ export default function RevenueChart({ ventasPorHora }: { ventasPorHora: VentaPo
       <div className="flex items-center gap-4 text-[10px]">
         <span className="flex items-center gap-1.5 text-slate-700 font-medium">
           <span className="h-2 w-2 rounded-full inline-block" style={{ backgroundColor: LINE_COLOR }} />
-          Acumulado hoy <span className="font-mono font-bold text-slate-800">{money(last?.monto ?? 0)}</span>
+          Acumulado {esHoy ? 'hoy' : 'ese día'} <span className="font-mono font-bold text-slate-800">{money(last?.monto ?? 0)}</span>
         </span>
       </div>
 
       <div className="h-44">
         {data.length === 0 ? (
           <div className="h-full flex items-center justify-center text-[11px] text-slate-400">
-            Todavía no hay ventas cobradas hoy.
+            Todavía no hay ventas cobradas {esHoy ? 'hoy' : 'ese día'}.
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
@@ -78,7 +84,7 @@ export default function RevenueChart({ ventasPorHora }: { ventasPorHora: VentaPo
                 axisLine={false}
                 tickLine={false}
                 tick={{ fill: '#94a3b8', fontSize: 10 }}
-                interval="preserveStartEnd"
+                interval={0}
               />
               <YAxis
                 axisLine={false}

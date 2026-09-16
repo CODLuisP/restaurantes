@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { DollarSign, TrendingUp, ShoppingCart, Utensils, Users, FileText, Sparkles, ShieldAlert, Loader2 } from 'lucide-react';
+import ExcelJS from 'exceljs';
+import { DollarSign, TrendingUp, ShoppingCart, Utensils, Users, FileText, Sparkles, ShieldAlert, Loader2, Radio } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
@@ -54,23 +55,89 @@ const METODO_BADGE: Record<string, string> = {
   otro: 'bg-slate-100 text-slate-700',
 };
 
-function descargarCsv(ventas: VentaDto[], fecha: Date) {
-  const header = ['Código', 'Hora', 'Mesa', 'Comprobante', 'Items', 'Método de Pago', 'Monto Total'];
-  const filas = ventas.map(v => [
-    `S-${v.id}`,
-    new Date(v.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-    v.mesaNumero ?? '-',
-    v.numeroComprobante ?? '-',
-    String(v.items.reduce((acc, i) => acc + i.cantidad, 0)),
-    METODO_LABEL[v.metodoPago] ?? v.metodoPago,
-    v.total.toFixed(2),
-  ]);
-  const csv = [header, ...filas].map(f => f.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+const BRAND_COLOR = 'FF007542';
+
+async function exportVentasExcel(ventas: VentaDto[], fecha: Date, usuario: string) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'RestoPro';
+  workbook.created = new Date();
+
+  const sheet = workbook.addWorksheet('Ventas', { views: [{ state: 'frozen', ySplit: 4 }] });
+
+  const columnas = ['Código', 'Hora', 'Mesa', 'Comprobante', 'Nº Items', 'Método de Pago', 'Monto Total'];
+  sheet.columns = [
+    { key: 'codigo', width: 10 },
+    { key: 'hora', width: 12 },
+    { key: 'mesa', width: 14 },
+    { key: 'comprobante', width: 18 },
+    { key: 'items', width: 10 },
+    { key: 'metodoPago', width: 16 },
+    { key: 'total', width: 16 },
+  ];
+
+  // ── Encabezado (título + metadata) ──
+  sheet.mergeCells(1, 1, 1, columnas.length);
+  const tituloCell = sheet.getCell(1, 1);
+  tituloCell.value = 'REPORTE DE VENTAS — RESTOPRO';
+  tituloCell.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+  tituloCell.alignment = { vertical: 'middle', horizontal: 'left' };
+  tituloCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND_COLOR } };
+  sheet.getRow(1).height = 28;
+
+  sheet.mergeCells(2, 1, 2, columnas.length);
+  const subtituloCell = sheet.getCell(2, 1);
+  const fechaTxt = fecha.toLocaleDateString('es-PE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  subtituloCell.value = `Ventas del ${fechaTxt}  ·  Por: ${usuario}  ·  Total: ${ventas.length} venta${ventas.length === 1 ? '' : 's'}`;
+  subtituloCell.font = { italic: true, size: 10, color: { argb: 'FF64748B' } };
+  subtituloCell.alignment = { vertical: 'middle', horizontal: 'left' };
+
+  // ── Fila 3 en blanco como respiro visual ──
+
+  // ── Encabezado de la tabla ──
+  const headerRow = sheet.getRow(4);
+  headerRow.values = columnas;
+  headerRow.eachCell(cell => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E8C45' } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    cell.border = { bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } } };
+  });
+  headerRow.height = 20;
+
+  // ── Filas de datos ──
+  ventas.forEach((v, idx) => {
+    const row = sheet.addRow({
+      codigo: `S-${v.id}`,
+      hora: new Date(v.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+      mesa: v.mesaNumero ? `Mesa ${v.mesaNumero}` : '—',
+      comprobante: v.numeroComprobante ?? '—',
+      items: v.items.reduce((acc, i) => acc + i.cantidad, 0),
+      metodoPago: METODO_LABEL[v.metodoPago] ?? v.metodoPago,
+      total: v.total,
+    });
+
+    row.getCell('codigo').alignment = { horizontal: 'center' };
+    row.getCell('hora').alignment = { horizontal: 'center' };
+    row.getCell('items').alignment = { horizontal: 'center' };
+    row.getCell('metodoPago').alignment = { horizontal: 'center' };
+    row.getCell('total').numFmt = '"S/." #,##0.00';
+    row.getCell('total').alignment = { horizontal: 'right' };
+
+    if (idx % 2 === 1) {
+      columnas.forEach((_, i) => {
+        row.getCell(i + 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+      });
+    }
+  });
+
+  sheet.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: columnas.length } };
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `ventas-${toFechaParam(fecha)}.csv`;
+  link.download = `ventas-${toFechaParam(fecha)}.xlsx`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -224,12 +291,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {!esHoy && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-medium px-3 py-2 rounded-lg">
-          Viendo datos del {fechaSeleccionada.toLocaleDateString('es-PE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
-        </div>
-      )}
-
       {isSuperAdmin && !sId ? (
         <div className="card-lg p-12 flex flex-col items-center justify-center gap-2">
           <p className="text-xs text-slate-500">Elige una sucursal para ver su dashboard.</p>
@@ -252,16 +313,15 @@ export default function DashboardPage() {
           return (
             <div key={i} className="card px-4 py-3 hover:shadow-md transition-all group duration-300">
               <div className="flex items-center justify-between text-slate-500">
-                <span className="text-[10px] font-bold tracking-wider uppercase flex items-center gap-1.5">
-                  {kpi.label}
+                <span className="text-[10px] font-bold tracking-wider uppercase">{kpi.label}</span>
+                <span className="flex items-center gap-1.5">
                   {kpi.live && (
-                    <span className="relative flex h-1.5 w-1.5" title="En vivo">
-                      <span className="absolute inline-flex h-full w-full rounded-full bg-rose-500 pulse-active" />
-                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500" />
+                    <span title="En vivo">
+                      <Radio className="h-5 w-5 text-rose-500 pulse-active" />
                     </span>
                   )}
+                  <Icon className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" style={{ color: kpi.color }} />
                 </span>
-                <Icon className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" style={{ color: kpi.color }} />
               </div>
               <p className="text-base font-bold text-slate-800 mt-1.5 font-mono">{kpi.value}</p>
               <p className="text-[10px] text-slate-400 mt-1">{kpi.sub}</p>
@@ -280,7 +340,7 @@ export default function DashboardPage() {
               Ingresos cobrados {esHoy ? 'hoy' : 'ese día'}, acumulados por hora
             </p>
           </div>
-          <RevenueChart ventasPorHora={ventasPorHora} />
+          <RevenueChart ventasPorHora={ventasPorHora} esHoy={esHoy} />
         </div>
 
         {/* Payment methods */}
@@ -330,11 +390,11 @@ export default function DashboardPage() {
           <button
             onClick={() => {
               if (ventasRecientes.length === 0) { triggerToast('No hay ventas para exportar.', 'info'); return; }
-              descargarCsv(ventasRecientes, fechaSeleccionada);
+              exportVentasExcel(ventasRecientes, fechaSeleccionada, currentUser?.name ?? '—');
             }}
             className="btn-ghost"
           >
-            <FileText className="h-3 w-3" /> Exportar (.CSV)
+            <FileText className="h-3 w-3" /> Exportar (.XLSX)
           </button>
         </div>
         <div className="overflow-x-auto">
