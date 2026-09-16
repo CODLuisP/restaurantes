@@ -34,6 +34,7 @@ export default function DatosTab() {
   const [logoComprobante, setLogoComprobante] = useState('');
   const [paperSize, setPaperSize] = useState<PaperSize>('80mm');
   const [autoAceptar, setAutoAceptar] = useState(false);
+  const [usarFacturacionElectronica, setUsarFacturacionElectronica] = useState(false);
   const [consultando, setConsultando] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -49,6 +50,7 @@ export default function DatosTab() {
       setDireccion(e.direccion || ''); setDepartamento(e.departamento); setProvincia(e.provincia); setDistrito(e.distrito);
       setCondicion(e.condicion || ''); setLogoComprobante(e.logoComprobante || '');
       setPaperSize((e.paperSize as PaperSize) || '80mm'); setAutoAceptar(e.autoAceptarPedidos);
+      setUsarFacturacionElectronica(e.usarFacturacionElectronica);
     }).catch(() => triggerToast('Error al cargar datos de la empresa.', 'error'))
     .finally(() => setLoading(false));
   }, [token]);
@@ -81,6 +83,7 @@ export default function DatosTab() {
         direccionCompleta: null, condicion: condicion || null, estadoContribuyente: null,
         logoComprobante: logoComprobante || null,
         paperSize, autoAceptarPedidos: autoAceptar,
+        usarFacturacionElectronica,
       });
       triggerToast('Datos guardados.', 'success');
     } catch { triggerToast('Error al guardar', 'error'); }
@@ -136,6 +139,14 @@ export default function DatosTab() {
       <div className="flex gap-2">{PAPER_SIZES.map(s => <button key={s.id} type="button" onClick={() => setPaperSize(s.id)} className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${paperSize === s.id ? 'bg-brand text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{s.label}</button>)}</div>
       <SectionHeader title="Pedidos" />
       <div className="flex items-center justify-between py-1"><span className="text-sm text-slate-700">Auto-aceptar pedidos</span><Toggle checked={autoAceptar} onChange={setAutoAceptar} /></div>
+      <SectionHeader title="Facturación" />
+      <div className="flex items-center justify-between py-1">
+        <div>
+          <span className="text-sm text-slate-700">Usar facturación electrónica</span>
+          <p className="text-[11px] text-slate-500">Muestra el módulo SUNAT en el sistema. No sincroniza datos por sí solo.</p>
+        </div>
+        <Toggle checked={usarFacturacionElectronica} onChange={setUsarFacturacionElectronica} />
+      </div>
       <div className="flex justify-end pt-4"><Button onClick={handleSave} disabled={saving}>{saving ? 'Guardando...' : 'Guardar cambios'}</Button></div>
       <LogoCropModal open={cropOpen} onClose={() => setCropOpen(false)} source={logoSource} onApply={handleCropApply} />
     </div>

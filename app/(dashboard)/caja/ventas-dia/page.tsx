@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { CalendarClock, ChevronLeft, ChevronRight, Loader2, Receipt, Hash, Wallet } from 'lucide-react';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import { SucursalSelector } from '@/components/ui';
-import { getVentas, type VentaDto } from '@/lib/api/ventas';
+import { getVentas, getVentaById, type VentaDto } from '@/lib/api/ventas';
 import { getUsuarios, type Usuario } from '@/lib/api/usuarios';
 import { toFechaParam } from '@/lib/api/reportes';
 
@@ -48,6 +48,19 @@ export default function VentasDelDiaPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+
+  /* Detalle de pago (Yape/Plin/Tarjeta) de la venta seleccionada — se pide puntual solo al
+     abrir el detalle (GET /api/ventas/{id}, ya trae el JOIN a ventas_pago_detalle) en vez de
+     traerlo para las N ventas del listado, que no lo necesitan. */
+  const [pagoDetalle, setPagoDetalle] = useState<VentaDto | null>(null);
+  useEffect(() => {
+    if (!token || !selectedId) { setPagoDetalle(null); return; }
+    let cancelado = false;
+    getVentaById(token, selectedId)
+      .then(v => { if (!cancelado) setPagoDetalle(v); })
+      .catch(() => { if (!cancelado) setPagoDetalle(null); });
+    return () => { cancelado = true; };
+  }, [token, selectedId]);
 
   /* El filtro de "cajero" solo tiene sentido para quienes realmente pueden cobrar/atender —
      se excluyen cocineros, repartidores, etc. */
@@ -244,6 +257,12 @@ export default function VentasDelDiaPage() {
                     <span className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5 text-slate-400" /> {METODO_PAGO_LABEL[seleccionada.metodoPago] ?? seleccionada.metodoPago}</span>
                     <span className="font-mono">{money(seleccionada.total)}</span>
                   </div>
+                  {pagoDetalle?.id === seleccionada.id && pagoDetalle.numeroOperacion && (
+                    <p className="text-[11px] text-slate-500 pl-5">
+                      N° Operación: <span className="font-medium text-slate-700">{pagoDetalle.numeroOperacion}</span>
+                      {pagoDetalle.entidadBancaria ? ` — ${pagoDetalle.entidadBancaria}` : ''}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex justify-between items-center pt-2 border-t border-slate-100">

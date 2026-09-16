@@ -11,6 +11,7 @@ export interface EmpresaDto {
   solUser: string; solPassword: string; igvTipo: string; igvPorcentajeEmpresa: number;
   certificadoPfx?: string | null; certificadoPassword: string;
   certificadoFilename: string; certificadoVencimiento?: string | null;
+  usarFacturacionElectronica: boolean; sincronizadoFacturacion: boolean;
 }
 
 export interface UpdateEmpresaDto {
@@ -24,6 +25,7 @@ export interface UpdateEmpresaDto {
   igvPorcentajeEmpresa?: number | null; certificadoPfx?: string | null;
   certificadoPassword?: string | null; certificadoFilename?: string | null;
   certificadoVencimiento?: string | null;
+  usarFacturacionElectronica?: boolean | null;
 }
 
 export function getMiEmpresa(token: string) {

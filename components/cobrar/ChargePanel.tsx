@@ -195,6 +195,13 @@ export default function ChargePanel({
   /* ── Pago ── */
   const [method, setMethod] = useState<PaymentMethod>('Efectivo');
   const [received, setReceived] = useState('');
+
+  /* Detalle opcional de Yape/Plin/Tarjeta — los 3 campos son libres, no bloquean el cobro.
+     El backend solo guarda el registro en ventas_pago_detalle si numeroOperacion viene lleno. */
+  const [numeroOperacion, setNumeroOperacion] = useState('');
+  const [entidadBancaria, setEntidadBancaria] = useState('');
+  const [observacionPago, setObservacionPago] = useState('');
+
   const [stage, setStage] = useState<'idle' | 'charging'>('idle');
   const submitting = stage !== 'idle';
 
@@ -291,6 +298,9 @@ export default function ChargePanel({
         itemsCount: itemsCountForCharge,
         closeAfter: willCloseAfter,
         chargeItems: chargingItems.map(i => ({ pedidoItemId: Number(i.product.id), cantidad: i.quantity })),
+        numeroOperacion: method !== 'Efectivo' && numeroOperacion.trim() ? numeroOperacion.trim() : undefined,
+        entidadBancaria: method !== 'Efectivo' && entidadBancaria.trim() ? entidadBancaria.trim() : undefined,
+        observacion: method !== 'Efectivo' && observacionPago.trim() ? observacionPago.trim() : undefined,
       };
 
       const sale = selected.kind === 'mesa'
@@ -319,6 +329,9 @@ export default function ChargePanel({
       setReceived('');
       setDocNumber('');
       setDocName('');
+      setNumeroOperacion('');
+      setEntidadBancaria('');
+      setObservacionPago('');
       clearCliente();
     } finally {
       setStage('idle');
@@ -657,6 +670,35 @@ export default function ChargePanel({
             {receivedNum != null && change != null && change < 0 && (
               <p className="text-[10px] text-rose-600">Falta {money(Math.abs(change))} para cubrir el monto.</p>
             )}
+          </div>
+        )}
+
+        {/* Yape/Plin/Tarjeta → detalle de operación (opcional) */}
+        {method !== 'Efectivo' && (
+          <div className="space-y-2 bg-slate-50 rounded-xl p-3">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+              Detalle de la operación (opcional)
+            </label>
+            <div className="flex gap-1.5">
+              <input
+                value={numeroOperacion}
+                onChange={e => setNumeroOperacion(e.target.value)}
+                placeholder="N° operación"
+                className="input w-[26%] min-w-0 px-2 py-2 text-xs text-right"
+              />
+              <input
+                value={entidadBancaria}
+                onChange={e => setEntidadBancaria(e.target.value)}
+                placeholder="Entidad bancaria"
+                className="input w-[32%] min-w-0 px-2 py-2 text-xs text-right"
+              />
+              <input
+                value={observacionPago}
+                onChange={e => setObservacionPago(e.target.value)}
+                placeholder="Observación"
+                className="input w-[42%] min-w-0 px-2 py-2 text-xs text-right"
+              />
+            </div>
           </div>
         )}
       </div>

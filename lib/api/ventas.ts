@@ -41,6 +41,10 @@ export interface VentaDto {
   cajeroNombre?: string | null;
   mesaNumero?: number | null;
   nombreCliente?: string | null;
+  /** Detalle opcional de pago (Yape/Plin/Tarjeta) — null si no se registró número de operación. */
+  numeroOperacion?: string | null;
+  entidadBancaria?: string | null;
+  observacionPago?: string | null;
   items: VentaItemDto[];
 }
 
@@ -66,6 +70,10 @@ export interface CreateVentaDto {
   tipoDoc?: string | null;
   numDoc?: string | null;
   razonSocial?: string | null;
+  /** Detalle opcional de pago (Yape/Plin/Tarjeta). Solo se guarda si numeroOperacion viene lleno. */
+  numeroOperacion?: string | null;
+  entidadBancaria?: string | null;
+  observacion?: string | null;
 }
 
 export function crearVenta(token: string, dto: CreateVentaDto) {

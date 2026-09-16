@@ -442,6 +442,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           tipoDoc: input.customerDoc ? (input.customerDoc.type === 'RUC' ? 'ruc' : 'dni') : null,
           numDoc: input.customerDoc?.number ?? null,
           razonSocial: input.customerDoc?.name ?? null,
+          numeroOperacion: input.numeroOperacion ?? null,
+          entidadBancaria: input.entidadBancaria ?? null,
+          observacion: input.observacion ?? null,
         });
 
         const sale: SalesHistory = {
@@ -651,6 +654,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           tipoDoc: input.customerDoc ? (input.customerDoc.type === 'RUC' ? 'ruc' : 'dni') : null,
           numDoc: input.customerDoc?.number ?? null,
           razonSocial: input.customerDoc?.name ?? null,
+          numeroOperacion: input.numeroOperacion ?? null,
+          entidadBancaria: input.entidadBancaria ?? null,
+          observacion: input.observacion ?? null,
         });
 
         const sale: SalesHistory = {

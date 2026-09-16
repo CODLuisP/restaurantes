@@ -211,6 +211,9 @@ export default function ComprobantesPage() {
         numeroVentaAfectada: detalle.numeroVentaAfectada,
         codMotivo: detalle.codMotivo,
         desMotivo: detalle.desMotivo,
+        numeroOperacion: detalle.numeroOperacion,
+        entidadBancaria: detalle.entidadBancaria,
+        observacionPago: detalle.observacionPago,
       });
     } catch {
       setSelectedComprobante(comp);

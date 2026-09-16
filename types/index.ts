@@ -171,6 +171,10 @@ export interface ChargeInput {
   closeAfter?: boolean;
   /** Ítems reales (id de pedido_item del backend + cantidad) que cubre este cobro — obligatorio para registrar la venta real. */
   chargeItems: { pedidoItemId: number; cantidad: number }[];
+  /** Detalle opcional de pago (Yape/Plin/Tarjeta). Solo se guarda si numeroOperacion viene lleno. */
+  numeroOperacion?: string;
+  entidadBancaria?: string;
+  observacion?: string;
 }
 
 /* Canal / tipo de pedido */

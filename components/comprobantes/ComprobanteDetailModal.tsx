@@ -112,6 +112,9 @@ export default function ComprobanteDetailModal({
                   <div className="border-b border-dashed border-slate-400 py-1"></div>
                   <div>FECHA: {selectedComprobante.fecha}</div>
                   <div>MÉTODO: {selectedComprobante.metodoPago}</div>
+                  {selectedComprobante.numeroOperacion && (
+                    <div>OPERACIÓN: {selectedComprobante.numeroOperacion}{selectedComprobante.entidadBancaria ? ` — ${selectedComprobante.entidadBancaria}` : ''}</div>
+                  )}
                   <div>CLIENTE: {selectedComprobante.clienteDoc.name}</div>
                   <div>{selectedComprobante.clienteDoc.type}: {selectedComprobante.clienteDoc.number}</div>
                   {esNota && selectedComprobante.numeroVentaAfectada && (
@@ -215,6 +218,9 @@ export default function ComprobanteDetailModal({
                     <div><span className="font-bold text-slate-500">Fecha de Emisión:</span> <span className="font-medium text-slate-800">{selectedComprobante.fecha}</span></div>
                     <div><span className="font-bold text-slate-500">Moneda:</span> <span className="font-medium text-slate-800">Soles (PEN)</span></div>
                     <div><span className="font-bold text-slate-500">Forma de Pago:</span> <span className="font-medium text-slate-800">Contado ({selectedComprobante.metodoPago})</span></div>
+                    {selectedComprobante.numeroOperacion && (
+                      <div><span className="font-bold text-slate-500">N° Operación:</span> <span className="font-medium text-slate-800">{selectedComprobante.numeroOperacion}{selectedComprobante.entidadBancaria ? ` — ${selectedComprobante.entidadBancaria}` : ''}</span></div>
+                    )}
                   </div>
                 </div>
 

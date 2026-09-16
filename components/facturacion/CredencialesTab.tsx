@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
-import { Eye, EyeOff, KeyRound, Building2, Radio, Truck, ChevronDown } from 'lucide-react';
+import { Eye, EyeOff, KeyRound, Building2, Radio, Truck, ChevronDown, ImagePlus, Pencil } from 'lucide-react';
 import { Input, Button, Spinner, Alert, Badge } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
-import { getEmpresaFacturacion, updateEmpresaFacturacion, type EmpresaFacturacion } from '@/lib/api/facturacion';
+import { getEmpresaFacturacion, updateEmpresaFacturacion, updateLogoFacturacion, type EmpresaFacturacion } from '@/lib/api/facturacion';
 import { ApiError } from '@/lib/api/client';
+import LogoCropModal from '@/components/configuracion/negocio/LogoCropModal';
 
 function SectionHeader({ icon, title, description, noBorder }: { icon?: React.ReactNode; title: string; description?: string; noBorder?: boolean }) {
   return (
@@ -37,6 +38,12 @@ export default function CredencialesTab() {
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
 
+  const [logoBase64, setLogoBase64] = useState('');
+  const [logoSource, setLogoSource] = useState<string | null>(null);
+  const [cropOpen, setCropOpen] = useState(false);
+  const [savingLogo, setSavingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (!token) return;
     setLoading(true);
@@ -51,6 +58,7 @@ export default function CredencialesTab() {
         setEmail(e.email ?? '');
         setClientId(e.clientId ?? '');
         setClientSecret(e.clientSecret ?? '');
+        setLogoBase64(e.logoBase64 ?? '');
       })
       .catch(() => setError('No se pudo cargar la configuración SUNAT.'))
       .finally(() => setLoading(false));
@@ -77,6 +85,31 @@ export default function CredencialesTab() {
     }
   };
 
+  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoSource(URL.createObjectURL(file));
+    setCropOpen(true);
+    e.target.value = '';
+  };
+
+  const handleCropApply = async (dataUrl: string) => {
+    if (!token) return;
+    setSavingLogo(true);
+    try {
+      await updateLogoFacturacion(token, dataUrl);
+      setLogoBase64(dataUrl);
+      triggerToast('Logo de SUNAT actualizado.', 'success');
+    } catch (err) {
+      triggerToast(err instanceof ApiError ? err.message : 'No se pudo actualizar el logo.', 'error');
+    } finally {
+      setSavingLogo(false);
+      setCropOpen(false);
+    }
+  };
+
+  const logoSrc = logoBase64 ? (logoBase64.startsWith('data:') ? logoBase64 : `data:image/png;base64,${logoBase64}`) : '';
+
   if (loading) {
     return (
       <div className="py-16 flex flex-col items-center justify-center gap-3">
@@ -92,7 +125,29 @@ export default function CredencialesTab() {
 
   return (
     <div className="space-y-4">
-      <SectionHeader icon={<Building2 className="h-3.5 w-3.5 text-slate-400" />} title="Identificación tributaria" description="Datos registrados en SUNAT para tu empresa." noBorder />
+      <SectionHeader icon={<ImagePlus className="h-3.5 w-3.5 text-slate-400" />} title="Logo en comprobantes SUNAT" description="Independiente del logo de Información del negocio: solo afecta lo que Ideatec imprime en tus PDF/tickets." noBorder />
+      <div className="flex items-center gap-4">
+        <button
+          type="button"
+          onClick={() => logoInputRef.current?.click()}
+          disabled={savingLogo}
+          className="group/logo relative h-20 w-20 shrink-0 rounded-xl overflow-hidden border-2 border-dashed border-slate-200 hover:border-brand bg-slate-50 flex items-center justify-center transition-colors"
+        >
+          {savingLogo ? (
+            <Spinner size="sm" />
+          ) : logoSrc ? (
+            <img src={logoSrc} alt="Logo SUNAT" className="h-full w-full object-contain p-1.5 rounded-lg" referrerPolicy="no-referrer" />
+          ) : (
+            <ImagePlus className="h-5 w-5 text-slate-300" />
+          )}
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/logo:opacity-100 flex items-center justify-center transition-opacity rounded-lg">
+            <Pencil className="h-4 w-4 text-white" />
+          </div>
+        </button>
+        <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoSelect} className="hidden" />
+      </div>
+
+      <SectionHeader icon={<Building2 className="h-3.5 w-3.5 text-slate-400" />} title="Identificación tributaria" description="Datos registrados en SUNAT para tu empresa." />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input label="RUC" value={empresa?.ruc ?? ''} disabled hint="El RUC no puede modificarse." />
         <Input label="Razón social" value={empresa?.razonSocial ?? ''} disabled hint="Se obtiene de SUNAT." />
@@ -160,6 +215,8 @@ export default function CredencialesTab() {
       <div className="flex justify-end pt-4">
         <Button onClick={handleSave} loading={saving}>{saving ? 'Guardando...' : 'Guardar configuración SUNAT'}</Button>
       </div>
+
+      <LogoCropModal open={cropOpen} onClose={() => setCropOpen(false)} source={logoSource} onApply={handleCropApply} />
     </div>
   );
 }

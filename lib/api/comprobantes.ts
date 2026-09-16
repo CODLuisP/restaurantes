@@ -28,6 +28,10 @@ export interface ComprobanteDetail extends ComprobanteListItem {
   descuento: number;
   propina: number;
   numeroVentaAfectada: string | null;
+  /** Detalle opcional de pago (Yape/Plin/Tarjeta) — null si no se registró número de operación. */
+  numeroOperacion: string | null;
+  entidadBancaria: string | null;
+  observacionPago: string | null;
   items: ComprobanteDetailItem[];
 }
 

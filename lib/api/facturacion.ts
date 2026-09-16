@@ -79,6 +79,7 @@ export interface EmpresaFacturacion {
   solClave?: string | null;
   clientId?: string | null;
   clientSecret?: string | null;
+  logoBase64?: string | null;
   tieneCertificado: boolean;
   certificadoVigenciaDesde?: string | null;
   certificadoVigenciaHasta?: string | null;
@@ -105,6 +106,16 @@ export interface ActualizarEmpresaFacturacion {
 
 export function updateEmpresaFacturacion(token: string, dto: ActualizarEmpresaFacturacion) {
   return apiFetch<{ exitoso: boolean }>('/api/facturacion/empresa', { token, method: 'PUT', body: dto });
+}
+
+/** Registra (primera vez) o actualiza los datos + logo de la empresa en la API de facturación. Solo superadmin. */
+export function sincronizarEmpresaFacturacion(token: string) {
+  return apiFetch<{ exitoso: boolean; mensaje?: string }>('/api/facturacion/empresa/sincronizar', { token, method: 'POST' });
+}
+
+/** Actualiza solo el logo mostrado en los comprobantes de Ideatec, independiente del logo local. */
+export function updateLogoFacturacion(token: string, logoBase64: string) {
+  return apiFetch<{ exitoso: boolean }>('/api/facturacion/empresa/logo', { token, method: 'PUT', body: { logoBase64 } });
 }
 
 /** Paso 1 del wizard: sube el archivo .pfx/.p12 y lo convierte a Base64. No usa apiFetch porque el body es multipart, no JSON. */

@@ -29,6 +29,10 @@ export interface Comprobante {
   whatsappDestino?: string;
   items: ComprobanteItem[];
   metodoPago: PaymentMethod | string;
+  /** Detalle opcional de pago (Yape/Plin/Tarjeta) — null/undefined si no se registró número de operación. */
+  numeroOperacion?: string | null;
+  entidadBancaria?: string | null;
+  observacionPago?: string | null;
   hash: string;
   comprobanteIdExterno?: string | null;
   tieneSunat: boolean;

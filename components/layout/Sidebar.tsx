@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -28,6 +28,7 @@ import { useSidebar } from '@/context/SidebarContext';
 import { useAuth } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
 import { useCocinaPedidos } from '@/hooks/cocina/useCocinaPedidos';
+import { getMiEmpresa } from '@/lib/api/empresas';
 import type { Role } from '@/types';
 
 /* Pantallas operativas en tiempo real de una sola sucursal (mesas, pedidos en vivo, turno de
@@ -95,6 +96,13 @@ export default function Sidebar() {
   const isCajaRoute = pathname.startsWith('/caja');
   const [isCajaOpen, setIsCajaOpen] = useState(isCajaRoute);
 
+  const [usarFacturacionElectronica, setUsarFacturacionElectronica] = useState(false);
+  useEffect(() => {
+    const token = session?.accessToken;
+    if (!token) return;
+    getMiEmpresa(token).then(e => setUsarFacturacionElectronica(e.usarFacturacionElectronica)).catch(() => {});
+  }, [session?.accessToken]);
+
   /* Comandas listas por despachar — cualquier mozo puede recogerlas y entregarlas, sin importar quién las tomó. */
   const readyCount = pedidos.filter(p => p.estado === 'listo').length;
 
@@ -105,6 +113,7 @@ export default function Sidebar() {
 
   const visibleItems = menuItems.filter(item => {
     if (item.href === '/cocina' && impresoraCocina) return false;
+    if (item.href === '/facturacion' && !usarFacturacionElectronica) return false;
     if (isSuperAdmin && HREFS_OCULTOS_SUPERADMIN.includes(item.href)) return false;
     return !item.roles || !currentUser || item.roles.includes(currentUser.role);
   });
@@ -322,7 +331,8 @@ export default function Sidebar() {
             </div>
           )}
 
-          {/* Playground — solo admin */}
+          {/* Playground — solo admin.
+              Oculto a pedido: si quieres ver las Componentes UI de forma visual, descomentar esta parte.
           {(!currentUser || currentUser.role === 'admin') && (
             <div className={`border-t border-brand-hover/40 my-3 pt-3 ${isCollapsed ? 'mx-0' : ''}`}>
               {!isCollapsed && (
@@ -359,6 +369,7 @@ export default function Sidebar() {
               </Link>
             </div>
           )}
+          */}
         </nav>
 
         {/* Footer */}
