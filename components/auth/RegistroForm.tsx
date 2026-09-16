@@ -13,6 +13,17 @@ interface FormState {
   nombreEmpresa: string;
   ruc: string;
   direccion: string;
+  // No son campos del formulario: los llena handleConsultarRuc (JsonPE) para que la empresa
+  // quede completa desde el registro, igual que si se hubiera consultado el RUC en
+  // Configuración > Datos del negocio.
+  razonSocial: string;
+  nombreComercial: string;
+  departamento: string;
+  provincia: string;
+  distrito: string;
+  direccionCompleta: string;
+  condicion: string;
+  estadoContribuyente: string;
   nombreAdmin: string;
   email: string;
   username: string;
@@ -21,7 +32,10 @@ interface FormState {
 }
 
 const EMPTY_FORM: FormState = {
-  nombreEmpresa: '', ruc: '', direccion: '', nombreAdmin: '', email: '', username: '', password: '', confirmarPassword: '',
+  nombreEmpresa: '', ruc: '', direccion: '',
+  razonSocial: '', nombreComercial: '', departamento: '', provincia: '', distrito: '',
+  direccionCompleta: '', condicion: '', estadoContribuyente: '',
+  nombreAdmin: '', email: '', username: '', password: '', confirmarPassword: '',
 };
 
 function Field({
@@ -84,10 +98,19 @@ export default function RegistroForm() {
       const res = await fetch('/api/consultar-ruc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ruc: form.ruc }) });
       const data = await res.json();
       if (!data.success) { setErrorMessage(data.error || 'RUC no encontrado.'); return; }
+      const d = data.data;
       setForm(f => ({
         ...f,
-        nombreEmpresa: f.nombreEmpresa || data.data.nombre_o_razon_social || '',
-        direccion: data.data.direccion || f.direccion,
+        nombreEmpresa: f.nombreEmpresa || d.nombre_o_razon_social || '',
+        direccion: d.direccion || f.direccion,
+        razonSocial: d.nombre_o_razon_social || '',
+        nombreComercial: d.nombre_comercial || '',
+        departamento: d.departamento || '',
+        provincia: d.provincia || '',
+        distrito: d.distrito || '',
+        direccionCompleta: d.direccion_completa || '',
+        condicion: d.condicion || '',
+        estadoContribuyente: d.estado || '',
       }));
     } catch {
       setErrorMessage('Error al consultar el RUC.');
@@ -113,6 +136,14 @@ export default function RegistroForm() {
         nombreEmpresa: form.nombreEmpresa.trim(),
         ruc: form.ruc.trim(),
         direccion: form.direccion.trim() || undefined,
+        razonSocial: form.razonSocial.trim() || undefined,
+        nombreComercial: form.nombreComercial.trim() || undefined,
+        departamento: form.departamento.trim() || undefined,
+        provincia: form.provincia.trim() || undefined,
+        distrito: form.distrito.trim() || undefined,
+        direccionCompleta: form.direccionCompleta.trim() || undefined,
+        condicion: form.condicion.trim() || undefined,
+        estadoContribuyente: form.estadoContribuyente.trim() || undefined,
         nombreAdmin: form.nombreAdmin.trim(),
         email: form.email.trim() || undefined,
         username: form.username.trim(),
