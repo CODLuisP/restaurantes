@@ -3,8 +3,8 @@ export const runtime = 'nodejs';
 /**
  * Envía el PDF de un comprobante por correo a uno o varios destinatarios.
  *
- * En producción, reenvía a un proveedor de email transaccional (Resend) configurado por
- * variables de entorno. Si no hay proveedor configurado, opera en MODO DEMO simulando el envío.
+ * En producción, reenvía a MailerSend configurado por variables de entorno. Si no hay
+ * proveedor configurado, opera en MODO DEMO simulando el envío.
  */
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -30,10 +30,11 @@ export async function POST(request: Request) {
       return Response.json({ ok: false, error: 'Falta el PDF del comprobante.' }, { status: 400 });
     }
 
-    const apiKey = process.env.RESEND_API_KEY;
-    const from = process.env.RESEND_FROM_EMAIL;
+    const apiKey = process.env.MAILERSEND_API_KEY;
+    const fromEmail = process.env.MAILERSEND_FROM_EMAIL;
+    const fromName = process.env.MAILERSEND_FROM_NAME ?? fromEmail;
 
-    if (!apiKey || !from) {
+    if (!apiKey || !fromEmail) {
       // ── Modo demo: simula el envío sin proveedor real configurado ──
       return Response.json({ ok: true, enviados: destinatarios, fallidos: [], simulated: true });
     }
@@ -42,15 +43,15 @@ export async function POST(request: Request) {
 
     const resultados = await Promise.allSettled(
       destinatarios.map(async email => {
-        const res = await fetch('https://api.resend.com/emails', {
+        const res = await fetch('https://api.mailersend.com/v1/email', {
           method: 'POST',
           headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            from,
-            to: email,
+            from: { email: fromEmail, name: fromName },
+            to: [{ email }],
             subject,
             html: `<p>${bodyText.replace(/\n/g, '<br/>')}</p>`,
-            attachments: [{ filename: `${numero}.pdf`, content: pdfBase64 }],
+            attachments: [{ content: pdfBase64, filename: `${numero}.pdf`, disposition: 'attachment' }],
           }),
         });
         if (!res.ok) throw new Error(email);
