@@ -402,8 +402,8 @@ export default function DashboardPage() {
             <thead className="bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
               <tr>
                 <th className="p-3">Código</th>
-                <th className="p-3">Hora en Lima</th>
-                <th className="p-3">Mesa Destino</th>
+                <th className="p-3">Hora</th>
+                <th className="p-3">Mesa</th>
                 <th className="p-3">Comprobante</th>
                 <th className="p-3">Nº Items</th>
                 <th className="p-3">Método de Pago</th>

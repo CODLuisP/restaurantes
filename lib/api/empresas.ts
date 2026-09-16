@@ -8,9 +8,6 @@ export interface EmpresaDto {
   direccionCompleta?: string | null; condicion?: string | null; estadoContribuyente?: string | null;
   logoComprobante?: string | null;
   paperSize: string; autoAceptarPedidos: boolean;
-  solUser: string; solPassword: string; igvTipo: string; igvPorcentajeEmpresa: number;
-  certificadoPfx?: string | null; certificadoPassword: string;
-  certificadoFilename: string; certificadoVencimiento?: string | null;
   usarFacturacionElectronica: boolean; sincronizadoFacturacion: boolean;
 }
 
@@ -21,10 +18,6 @@ export interface UpdateEmpresaDto {
   direccionCompleta?: string | null; condicion?: string | null; estadoContribuyente?: string | null;
   logoComprobante?: string | null;
   paperSize?: string | null; autoAceptarPedidos?: boolean | null;
-  solUser?: string | null; solPassword?: string | null; igvTipo?: string | null;
-  igvPorcentajeEmpresa?: number | null; certificadoPfx?: string | null;
-  certificadoPassword?: string | null; certificadoFilename?: string | null;
-  certificadoVencimiento?: string | null;
   usarFacturacionElectronica?: boolean | null;
 }
 

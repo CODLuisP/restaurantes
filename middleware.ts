@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 
-// Rutas accesibles sin sesión: login ('/') y el menú público que escanea el cliente por QR.
+// Rutas accesibles sin sesión: login ('/'), el menú público que escanea el cliente por QR,
+// y el alta pública de una empresa nueva.
 function esRutaPublica(pathname: string) {
-  return pathname === '/' || pathname.startsWith('/menu') || pathname.startsWith('/api');
+  return pathname === '/' || pathname.startsWith('/menu') || pathname.startsWith('/api') || pathname === '/registro';
 }
 
 // El cocinero solo opera Cocina y ve el Menú Digital (sin editar nada, ver carta/page.tsx).
