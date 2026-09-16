@@ -174,7 +174,7 @@ export default function DashboardPage() {
     );
   }
 
-  const kpis = [
+  const kpis: { label: string; icon: typeof DollarSign; color: string; value: string; sub: string; live?: boolean }[] = [
     {
       label: esHoy ? 'Ventas del Día' : 'Ventas del Día Elegido', icon: DollarSign, color: '#007542',
       value: money(ventasHoy?.totalVentas ?? 0),
@@ -186,9 +186,9 @@ export default function DashboardPage() {
       sub: pctVsMesAnterior === null ? 'Sin ventas el mes anterior para comparar' : `${pctVsMesAnterior >= 0 ? '+' : ''}${pctVsMesAnterior.toFixed(1)}% vs mes anterior`,
     },
     {
-      label: 'Pedidos Activos', icon: ShoppingCart, color: '#3AA346',
+      label: 'Pedidos Activos', icon: ShoppingCart, color: '#3AA346', live: true,
       value: `${resumen?.pedidosEnCocinaAhora ?? 0}`,
-      sub: `En vivo · ${resumen?.pedidosHoy ?? 0} pedidos hoy`,
+      sub: `${resumen?.pedidosHoy ?? 0} pedidos hoy`,
     },
     {
       label: 'Ticket Promedio', icon: Utensils, color: '#58BB43',
@@ -227,7 +227,6 @@ export default function DashboardPage() {
       {!esHoy && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-medium px-3 py-2 rounded-lg">
           Viendo datos del {fechaSeleccionada.toLocaleDateString('es-PE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
-          {' '}— "Pedidos Activos" siempre muestra el estado en vivo, no el de la fecha elegida.
         </div>
       )}
 
@@ -253,7 +252,15 @@ export default function DashboardPage() {
           return (
             <div key={i} className="card px-4 py-3 hover:shadow-md transition-all group duration-300">
               <div className="flex items-center justify-between text-slate-500">
-                <span className="text-[10px] font-bold tracking-wider uppercase">{kpi.label}</span>
+                <span className="text-[10px] font-bold tracking-wider uppercase flex items-center gap-1.5">
+                  {kpi.label}
+                  {kpi.live && (
+                    <span className="relative flex h-1.5 w-1.5" title="En vivo">
+                      <span className="absolute inline-flex h-full w-full rounded-full bg-rose-500 pulse-active" />
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500" />
+                    </span>
+                  )}
+                </span>
                 <Icon className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" style={{ color: kpi.color }} />
               </div>
               <p className="text-base font-bold text-slate-800 mt-1.5 font-mono">{kpi.value}</p>
