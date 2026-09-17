@@ -37,6 +37,9 @@ export interface VentaDto {
   comprobanteId?: string | null;
   /** Ej: "F001-00015115", "B001-00000234"; null hasta que se emita el comprobante. */
   numeroComprobante?: string | null;
+  /** Momento real en que se registró en la API de facturación (reservó serie/correlativo).
+   *  Null mientras sigue "Pendiente". Puede ser posterior a pagadoAt si hubo reintento. */
+  fechaRegistroFacturacion?: string | null;
   /** Datos desnormalizados vía JOIN — no son columnas propias de la venta. */
   cajeroNombre?: string | null;
   mesaNumero?: number | null;

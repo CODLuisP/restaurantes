@@ -15,6 +15,11 @@ export interface ComprobanteItem {
 export interface Comprobante {
   id: string; // ID interno (ej. S-701)
   fecha: string; // DD/MM/AAAA HH:MM
+  /** fecha en ISO crudo (sin formatear), para comparar contra fechaRegistroFacturacion. */
+  fechaISO?: string;
+  /** Momento real en que se registró en la API de facturación (reservó serie/correlativo).
+   *  Null mientras sigue "Pendiente". Puede ser posterior a fechaISO si hubo reintento. */
+  fechaRegistroFacturacion?: string | null;
   tipo: TipoComprobante;
   numero: string; // Ej: F001-00015115
   clienteDoc: { type: 'DNI' | 'RUC' | string; number: string; name: string };
@@ -119,6 +124,7 @@ export function mapApiToComprobante(item: {
   numeroVentaAfectada?: string | null;
   codMotivo?: string | null;
   desMotivo?: string | null;
+  fechaRegistroFacturacion?: string | null;
 }): Comprobante {
   const tipoMap: Record<string, TipoComprobante> = {
     ticket: 'Ticket',
@@ -141,6 +147,8 @@ export function mapApiToComprobante(item: {
   return {
     id: String(item.id),
     fecha: fechaStr,
+    fechaISO: item.fecha,
+    fechaRegistroFacturacion: item.fechaRegistroFacturacion ?? null,
     tipo: tipoMap[item.tipoComprobante] ?? 'Ticket',
     numero: item.numero,
     clienteDoc: {

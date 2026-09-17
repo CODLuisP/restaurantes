@@ -31,6 +31,7 @@ export function useComprobantes({ pageSize = 10, sucursalIdOverride }: UseCompro
   const [filterEstado, setFilterEstado] = useState('');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
+  const [ordenarPorCorrelativo, setOrdenarPorCorrelativo] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
   // Debounce para search
@@ -46,7 +47,7 @@ export function useComprobantes({ pageSize = 10, sucursalIdOverride }: UseCompro
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, filterTipo, filterEstado, fechaDesde, fechaHasta]);
+  }, [debouncedSearch, filterTipo, filterEstado, fechaDesde, fechaHasta, ordenarPorCorrelativo]);
 
   const fetchData = useCallback(async () => {
     if (!token) return;
@@ -65,6 +66,7 @@ export function useComprobantes({ pageSize = 10, sucursalIdOverride }: UseCompro
     if (filterEstado) filters.estadoSunat = filterEstado;
     if (fechaDesde) filters.fechaInicio = fechaDesde;
     if (fechaHasta) filters.fechaFin = fechaHasta;
+    if (ordenarPorCorrelativo) filters.ordenarPorCorrelativo = true;
 
     try {
       const result = await getComprobantes(token, filters);
@@ -74,7 +76,7 @@ export function useComprobantes({ pageSize = 10, sucursalIdOverride }: UseCompro
     } finally {
       setLoading(false);
     }
-  }, [token, isSuperAdmin, sucursalId, currentPage, pageSize, debouncedSearch, filterTipo, filterEstado, fechaDesde, fechaHasta]);
+  }, [token, isSuperAdmin, sucursalId, currentPage, pageSize, debouncedSearch, filterTipo, filterEstado, fechaDesde, fechaHasta, ordenarPorCorrelativo]);
 
   useEffect(() => {
     fetchData();
@@ -102,5 +104,7 @@ export function useComprobantes({ pageSize = 10, sucursalIdOverride }: UseCompro
     setFechaDesde,
     fechaHasta,
     setFechaHasta,
+    ordenarPorCorrelativo,
+    setOrdenarPorCorrelativo,
   };
 }

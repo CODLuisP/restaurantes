@@ -21,6 +21,9 @@ export interface ComprobanteListItem {
   ventaAfectadaId: number | null;
   codMotivo: string | null;
   desMotivo: string | null;
+  /** Momento real en que se registró en la API de facturación (reservó serie/correlativo).
+   *  Null mientras sigue "Pendiente". Puede ser posterior a fecha si hubo reintento. */
+  fechaRegistroFacturacion: string | null;
 }
 
 export interface ComprobanteDetail extends ComprobanteListItem {
@@ -66,6 +69,14 @@ export interface EmitirResult {
   mensaje: string | null;
 }
 
+export interface ConvertirTicketDto {
+  tipoComprobante: 'boleta' | 'factura';
+  tipoDoc?: string | null;
+  numDoc?: string | null;
+  razonSocial?: string | null;
+  clienteId?: number | null;
+}
+
 export interface CrearNotaItemDto {
   ventaItemId: number;
   cantidad: number;
@@ -99,6 +110,9 @@ export interface ComprobantesFilters {
   search?: string;
   page?: number;
   pageSize?: number;
+  /** true ordena por el correlativo real (B001-00000023 -> 23) en vez de por fecha de venta —
+   *  evita el "salto" visual cuando un reintento tardío asigna un correlativo fuera de orden. */
+  ordenarPorCorrelativo?: boolean;
 }
 
 // ── Funciones API ────────────────────────────────────────────────────────
@@ -113,6 +127,7 @@ export function getComprobantes(token: string, filters: ComprobantesFilters = {}
   if (filters.search) query.set('search', filters.search);
   if (filters.page) query.set('page', String(filters.page));
   if (filters.pageSize) query.set('pageSize', String(filters.pageSize));
+  if (filters.ordenarPorCorrelativo) query.set('ordenarPorCorrelativo', 'true');
   const qs = query.toString();
   return apiFetch<PaginatedResult<ComprobanteListItem>>(`/api/comprobantes${qs ? `?${qs}` : ''}`, { token });
 }
@@ -127,6 +142,10 @@ export function reenviarSunat(token: string, ventaId: number) {
 
 export function emitirComprobante(token: string, ventaId: number) {
   return apiFetch<EmitirResult>(`/api/comprobantes/${ventaId}/emitir`, { token, method: 'POST' });
+}
+
+export function convertirTicket(token: string, ventaId: number, dto: ConvertirTicketDto) {
+  return apiFetch<EmitirResult>(`/api/comprobantes/${ventaId}/convertir`, { token, method: 'POST', body: dto });
 }
 
 export function generarNota(token: string, ventaId: number, dto: CrearNotaDto) {

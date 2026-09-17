@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, Clock, Download, Printer, XCircle } from '
 import { QRCodeSVG } from 'qrcode.react';
 import { Modal } from '@/components/ui';
 import type { EmpresaDto } from '@/lib/api/empresas';
+import { getFechaEnvioSunatVisible, formatFechaHora } from '@/lib/facturacion/fechaEnvioSunat';
 import { TIPO_COMPROBANTE_LABEL, type Comprobante, type FormatoImpresion } from './types';
 
 interface ComprobanteDetailModalProps {
@@ -38,6 +39,10 @@ export default function ComprobanteDetailModal({
         Pendiente: { style: 'bg-amber-50 text-amber-700 border-amber-200',      icon: <Clock className="h-4 w-4 shrink-0" />,         texto: `La ${tipoLabel} está pendiente de respuesta de SUNAT.` },
         'De Baja': { style: 'bg-slate-100 text-slate-600 border-slate-200',     icon: <AlertTriangle className="h-4 w-4 shrink-0" />, texto: `La ${tipoLabel} fue dada de baja.` },
       } as const)[selectedComprobante.estadoSunat]
+    : null;
+
+  const fechaEnvioSunat = selectedComprobante?.fechaISO
+    ? getFechaEnvioSunatVisible(selectedComprobante.fechaISO, selectedComprobante.fechaRegistroFacturacion)
     : null;
 
   return (
@@ -80,9 +85,16 @@ export default function ComprobanteDetailModal({
         }
       >
         {estadoBanner && (
-          <div className={`flex items-center gap-2 rounded-lg px-4 py-2.5 mb-3 text-xs font-bold border ${estadoBanner.style}`}>
-            {estadoBanner.icon}
-            {estadoBanner.texto}
+          <div className={`rounded-lg px-4 py-2.5 mb-3 text-xs border ${estadoBanner.style}`}>
+            <div className="flex items-center gap-2 font-bold">
+              {estadoBanner.icon}
+              {estadoBanner.texto}
+            </div>
+            {fechaEnvioSunat && (
+              <div className="mt-1 pl-6 text-[11px] font-normal opacity-80">
+                Fecha de envío SUNAT: {formatFechaHora(fechaEnvioSunat)}
+              </div>
+            )}
           </div>
         )}
         {selectedComprobante && (

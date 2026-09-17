@@ -1,12 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CalendarClock, ChevronLeft, ChevronRight, Loader2, Receipt, Hash, Wallet } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { CalendarClock, ChevronLeft, ChevronRight, Loader2, Receipt, Hash, Wallet, MoreVertical, FileText } from 'lucide-react';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import { SucursalSelector } from '@/components/ui';
+import { useApp } from '@/context/AppContext';
 import { getVentas, getVentaById, type VentaDto } from '@/lib/api/ventas';
 import { getUsuarios, type Usuario } from '@/lib/api/usuarios';
 import { toFechaParam } from '@/lib/api/reportes';
+import { getFechaEnvioSunatVisible, formatFechaHora } from '@/lib/facturacion/fechaEnvioSunat';
+import { ConvertirTicketModal } from '@/components/caja/ConvertirTicketModal';
 
 const TIPO_LABEL: Record<string, string> = {
   ticket: 'N. Venta',
@@ -40,6 +44,7 @@ function addDias(d: Date, delta: number): Date {
 
 export default function VentasDelDiaPage() {
   const { token, isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
+  const { triggerToast } = useApp();
 
   const [dia, setDia] = useState(() => new Date());
   const [cajeroId, setCajeroId] = useState<number | null>(null);
@@ -48,6 +53,45 @@ export default function VentasDelDiaPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [convertirVenta, setConvertirVenta] = useState<VentaDto | null>(null);
+
+  /* Menú de opciones por fila: se renderiza vía portal con posición fija calculada del botón,
+     porque el listado vive dentro de contenedores con overflow (scroll + card redondeado) que
+     recortarían un menú absoluto normal — y decide abrir hacia arriba si no hay espacio abajo. */
+  const [menuAnchor, setMenuAnchor] = useState<{ ventaId: number; top: number; left: number; openUp: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!menuAnchor) return;
+    const close = () => setMenuAnchor(null);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    window.addEventListener('click', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('click', close);
+    };
+  }, [menuAnchor]);
+
+  const toggleMenu = (ventaId: number, e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (menuAnchor?.ventaId === ventaId) { setMenuAnchor(null); return; }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuWidth = 224; // w-56
+    const menuHeight = 44; // una sola opción
+    const margin = 8;
+    const openUp = rect.bottom + menuHeight > window.innerHeight;
+
+    // Fixed, no relativo a ningún contenedor con scroll — pero igual se acota a los límites
+    // del viewport para que nunca quede (ni parcialmente) fuera de pantalla, sin importar
+    // dónde esté el botón que lo abrió.
+    const rawTop = openUp ? rect.top - menuHeight - 4 : rect.bottom + 4;
+    const rawLeft = rect.right - menuWidth;
+    const top = Math.min(Math.max(rawTop, margin), window.innerHeight - menuHeight - margin);
+    const left = Math.min(Math.max(rawLeft, margin), window.innerWidth - menuWidth - margin);
+
+    setMenuAnchor({ ventaId, top, left, openUp });
+  };
 
   /* Detalle de pago (Yape/Plin/Tarjeta) de la venta seleccionada — se pide puntual solo al
      abrir el detalle (GET /api/ventas/{id}, ya trae el JOIN a ventas_pago_detalle) en vez de
@@ -71,7 +115,7 @@ export default function VentasDelDiaPage() {
       .catch(() => setUsuarios([]));
   }, [token, sId]);
 
-  useEffect(() => {
+  const cargarVentas = () => {
     if (!token || !sId) return;
     setLoading(true);
     setError(false);
@@ -83,7 +127,9 @@ export default function VentasDelDiaPage() {
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, [token, sId, dia, cajeroId]);
+  };
+
+  useEffect(cargarVentas, [token, sId, dia, cajeroId]);
 
   const totalVentas = ventas.length;
   const totalMonto = ventas.reduce((a, v) => a + v.total, 0);
@@ -186,27 +232,42 @@ export default function VentasDelDiaPage() {
                 {ventas.map(v => {
                   const isAnulacion = v.tipoComprobante === 'nota_credito';
                   const isSelected = v.id === selectedId;
+                  const esTicket = v.tipoComprobante === 'ticket';
                   return (
-                    <button
-                      key={v.id}
-                      type="button"
-                      onClick={() => setSelectedId(v.id)}
-                      className={`w-full grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-4 py-3 text-left transition-colors ${
-                        isSelected ? 'bg-brand/5' : 'hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <p className={`text-sm font-bold truncate ${isAnulacion ? 'text-rose-500 line-through' : 'text-slate-800'}`}>
-                          {v.numeroComprobante || `Venta #${v.id}`}
-                        </p>
-                        <p className="text-[10px] text-slate-400">{TIPO_LABEL[v.tipoComprobante] ?? v.tipoComprobante}</p>
-                      </div>
-                      <span className="text-xs font-mono text-slate-500">{itemsCount(v)}</span>
-                      <span className="text-xs font-mono text-slate-500">{horaVenta(v)}</span>
-                      <span className={`text-sm font-mono font-bold shrink-0 ${isAnulacion ? 'text-rose-400 line-through' : 'text-slate-800'}`}>
-                        {money(v.total)}
-                      </span>
-                    </button>
+                    <div key={v.id} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedId(v.id)}
+                        className={`w-full grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-4 py-3 text-left transition-colors ${
+                          esTicket ? 'pr-10' : ''
+                        } ${isSelected ? 'bg-brand/5' : 'hover:bg-slate-50'}`}
+                      >
+                        <div className="min-w-0">
+                          <p className={`text-sm font-bold truncate ${isAnulacion ? 'text-rose-500 line-through' : 'text-slate-800'}`}>
+                            {v.numeroComprobante || `Venta #${v.id}`}
+                          </p>
+                          <p className="text-[10px] text-slate-400">{TIPO_LABEL[v.tipoComprobante] ?? v.tipoComprobante}</p>
+                        </div>
+                        <span className="text-xs font-mono text-slate-500">{itemsCount(v)}</span>
+                        <span className="text-xs font-mono text-slate-500">{horaVenta(v)}</span>
+                        <span className={`text-sm font-mono font-bold shrink-0 ${isAnulacion ? 'text-rose-400 line-through' : 'text-slate-800'}`}>
+                          {money(v.total)}
+                        </span>
+                      </button>
+
+                      {esTicket && (
+                        <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                          <button
+                            type="button"
+                            onClick={e => toggleMenu(v.id, e)}
+                            className="p-1.5 rounded hover:bg-slate-200 text-slate-500 hover:text-slate-800"
+                            aria-label="Opciones"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -225,8 +286,16 @@ export default function VentasDelDiaPage() {
                 <div>
                   <p className="text-sm font-bold text-slate-800">{seleccionada.numeroComprobante || `Venta #${seleccionada.id}`}</p>
                   <p className="text-[11px] text-slate-500">
-                    {TIPO_LABEL[seleccionada.tipoComprobante] ?? seleccionada.tipoComprobante} · {new Date(seleccionada.pagadoAt).toLocaleString('es-PE')}
+                    Fecha: {new Date(seleccionada.pagadoAt).toLocaleString('es-PE')}
                   </p>
+                  {(() => {
+                    const fechaEnvio = getFechaEnvioSunatVisible(seleccionada.pagadoAt, seleccionada.fechaRegistroFacturacion);
+                    return fechaEnvio && (
+                      <p className="text-[11px] text-slate-500">
+                        Fecha de envío SUNAT: {formatFechaHora(fechaEnvio)}
+                      </p>
+                    );
+                  })()}
                 </div>
 
                 <div className="bg-slate-50 rounded-xl border border-slate-100 p-3 space-y-1 text-xs">
@@ -274,6 +343,36 @@ export default function VentasDelDiaPage() {
           </div>
         </div>
       )}
+
+      {menuAnchor && typeof document !== 'undefined' && createPortal(
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{ position: 'fixed', top: menuAnchor.top, left: menuAnchor.left, width: 224 }}
+          className="bg-white rounded-lg border border-slate-200 shadow-lg z-50 py-1 text-left animate-section"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              const venta = ventas.find(v => v.id === menuAnchor.ventaId) ?? null;
+              setConvertirVenta(venta);
+              setMenuAnchor(null);
+            }}
+            className="w-full px-3 py-2 text-[11px] text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+          >
+            <FileText className="h-3.5 w-3.5 text-slate-400" /> Convertir a boleta/factura
+          </button>
+        </div>,
+        document.body
+      )}
+
+      <ConvertirTicketModal
+        open={!!convertirVenta}
+        venta={convertirVenta}
+        token={token}
+        onClose={() => setConvertirVenta(null)}
+        onConverted={cargarVentas}
+        triggerToast={triggerToast}
+      />
     </div>
   );
 }

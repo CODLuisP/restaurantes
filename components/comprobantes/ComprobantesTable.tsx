@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clock, Eye,
+  AlertTriangle, ArrowDownUp, CheckCircle2, ChevronLeft, ChevronRight, Clock, Eye,
   FileText, Loader2, Mail, MessageCircle, MoreVertical, PlusCircle, MinusCircle, RefreshCw, Send, X,
 } from 'lucide-react';
 import { TIPO_COMPROBANTE_LABEL, type Comprobante, type FormatoImpresion } from './types';
@@ -32,6 +32,9 @@ interface ComprobantesTableProps {
   /** Si está en false, oculta las acciones de emisión/reenvío/notas (columna "Opciones") —
    * la tabla queda solo para consultar lo ya emitido antes de desactivar. */
   usarFacturacionElectronica: boolean;
+  /** true = la lista está ordenada por correlativo real en vez de por fecha de venta. */
+  ordenarPorCorrelativo: boolean;
+  onToggleOrdenarPorCorrelativo: () => void;
 }
 
 /** Tabla de comprobantes emitidos con acciones por fila y paginación. */
@@ -40,6 +43,7 @@ export default function ComprobantesTable({
   activeMenuId, setActiveMenuId, procesandoId, descargandoKey, currentPage, totalPages, itemsPerPage, setCurrentPage,
   setSelectedComprobante, setEmailModalData, setWhatsappModalData,
   onDownload, onReenviarSunat, onEmitir, onGenerarNota, triggerToast, usarFacturacionElectronica,
+  ordenarPorCorrelativo, onToggleOrdenarPorCorrelativo,
 }: ComprobantesTableProps) {
   return (
     <>
@@ -49,7 +53,23 @@ export default function ComprobantesTable({
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 font-bold uppercase tracking-wider text-slate-500 font-sans">
                 <th className="px-4 py-3 text-[10px]">Fecha</th>
-                <th className="px-4 py-3 text-[10px]">Comprobante</th>
+                <th className="px-4 py-3 text-[10px]">
+                  <span className="inline-flex items-center gap-1">
+                    Comprobante
+                    <button
+                      type="button"
+                      onClick={onToggleOrdenarPorCorrelativo}
+                      className={`p-1 rounded transition-colors ${
+                        ordenarPorCorrelativo
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+                      }`}
+                      title={ordenarPorCorrelativo ? 'Ordenando por correlativo — clic para volver al orden por fecha' : 'Ordenar por correlativo real'}
+                    >
+                      <ArrowDownUp className="h-3 w-3" />
+                    </button>
+                  </span>
+                </th>
                 <th className="px-4 py-3 text-[10px]">Cliente</th>
                 <th className="px-4 py-3 text-[10px]">Tamaño</th>
                 <th className="px-2 py-3 text-[10px] text-center">PDF</th>

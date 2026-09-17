@@ -50,6 +50,7 @@ export default function ComprobantesPage() {
     filterEstado, setFilterEstado,
     fechaDesde, setFechaDesde,
     fechaHasta, setFechaHasta,
+    ordenarPorCorrelativo, setOrdenarPorCorrelativo,
   } = useComprobantes({ pageSize: ITEMS_PER_PAGE, sucursalIdOverride: sId });
 
   // Mapea datos de la API al formato que esperan los componentes existentes
@@ -214,6 +215,7 @@ export default function ComprobantesPage() {
         numeroOperacion: detalle.numeroOperacion,
         entidadBancaria: detalle.entidadBancaria,
         observacionPago: detalle.observacionPago,
+        fechaRegistroFacturacion: detalle.fechaRegistroFacturacion,
       });
     } catch {
       setSelectedComprobante(comp);
@@ -324,6 +326,8 @@ export default function ComprobantesPage() {
           onGenerarNota={handleGenerarNota}
           triggerToast={triggerToast}
           usarFacturacionElectronica={empresa?.usarFacturacionElectronica ?? true}
+          ordenarPorCorrelativo={ordenarPorCorrelativo}
+          onToggleOrdenarPorCorrelativo={() => setOrdenarPorCorrelativo(v => !v)}
         />
       )}
 
