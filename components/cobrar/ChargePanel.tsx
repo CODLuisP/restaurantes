@@ -12,6 +12,7 @@ import {
 } from './types';
 import { getSeriesFacturacion, type SeriesSucursal } from '@/lib/api/facturacion';
 import { getSucursalById } from '@/lib/api/sucursales';
+import { getMiEmpresa } from '@/lib/api/empresas';
 import { getClientes } from '@/lib/api/clientes';
 import type { Cliente } from '@/types/clientes';
 export default function ChargePanel({
@@ -72,7 +73,21 @@ export default function ChargePanel({
     return () => { cancelado = true; };
   }, [session?.accessToken, session?.user?.sucursalId]);
 
-  const comprobantesElectronicosDisponibles = sucursalSincronizada !== false;
+  /* Interruptor general de la empresa (Configuración → Datos del negocio → "usar facturación
+     electrónica"). Es el único paso que necesita el negocio para dejar de emitir boletas/facturas
+     sin tocar Ideatec ni resincronizar nada — apagarlo/prenderlo no afecta sucursalSincronizada. */
+  const [usarFacturacionElectronica, setUsarFacturacionElectronica] = useState<boolean | null>(null);
+  useEffect(() => {
+    const token = session?.accessToken;
+    if (!token) return;
+    let cancelado = false;
+    getMiEmpresa(token)
+      .then(e => { if (!cancelado) setUsarFacturacionElectronica(e.usarFacturacionElectronica); })
+      .catch(() => { if (!cancelado) setUsarFacturacionElectronica(null); });
+    return () => { cancelado = true; };
+  }, [session?.accessToken]);
+
+  const comprobantesElectronicosDisponibles = sucursalSincronizada !== false && usarFacturacionElectronica !== false;
 
   /* Solo se ofrecen los métodos habilitados en /configuracion/metodos-pago. "Yape / Plin" es un
      solo botón en esta UI, así que basta con que cualquiera de los dos esté activo. */
@@ -542,12 +557,6 @@ export default function ChargePanel({
           ))}
         </div>
 
-        {!comprobantesElectronicosDisponibles && (
-          <p className="text-[10px] text-amber-600 bg-amber-50 rounded-lg px-3 py-2 flex items-center gap-1.5">
-            <Ban className="h-3.5 w-3.5 shrink-0" /> Esta sucursal aún no está sincronizada con la API de facturación — no se pueden emitir boletas/facturas hasta sincronizarla en Sucursales.
-          </p>
-        )}
-
         {docType === 'Boleta' && (
           <div className="space-y-2">
             <div className="relative">
@@ -641,7 +650,7 @@ export default function ChargePanel({
           </div>
         )}
 
-        {docType === 'Nota de venta' && (
+        {docType === 'Nota de venta' && comprobantesElectronicosDisponibles && (
           <p className="text-[11px] text-amber-700 bg-amber-50 rounded-lg px-3 py-2 flex items-center gap-1.5">
             <Ban className="h-3.5 w-3.5 shrink-0" /> No se emitirá boleta ni factura electrónica (venta interna).
           </p>
