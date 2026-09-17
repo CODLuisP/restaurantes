@@ -6,7 +6,6 @@ export interface EmpresaDto {
   razonSocial: string; nombreComercial: string;
   departamento: string; provincia: string; distrito: string;
   direccionCompleta?: string | null; condicion?: string | null; estadoContribuyente?: string | null;
-  logoComprobante?: string | null;
   paperSize: string; autoAceptarPedidos: boolean;
   usarFacturacionElectronica: boolean; sincronizadoFacturacion: boolean;
   tieneApiKeyFacturacion: boolean;
@@ -20,7 +19,6 @@ export interface UpdateEmpresaDto {
   razonSocial?: string | null; nombreComercial?: string | null;
   departamento?: string | null; provincia?: string | null; distrito?: string | null;
   direccionCompleta?: string | null; condicion?: string | null; estadoContribuyente?: string | null;
-  logoComprobante?: string | null;
   paperSize?: string | null; autoAceptarPedidos?: boolean | null;
   usarFacturacionElectronica?: boolean | null;
   /** Solo superadmin puede enviarlo; el backend lo ignora si no lo es. */

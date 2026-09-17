@@ -4,6 +4,14 @@ export interface RegistroDto {
   nombreEmpresa: string;
   ruc: string;
   direccion?: string;
+  razonSocial?: string;
+  nombreComercial?: string;
+  departamento?: string;
+  provincia?: string;
+  distrito?: string;
+  direccionCompleta?: string;
+  condicion?: string;
+  estadoContribuyente?: string;
   nombreAdmin: string;
   email?: string;
   username: string;

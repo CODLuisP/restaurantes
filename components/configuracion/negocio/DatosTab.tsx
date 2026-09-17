@@ -41,7 +41,9 @@ export default function DatosTab() {
   const [provincia, setProvincia] = useState('');
   const [distrito, setDistrito] = useState('');
   const [condicion, setCondicion] = useState('');
-  const [logoComprobante, setLogoComprobante] = useState('');
+  const [estadoContribuyente, setEstadoContribuyente] = useState('');
+  const [direccionCompleta, setDireccionCompleta] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
   const [paperSize, setPaperSize] = useState<PaperSize>('80mm');
   const [autoAceptar, setAutoAceptar] = useState(false);
   const [usarFacturacionElectronica, setUsarFacturacionElectronica] = useState(false);
@@ -58,7 +60,8 @@ export default function DatosTab() {
     getMiEmpresa(token).then(e => {
       setEmpresa(e); setRuc(e.ruc); setRazonSocial(e.razonSocial); setNombreComercial(e.nombreComercial);
       setDireccion(e.direccion || ''); setDepartamento(e.departamento); setProvincia(e.provincia); setDistrito(e.distrito);
-      setCondicion(e.condicion || ''); setLogoComprobante(e.logoComprobante || '');
+      setCondicion(e.condicion || ''); setEstadoContribuyente(e.estadoContribuyente || '');
+      setDireccionCompleta(e.direccionCompleta || ''); setLogoUrl(e.logoUrl || '');
       setPaperSize((e.paperSize as PaperSize) || '80mm'); setAutoAceptar(e.autoAceptarPedidos);
       setUsarFacturacionElectronica(e.usarFacturacionElectronica);
     }).catch(() => triggerToast('Error al cargar datos de la empresa.', 'error'))
@@ -74,8 +77,11 @@ export default function DatosTab() {
       if (!data.success) { triggerToast(data.error || 'RUC no encontrado.', 'error'); return; }
       const d = data.data;
       setRazonSocial(d.nombre_o_razon_social || ''); setDireccion(d.direccion || '');
+      setNombreComercial(d.nombre_comercial || nombreComercial);
       setDepartamento(d.departamento || ''); setProvincia(d.provincia || ''); setDistrito(d.distrito || '');
-      setCondicion(d.condicion || ''); triggerToast('Datos del RUC cargados.', 'success');
+      setDireccionCompleta(d.direccion_completa || '');
+      setCondicion(d.condicion || ''); setEstadoContribuyente(d.estado || '');
+      triggerToast('Datos del RUC cargados.', 'success');
     } catch { triggerToast('Error al consultar RUC.', 'error'); }
     finally { setConsultando(false); }
   };
@@ -87,11 +93,11 @@ export default function DatosTab() {
     try {
       await updateEmpresa(token, empresa.id, {
         nombre: nombreComercial || razonSocial || empresa.nombre, ruc,
-        direccion: direccion || null, logoUrl: empresa.logoUrl, activo: empresa.activo,
+        direccion: direccion || null, logoUrl: logoUrl || null, activo: empresa.activo,
         razonSocial: razonSocial || null, nombreComercial: nombreComercial || null,
         departamento: departamento || null, provincia: provincia || null, distrito: distrito || null,
-        direccionCompleta: null, condicion: condicion || null, estadoContribuyente: null,
-        logoComprobante: logoComprobante || null,
+        direccionCompleta: direccionCompleta || null, condicion: condicion || null,
+        estadoContribuyente: estadoContribuyente || null,
         paperSize, autoAceptarPedidos: autoAceptar,
         usarFacturacionElectronica,
       });
@@ -129,8 +135,8 @@ export default function DatosTab() {
       const blob = await (await fetch(dataUrl)).blob();
       const resized = await resizeImageToBlob(new File([blob], 'logo.jpg', { type: 'image/jpeg' }), 400, 400, 0.8);
       const subida = await subirImagenProducto(resized);
-      if (logoComprobante) { const id = extractCloudflareImageId(logoComprobante); if (id) eliminarImagenProductoCloudflare(id); }
-      setLogoComprobante(subida.url); triggerToast('Logo actualizado.', 'success');
+      if (logoUrl) { const id = extractCloudflareImageId(logoUrl); if (id) eliminarImagenProductoCloudflare(id); }
+      setLogoUrl(subida.url); triggerToast('Logo actualizado.', 'success');
     } catch { triggerToast('Error al subir el logo.', 'error'); }
     setCropOpen(false);
   };
@@ -149,7 +155,7 @@ export default function DatosTab() {
       <SectionHeader icon={<ImagePlus className="h-3.5 w-3.5 text-slate-400" />} title="Logo para comprobantes" description="PNG cuadrado, se imprimirá en boletas y facturas." noBorder />
       <div className="flex items-center gap-4">
         <button type="button" onClick={() => logoInputRef.current?.click()} className="group/logo relative h-20 w-20 shrink-0 rounded-xl overflow-hidden border-2 border-dashed border-slate-200 hover:border-brand bg-slate-50 flex items-center justify-center transition-colors">
-          {logoComprobante ? <img src={logoComprobante} alt="Logo" className="h-full w-full object-contain p-1.5 rounded-lg" referrerPolicy="no-referrer" /> : <ImagePlus className="h-5 w-5 text-slate-300" />}
+          {logoUrl ? <img src={logoUrl} alt="Logo" className="h-full w-full object-contain p-1.5 rounded-lg" referrerPolicy="no-referrer" /> : <ImagePlus className="h-5 w-5 text-slate-300" />}
           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/logo:opacity-100 flex items-center justify-center transition-opacity rounded-lg"><Pencil className="h-4 w-4 text-white" /></div>
         </button>
         <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoSelect} className="hidden" />
@@ -163,6 +169,7 @@ export default function DatosTab() {
         <Input label="Razón social" value={razonSocial} onChange={e => setRazonSocial(e.target.value)} placeholder="SHALOM EMPRESARIAL S.A.C." />
         <Input label="Nombre comercial" value={nombreComercial} onChange={e => setNombreComercial(e.target.value)} placeholder="RestoPro" />
         <Input label="Condición" value={condicion} onChange={e => setCondicion(e.target.value)} disabled />
+        <Input label="Estado del contribuyente" value={estadoContribuyente} onChange={e => setEstadoContribuyente(e.target.value)} disabled />
         <Input label="Departamento" value={departamento} onChange={e => setDepartamento(e.target.value)} />
         <Input label="Provincia" value={provincia} onChange={e => setProvincia(e.target.value)} />
         <Input label="Distrito" value={distrito} onChange={e => setDistrito(e.target.value)} />
