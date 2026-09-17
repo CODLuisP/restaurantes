@@ -29,6 +29,9 @@ interface ComprobantesTableProps {
   onEmitir: (id: string, num: string) => void;
   onGenerarNota: (comp: Comprobante, tipoNota: 'credito' | 'debito') => void;
   triggerToast: (message: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
+  /** Si está en false, oculta las acciones de emisión/reenvío/notas (columna "Opciones") —
+   * la tabla queda solo para consultar lo ya emitido antes de desactivar. */
+  usarFacturacionElectronica: boolean;
 }
 
 /** Tabla de comprobantes emitidos con acciones por fila y paginación. */
@@ -36,7 +39,7 @@ export default function ComprobantesTable({
   paginatedComprobantes, filteredCount, comprobanteSizes, setComprobanteSizes,
   activeMenuId, setActiveMenuId, procesandoId, descargandoKey, currentPage, totalPages, itemsPerPage, setCurrentPage,
   setSelectedComprobante, setEmailModalData, setWhatsappModalData,
-  onDownload, onReenviarSunat, onEmitir, onGenerarNota, triggerToast,
+  onDownload, onReenviarSunat, onEmitir, onGenerarNota, triggerToast, usarFacturacionElectronica,
 }: ComprobantesTableProps) {
   return (
     <>
@@ -258,20 +261,24 @@ export default function ComprobantesTable({
                         </button>
                       </td>
 
-                      {/* Opciones Avanzadas de fila */}
+                      {/* Opciones Avanzadas de fila — ocultas si la facturación electrónica está desactivada */}
                       <td className="px-3 py-3.5 text-right relative">
-                        <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            setActiveMenuId(activeMenuId === comp.numero ? null : comp.numero);
-                          }}
-                          className="p-1 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-800"
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </button>
+                        {!usarFacturacionElectronica ? (
+                          <span className="text-slate-300">—</span>
+                        ) : (
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              setActiveMenuId(activeMenuId === comp.numero ? null : comp.numero);
+                            }}
+                            className="p-1 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-800"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
+                        )}
 
                         {/* Menú desplegable flotante */}
-                        {activeMenuId === comp.numero && (
+                        {usarFacturacionElectronica && activeMenuId === comp.numero && (
                           <div
                             onClick={e => e.stopPropagation()}
                             className="absolute right-3 mt-1 w-48 bg-white rounded-lg border border-slate-200 shadow-lg z-30 py-1 text-left animate-section"

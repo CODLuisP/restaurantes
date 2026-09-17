@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { Store, Plus, Pencil, MapPin, Phone, Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Store, Plus, Pencil, MapPin, Phone, Loader2, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Modal, Input, Toggle, Button, Alert } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import {
@@ -238,6 +238,12 @@ export default function SucursalesPage() {
                 <span className="text-xs font-medium text-slate-600">Sucursal activa</span>
                 <Toggle checked={s.activo} onChange={v => handleToggleActivo(s, v)} disabled={togglingId === s.id} />
               </div>
+
+              {s.sincronizadoFacturacion && (
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Sincronizada con SUNAT
+                </div>
+              )}
             </div>
           ))}
         </div>

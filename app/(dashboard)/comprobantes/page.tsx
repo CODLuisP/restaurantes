@@ -323,6 +323,7 @@ export default function ComprobantesPage() {
           onEmitir={handleEmitir}
           onGenerarNota={handleGenerarNota}
           triggerToast={triggerToast}
+          usarFacturacionElectronica={empresa?.usarFacturacionElectronica ?? true}
         />
       )}
 
