@@ -658,10 +658,14 @@ export default function ChargePanel({
         )}
       </div>
 
-      {/* Totales de la cuenta a cobrar */}
+      {/* Totales de la cuenta a cobrar — nota de venta no desglosa IGV, es venta interna sin comprobante */}
       <div className="space-y-1 text-xs border-t border-slate-200 pt-3">
-        <div className="flex justify-between font-mono text-slate-500"><span>Op. gravada</span><span>{money(base)}</span></div>
-        <div className="flex justify-between font-mono text-slate-500"><span>IGV ({igvPorcentaje}%)</span><span>{money(igv)}</span></div>
+        {docType !== 'Nota de venta' && (
+          <>
+            <div className="flex justify-between font-mono text-slate-500"><span>Op. gravada</span><span>{money(base)}</span></div>
+            <div className="flex justify-between font-mono text-slate-500"><span>IGV ({igvPorcentaje}%)</span><span>{money(igv)}</span></div>
+          </>
+        )}
         <div className="flex justify-between font-mono font-bold text-base text-slate-800 pt-1">
           <span>{splitMode === 'full' ? 'Total' : 'A cobrar ahora'}</span><span>{money(amountDue)}</span>
         </div>
