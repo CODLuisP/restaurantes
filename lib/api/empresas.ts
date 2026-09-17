@@ -9,6 +9,10 @@ export interface EmpresaDto {
   logoComprobante?: string | null;
   paperSize: string; autoAceptarPedidos: boolean;
   usarFacturacionElectronica: boolean; sincronizadoFacturacion: boolean;
+  tieneApiKeyFacturacion: boolean;
+  apiKeyFacturacionVenceEn?: string | null;
+  /** Solo viene con valor si quien consulta es superadmin; para el resto de roles llega null. */
+  apiKeyFacturacion?: string | null;
 }
 
 export interface UpdateEmpresaDto {
@@ -19,6 +23,8 @@ export interface UpdateEmpresaDto {
   logoComprobante?: string | null;
   paperSize?: string | null; autoAceptarPedidos?: boolean | null;
   usarFacturacionElectronica?: boolean | null;
+  /** Solo superadmin puede enviarlo; el backend lo ignora si no lo es. */
+  apiKeyFacturacion?: string | null;
 }
 
 export function getMiEmpresa(token: string) {

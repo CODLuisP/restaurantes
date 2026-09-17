@@ -9,6 +9,7 @@ import {
   getSeriesFacturacion, updateSucursalFacturacion,
   type SeriesSucursal, type EditarSucursalFacturacion,
 } from '@/lib/api/facturacion';
+import type { EmpresaDto } from '@/lib/api/empresas';
 import { ApiError } from '@/lib/api/client';
 
 const SERIE_FIELDS: { serie: keyof SeriesSucursal; correlativo: keyof SeriesSucursal; label: string }[] = [
@@ -35,9 +36,10 @@ interface SeriesTabProps {
   /** Código de establecimiento a mostrar en solitario (superadmin, con sucursal elegida en el selector).
    *  null/undefined = mostrar todas las que devuelva el backend (admin ya recibe solo la suya). */
   codEstablecimientoSeleccionado?: string | null;
+  empresa: EmpresaDto | null;
 }
 
-export default function SeriesTab({ codEstablecimientoSeleccionado }: SeriesTabProps = {}) {
+export default function SeriesTab({ codEstablecimientoSeleccionado, empresa: empresaLocal }: SeriesTabProps) {
   const { data: session } = useSession();
   const token = session?.accessToken;
   const { triggerToast } = useApp();
@@ -51,7 +53,10 @@ export default function SeriesTab({ codEstablecimientoSeleccionado }: SeriesTabP
   const [saving, setSaving] = useState(false);
 
   const load = () => {
-    if (!token) return;
+    if (!token || !empresaLocal?.tieneApiKeyFacturacion) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError('');
     getSeriesFacturacion(token)
@@ -60,7 +65,7 @@ export default function SeriesTab({ codEstablecimientoSeleccionado }: SeriesTabP
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, [token]);
+  useEffect(load, [token, empresaLocal?.tieneApiKeyFacturacion]);
 
   const openEdit = (s: SeriesSucursal) => {
     setEditing(s);
@@ -95,6 +100,16 @@ export default function SeriesTab({ codEstablecimientoSeleccionado }: SeriesTabP
       <div className="py-16 flex flex-col items-center justify-center gap-3">
         <Spinner size="lg" />
         <p className="text-xs font-semibold text-slate-600">Cargando series de comprobantes...</p>
+      </div>
+    );
+  }
+
+  if (!empresaLocal?.tieneApiKeyFacturacion) {
+    return (
+      <div className="py-10 px-4">
+        <Alert variant="warning" title="Falta la API Key de facturación">
+          Genera la API Key desde la pestaña "Información SUNAT" antes de configurar series y correlativos.
+        </Alert>
       </div>
     );
   }

@@ -11,6 +11,7 @@ import {
   money, round2, onlyDigits, PAYMENTS, TYPE_META, ESTADO_PEDIDO_LABEL, type Chargeable, type SplitMode,
 } from './types';
 import { getSeriesFacturacion, type SeriesSucursal } from '@/lib/api/facturacion';
+import { getSucursalById } from '@/lib/api/sucursales';
 import { getClientes } from '@/lib/api/clientes';
 import type { Cliente } from '@/types/clientes';
 export default function ChargePanel({
@@ -53,6 +54,25 @@ export default function ChargePanel({
     cargarSeries();
     return () => { cancelado = true; };
   }, [session?.accessToken]);
+
+  /* ── ¿La sucursal ya está sincronizada con la API de facturación? ──
+     Si no lo está, el backend rechaza la emisión (AsegurarSucursalSincronizadaAsync) y la venta
+     queda "Pendiente" para siempre sin que el cajero se entere. Mientras no esté sincronizada,
+     solo se ofrece "Sin comprob." — null mientras carga o si no aplica, para no bloquear de más
+     por un hipo de red (se asume sincronizada hasta confirmar lo contrario). */
+  const [sucursalSincronizada, setSucursalSincronizada] = useState<boolean | null>(null);
+  useEffect(() => {
+    const token = session?.accessToken;
+    const sucursalId = session?.user?.sucursalId;
+    if (!token || !sucursalId) return;
+    let cancelado = false;
+    getSucursalById(token, sucursalId)
+      .then(s => { if (!cancelado) setSucursalSincronizada(s.sincronizadoFacturacion); })
+      .catch(() => { if (!cancelado) setSucursalSincronizada(null); });
+    return () => { cancelado = true; };
+  }, [session?.accessToken, session?.user?.sucursalId]);
+
+  const comprobantesElectronicosDisponibles = sucursalSincronizada !== false;
 
   /* Solo se ofrecen los métodos habilitados en /configuracion/metodos-pago. "Yape / Plin" es un
      solo botón en esta UI, así que basta con que cualquiera de los dos esté activo. */
@@ -213,6 +233,18 @@ export default function ChargePanel({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visiblePayments.map(p => p.id).join(',')]);
+
+  /* Sucursal no sincronizada: fuerza "Sin comprob." — no tiene sentido dejar Boleta/Factura
+     seleccionada si el backend la va a rechazar en silencio al emitir. */
+  useEffect(() => {
+    if (!comprobantesElectronicosDisponibles && docType !== 'Nota de venta') {
+      setDocType('Nota de venta');
+      setDocNumber('');
+      setDocName('');
+      clearCliente();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comprobantesElectronicosDisponibles]);
 
   const total = selected.total;
   const started = paidItemIds.size > 0; // ya se cobró alguna parte
@@ -489,12 +521,14 @@ export default function ChargePanel({
       {/* Comprobante */}
       <div className="border-t border-slate-200 pt-3 space-y-2">
         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Comprobante</p>
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className={`grid gap-1.5 ${comprobantesElectronicosDisponibles ? 'grid-cols-3' : 'grid-cols-1'}`}>
           {([
             { id: 'Boleta' as const,        label: 'Boleta',        icon: <Receipt className="h-3.5 w-3.5" />,  serie: series ? `${series.serieBoleta}-${String(series.correlativoBoleta).padStart(8,'0')}` : null },
             { id: 'Factura' as const,       label: 'Factura',       icon: <FileText className="h-3.5 w-3.5" />, serie: series ? `${series.serieFactura}-${String(series.correlativoFactura).padStart(8,'0')}` : null },
             { id: 'Nota de venta' as const, label: 'Sin comprob.',  icon: <Ban className="h-3.5 w-3.5" />,      serie: null },
-          ]).map(d => (
+          ])
+            .filter(d => comprobantesElectronicosDisponibles || d.id === 'Nota de venta')
+            .map(d => (
             <button
               key={d.id}
               onClick={() => { setDocType(d.id); setDocNumber(''); setDocName(''); clearCliente(); }}
@@ -507,6 +541,12 @@ export default function ChargePanel({
             </button>
           ))}
         </div>
+
+        {!comprobantesElectronicosDisponibles && (
+          <p className="text-[10px] text-amber-600 bg-amber-50 rounded-lg px-3 py-2 flex items-center gap-1.5">
+            <Ban className="h-3.5 w-3.5 shrink-0" /> Esta sucursal aún no está sincronizada con la API de facturación — no se pueden emitir boletas/facturas hasta sincronizarla en Sucursales.
+          </p>
+        )}
 
         {docType === 'Boleta' && (
           <div className="space-y-2">

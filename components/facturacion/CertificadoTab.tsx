@@ -10,6 +10,7 @@ import {
   convertirCertificadoBase64, convertirCertificadoPem,
   type EmpresaFacturacion,
 } from '@/lib/api/facturacion';
+import type { EmpresaDto } from '@/lib/api/empresas';
 import { ApiError } from '@/lib/api/client';
 
 function diasRestantes(fechaHasta?: string | null): number | null {
@@ -33,7 +34,11 @@ function porcentajeVigencia(desde?: string | null, hasta?: string | null): numbe
   return Math.min(100, Math.max(0, pct));
 }
 
-export default function CertificadoTab() {
+interface CertificadoTabProps {
+  empresa: EmpresaDto | null;
+}
+
+export default function CertificadoTab({ empresa: empresaLocal }: CertificadoTabProps) {
   const { data: session } = useSession();
   const token = session?.accessToken;
   const { triggerToast } = useApp();
@@ -51,7 +56,10 @@ export default function CertificadoTab() {
   const [modalError, setModalError] = useState('');
 
   const load = () => {
-    if (!token) return;
+    if (!token || !empresaLocal?.tieneApiKeyFacturacion) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError('');
     getEmpresaFacturacion(token)
@@ -60,7 +68,7 @@ export default function CertificadoTab() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, [token]);
+  useEffect(load, [token, empresaLocal?.tieneApiKeyFacturacion]);
 
   const openModal = () => {
     setFile(null);
@@ -108,6 +116,16 @@ export default function CertificadoTab() {
       <div className="py-16 flex flex-col items-center justify-center gap-3">
         <Spinner size="lg" />
         <p className="text-xs font-semibold text-slate-600">Cargando certificado digital...</p>
+      </div>
+    );
+  }
+
+  if (!empresaLocal?.tieneApiKeyFacturacion) {
+    return (
+      <div className="py-10 px-4">
+        <Alert variant="warning" title="Falta la API Key de facturación">
+          Genera la API Key desde la pestaña "Información SUNAT" antes de configurar el certificado digital.
+        </Alert>
       </div>
     );
   }

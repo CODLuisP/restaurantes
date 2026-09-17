@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
-import { ImagePlus, Pencil, Printer, Search, Loader2 } from 'lucide-react';
-import { Input, Toggle, Button, Spinner } from '@/components/ui';
+import { ImagePlus, Pencil, Printer, Search, Loader2, KeyRound, ShieldAlert } from 'lucide-react';
+import { Input, Toggle, Button, Spinner, Modal, Alert } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { getMiEmpresa, updateEmpresa, type EmpresaDto } from '@/lib/api/empresas';
 import { resizeImageToBlob, subirImagenProducto, extractCloudflareImageId, eliminarImagenProductoCloudflare } from '@/lib/uploadImagen';
@@ -18,11 +18,21 @@ function SectionHeader({ icon, title, description, noBorder }: { icon?: React.Re
   return <div className={noBorder ? '' : 'pt-2 border-t border-slate-100'}><p className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">{icon}{title}</p>{description && <p className="text-[11px] text-slate-500 mt-1">{description}</p>}</div>;
 }
 
+function maskApiKey(key: string): string {
+  if (key.length <= 8) return '•'.repeat(key.length);
+  return `${key.slice(0, 4)}${'•'.repeat(Math.max(4, key.length - 8))}${key.slice(-4)}`;
+}
+
 export default function DatosTab() {
   const { data: session } = useSession();
   const { triggerToast } = useApp();
   const token = session?.accessToken;
+  const isSuperAdmin = session?.user?.role === 'superadmin';
   const [empresa, setEmpresa] = useState<EmpresaDto | null>(null);
+  const [apiKeyEditando, setApiKeyEditando] = useState(false);
+  const [apiKeyConfirmOpen, setApiKeyConfirmOpen] = useState(false);
+  const [apiKeyDraft, setApiKeyDraft] = useState('');
+  const [savingApiKey, setSavingApiKey] = useState(false);
   const [ruc, setRuc] = useState('');
   const [razonSocial, setRazonSocial] = useState('');
   const [nombreComercial, setNombreComercial] = useState('');
@@ -90,6 +100,29 @@ export default function DatosTab() {
     finally { setSaving(false); }
   };
 
+  const handleSaveApiKey = async () => {
+    if (!token || !empresa) return;
+    setSavingApiKey(true);
+    try {
+      const actualizada = await updateEmpresa(token, empresa.id, {
+        nombre: nombreComercial || razonSocial || empresa.nombre, ruc,
+        direccion: direccion || null, logoUrl: empresa.logoUrl, activo: empresa.activo,
+        razonSocial: razonSocial || null, nombreComercial: nombreComercial || null,
+        departamento: departamento || null, provincia: provincia || null, distrito: distrito || null,
+        direccionCompleta: null, condicion: condicion || null, estadoContribuyente: null,
+        logoComprobante: logoComprobante || null,
+        paperSize, autoAceptarPedidos: autoAceptar,
+        usarFacturacionElectronica,
+        apiKeyFacturacion: apiKeyDraft.trim(),
+      });
+      setEmpresa(actualizada);
+      setApiKeyEditando(false);
+      setApiKeyDraft('');
+      triggerToast('API Key de facturación actualizada.', 'success');
+    } catch { triggerToast('Error al guardar la API Key.', 'error'); }
+    finally { setSavingApiKey(false); }
+  };
+
   const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setLogoSource(URL.createObjectURL(file)); setCropOpen(true); e.target.value = ''; };
   const handleCropApply = async (dataUrl: string) => {
     try {
@@ -147,8 +180,68 @@ export default function DatosTab() {
         </div>
         <Toggle checked={usarFacturacionElectronica} onChange={setUsarFacturacionElectronica} />
       </div>
+
+      {isSuperAdmin && (
+        <>
+          <SectionHeader icon={<KeyRound className="h-3.5 w-3.5 text-slate-400" />} title="API Key de facturación" description="Solo el superadmin puede verla y editarla. Generarla automáticamente desde SUNAT es la vía recomendada; edítala aquí solo si sabes lo que haces." />
+          {!apiKeyEditando ? (
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <Input
+                  label="API Key"
+                  value={empresa?.apiKeyFacturacion ? maskApiKey(empresa.apiKeyFacturacion) : 'No configurada'}
+                  disabled
+                />
+              </div>
+              <Button type="button" variant="secondary" icon={<Pencil className="h-3.5 w-3.5" />} onClick={() => setApiKeyConfirmOpen(true)} className="shrink-0">
+                Editar
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Alert variant="warning" icon={<ShieldAlert className="h-4 w-4 shrink-0" />}>
+                Un valor incorrecto interrumpirá la emisión de comprobantes hasta que lo corrijas.
+              </Alert>
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <Input
+                    label="Nueva API Key"
+                    value={apiKeyDraft}
+                    onChange={e => setApiKeyDraft(e.target.value)}
+                    placeholder="Pega aquí la nueva API Key"
+                    autoFocus
+                  />
+                </div>
+                <Button type="button" variant="secondary" onClick={() => { setApiKeyEditando(false); setApiKeyDraft(''); }} disabled={savingApiKey} className="shrink-0">
+                  Cancelar
+                </Button>
+                <Button type="button" onClick={handleSaveApiKey} loading={savingApiKey} disabled={!apiKeyDraft.trim()} className="shrink-0">
+                  {savingApiKey ? 'Guardando...' : 'Guardar API Key'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
       <div className="flex justify-end pt-4"><Button onClick={handleSave} disabled={saving}>{saving ? 'Guardando...' : 'Guardar cambios'}</Button></div>
       <LogoCropModal open={cropOpen} onClose={() => setCropOpen(false)} source={logoSource} onApply={handleCropApply} />
+
+      <Modal
+        open={apiKeyConfirmOpen}
+        onClose={() => setApiKeyConfirmOpen(false)}
+        title="¿Editar la API Key de facturación?"
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setApiKeyConfirmOpen(false)}>Cancelar</Button>
+            <Button onClick={() => { setApiKeyConfirmOpen(false); setApiKeyEditando(true); }}>Sí, quiero editarla</Button>
+          </>
+        }
+      >
+        Esta es una acción sensible: un valor incorrecto o innecesario puede interrumpir la emisión de comprobantes electrónicos.
+        Normalmente no necesitas tocar este campo — la API Key se genera automáticamente desde SUNAT. ¿Estás seguro de continuar?
+      </Modal>
     </div>
   );
 }

@@ -12,7 +12,7 @@ import { SucursalSelector } from '@/components/ui/SucursalSelector';
 import { Alert, Button, Modal, Spinner } from '@/components/ui';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import { useApp } from '@/context/AppContext';
-import { getMiEmpresa } from '@/lib/api/empresas';
+import { getMiEmpresa, type EmpresaDto } from '@/lib/api/empresas';
 import { sincronizarEmpresaFacturacion } from '@/lib/api/facturacion';
 import { ApiError } from '@/lib/api/client';
 
@@ -35,13 +35,16 @@ export default function FacturacionPage() {
   const [tab, setTab] = useState<TabId>('informacion');
   const { isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
+  const [empresa, setEmpresa] = useState<EmpresaDto | null>(null);
   const [sincronizado, setSincronizado] = useState<boolean | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
 
   const cargarEstadoEmpresa = () => {
     if (!token) return;
-    getMiEmpresa(token).then(e => setSincronizado(e.sincronizadoFacturacion)).catch(() => setSincronizado(false));
+    getMiEmpresa(token)
+      .then(e => { setEmpresa(e); setSincronizado(e.sincronizadoFacturacion); })
+      .catch(() => setSincronizado(false));
   };
 
   useEffect(cargarEstadoEmpresa, [token]);
@@ -144,8 +147,14 @@ export default function FacturacionPage() {
 
           {/* Content */}
           <div className="card-lg p-3 mt-4">
-            {tab === 'informacion' && <CredencialesTab />}
-            {tab === 'certificado' && <CertificadoTab />}
+            {tab === 'informacion' && (
+              <CredencialesTab
+                empresa={empresa}
+                isSuperAdmin={isSuperAdmin}
+                onApiKeyGenerada={cargarEstadoEmpresa}
+              />
+            )}
+            {tab === 'certificado' && <CertificadoTab empresa={empresa} />}
             {tab === 'series' && (
               seriesBloqueadas ? (
                 <div className="py-10 px-4">
@@ -157,6 +166,7 @@ export default function FacturacionPage() {
               ) : (
                 <SeriesTab
                   codEstablecimientoSeleccionado={isSuperAdmin ? (sucursalSeleccionada?.codEstablecimiento ?? null) : null}
+                  empresa={empresa}
                 />
               )
             )}

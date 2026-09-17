@@ -140,3 +140,12 @@ export function convertirCertificadoPem(token: string, base64: string, certPass:
     token, method: 'POST', body: { base64, certPass },
   });
 }
+
+/** Genera (primera vez) o renueva (si ya existe) la API key de facturación de la empresa, válida
+ * por 1 año. Requiere el código de confirmación configurado en el backend. Solo superadmin. */
+export function generarApiKeyFacturacion(token: string, codigoConfirmacion: string) {
+  return apiFetch<{ exitoso: boolean; mensaje?: string; venceEn?: string }>(
+    '/api/facturacion/empresa/generar-api-key',
+    { token, method: 'POST', body: { codigoConfirmacion } },
+  );
+}

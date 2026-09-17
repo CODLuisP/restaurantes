@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
-import { Eye, EyeOff, KeyRound, Building2, Radio, Truck, ChevronDown, ImagePlus, Pencil } from 'lucide-react';
-import { Input, Button, Spinner, Alert, Badge } from '@/components/ui';
+import { Eye, EyeOff, KeyRound, Building2, Radio, Truck, ChevronDown, ImagePlus, Pencil, ShieldAlert, RefreshCw, CheckCircle2, CalendarClock, AlertTriangle } from 'lucide-react';
+import { Input, Button, Spinner, Alert, Badge, Modal } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
-import { getEmpresaFacturacion, updateEmpresaFacturacion, updateLogoFacturacion, type EmpresaFacturacion } from '@/lib/api/facturacion';
+import { getEmpresaFacturacion, updateEmpresaFacturacion, updateLogoFacturacion, generarApiKeyFacturacion, type EmpresaFacturacion } from '@/lib/api/facturacion';
+import type { EmpresaDto } from '@/lib/api/empresas';
 import { ApiError } from '@/lib/api/client';
 import LogoCropModal from '@/components/configuracion/negocio/LogoCropModal';
 
@@ -18,7 +19,85 @@ function SectionHeader({ icon, title, description, noBorder }: { icon?: React.Re
   );
 }
 
-export default function CredencialesTab() {
+const DIAS_VIGENCIA = 365;
+
+function formatFecha(fecha: Date): string {
+  return new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: 'short', year: 'numeric' }).format(fecha);
+}
+
+/** Tarjeta de vigencia de la API key, con el mismo diseño que la del certificado digital:
+ * ícono + estado, barra que se va llenando y rango de fechas. Ideatec no nos da la fecha de
+ * inicio de la key, así que se estima como vencimiento - 1 año (así se genera siempre). */
+function VigenciaApiKey({ venceEn, isSuperAdmin, onRenovar }: { venceEn: string; isSuperAdmin: boolean; onRenovar: () => void }) {
+  const hasta = new Date(venceEn);
+  const desde = new Date(hasta);
+  desde.setFullYear(desde.getFullYear() - 1);
+
+  const diasRestantes = Math.ceil((hasta.getTime() - Date.now()) / 86_400_000);
+  const progreso = Math.min(100, Math.max(0, ((DIAS_VIGENCIA - diasRestantes) / DIAS_VIGENCIA) * 100));
+  const vencida = diasRestantes < 0;
+  const porVencer = !vencida && diasRestantes <= 30;
+  const barColor = vencida ? 'bg-rose-500' : porVencer ? 'bg-amber-500' : 'bg-emerald-500';
+
+  return (
+    <div className="p-5 rounded-xl border border-slate-200 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0 bg-brand/10 text-brand">
+            <KeyRound className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-slate-800">API Key de facturación</p>
+            <p className="text-[11px] text-slate-500">Autentica tus comprobantes ante el proveedor de facturación</p>
+          </div>
+        </div>
+        {isSuperAdmin && (
+          <Button onClick={onRenovar} icon={<RefreshCw className="h-3.5 w-3.5" />} size="sm">
+            Renovar API Key
+          </Button>
+        )}
+      </div>
+
+      <div className="space-y-4 pt-3 border-t border-slate-100">
+        <div className="flex items-center gap-2">
+          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+          <span className="text-xs font-semibold text-slate-700">API Key activa</span>
+        </div>
+
+        <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-100 space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1">
+              <CalendarClock className="h-3.5 w-3.5" /> Vigencia
+            </span>
+            <span className={`text-[11px] font-bold ${vencida ? 'text-rose-600' : porVencer ? 'text-amber-600' : 'text-emerald-600'}`}>
+              {vencida ? 'Vencida' : `Vence en ${diasRestantes} día${diasRestantes === 1 ? '' : 's'}`}
+            </span>
+          </div>
+          <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+            <div className={`h-full ${barColor} rounded-full transition-all`} style={{ width: `${progreso}%` }} />
+          </div>
+          <p className="text-[11px] text-slate-500">{formatFecha(desde)} &rarr; {formatFecha(hasta)}</p>
+        </div>
+
+        {(vencida || porVencer) && (
+          <Alert variant={vencida ? 'danger' : 'warning'} icon={<AlertTriangle className="h-4 w-4 shrink-0" />}>
+            {vencida
+              ? 'La API key venció. No podrás emitir comprobantes hasta renovarla.'
+              : `La API key vence pronto (${diasRestantes} días). Renuévala antes de que expire.`}
+          </Alert>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface CredencialesTabProps {
+  empresa: EmpresaDto | null;
+  isSuperAdmin: boolean;
+  onApiKeyGenerada: () => void;
+}
+
+export default function CredencialesTab({ empresa: empresaLocal, isSuperAdmin, onApiKeyGenerada }: CredencialesTabProps) {
   const { data: session } = useSession();
   const token = session?.accessToken;
   const { triggerToast } = useApp();
@@ -27,6 +106,10 @@ export default function CredencialesTab() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  const [genModalOpen, setGenModalOpen] = useState(false);
+  const [codigoConfirmacion, setCodigoConfirmacion] = useState('');
+  const [generando, setGenerando] = useState(false);
 
   const [environment, setEnvironment] = useState<'produccion' | 'beta'>('produccion');
   const [solUsuario, setSolUsuario] = useState('');
@@ -45,7 +128,12 @@ export default function CredencialesTab() {
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!token) return;
+    // Sin API key todavía no hay nada que pedirle a Ideatec: se muestra el botón de generar
+    // en vez de intentar la consulta (que fallaría con "no tiene api_key_facturacion configurada").
+    if (!token || !empresaLocal?.tieneApiKeyFacturacion) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError('');
     getEmpresaFacturacion(token)
@@ -62,7 +150,23 @@ export default function CredencialesTab() {
       })
       .catch(() => setError('No se pudo cargar la configuración SUNAT.'))
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [token, empresaLocal?.tieneApiKeyFacturacion]);
+
+  const handleGenerarApiKey = async () => {
+    if (!token || !codigoConfirmacion.trim()) return;
+    setGenerando(true);
+    try {
+      const res = await generarApiKeyFacturacion(token, codigoConfirmacion.trim());
+      triggerToast(res.mensaje || 'API key generada correctamente.', 'success');
+      setGenModalOpen(false);
+      setCodigoConfirmacion('');
+      onApiKeyGenerada();
+    } catch (err) {
+      triggerToast(err instanceof ApiError ? err.message : 'No se pudo generar la API key.', 'error');
+    } finally {
+      setGenerando(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!token) return;
@@ -119,12 +223,74 @@ export default function CredencialesTab() {
     );
   }
 
+  const confirmModal = (
+    <Modal
+      open={genModalOpen}
+      onClose={() => !generando && setGenModalOpen(false)}
+      title={empresaLocal?.tieneApiKeyFacturacion ? '¿Renovar API Key?' : '¿Generar API Key?'}
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => setGenModalOpen(false)} disabled={generando}>Cancelar</Button>
+          <Button onClick={handleGenerarApiKey} loading={generando} disabled={!codigoConfirmacion.trim()}>
+            {generando ? 'Generando...' : 'Confirmar'}
+          </Button>
+        </>
+      }
+    >
+      <p className="mb-3">
+        {empresaLocal?.tieneApiKeyFacturacion
+          ? 'Esto reemplazará la API key actual por una nueva, válida por 1 año más.'
+          : 'Esto generará una nueva API key en el proveedor de facturación, válida por 1 año.'}{' '}
+        Ingresa el código de confirmación para continuar.
+      </p>
+      <Input
+        label="Código de confirmación"
+        value={codigoConfirmacion}
+        onChange={e => setCodigoConfirmacion(e.target.value)}
+        placeholder="Código de confirmación"
+        autoFocus
+      />
+    </Modal>
+  );
+
   if (error) {
-    return <div className="py-10"><Alert variant="danger" title="No se pudo cargar">{error}</Alert></div>;
+    return (
+      <div className="py-10">
+        <Alert variant="danger" title="No se pudo cargar">{error}</Alert>
+      </div>
+    );
+  }
+
+  if (!empresaLocal?.tieneApiKeyFacturacion) {
+    return (
+      <div className="py-10 px-4">
+        <Alert variant="warning" title="Falta la API Key de facturación" icon={<ShieldAlert className="h-4 w-4 shrink-0" />}>
+          La empresa ya está sincronizada con SUNAT, pero todavía no tiene una API Key para poder emitir comprobantes.
+        </Alert>
+        <div className="flex justify-end pt-4">
+          {isSuperAdmin ? (
+            <Button icon={<KeyRound className="h-3.5 w-3.5" />} onClick={() => setGenModalOpen(true)}>
+              Generar API Key
+            </Button>
+          ) : (
+            <p className="text-xs text-slate-500">Solo un superadmin puede generar la API Key de facturación.</p>
+          )}
+        </div>
+        {confirmModal}
+      </div>
+    );
   }
 
   return (
     <div className="space-y-4">
+      {empresaLocal.apiKeyFacturacionVenceEn && (
+        <VigenciaApiKey
+          venceEn={empresaLocal.apiKeyFacturacionVenceEn}
+          isSuperAdmin={isSuperAdmin}
+          onRenovar={() => setGenModalOpen(true)}
+        />
+      )}
       <SectionHeader icon={<ImagePlus className="h-3.5 w-3.5 text-slate-400" />} title="Logo en comprobantes SUNAT" description="Independiente del logo de Información del negocio: solo afecta lo que Ideatec imprime en tus PDF/tickets." noBorder />
       <div className="flex items-center gap-4">
         <button
@@ -217,6 +383,7 @@ export default function CredencialesTab() {
       </div>
 
       <LogoCropModal open={cropOpen} onClose={() => setCropOpen(false)} source={logoSource} onApply={handleCropApply} />
+      {confirmModal}
     </div>
   );
 }
