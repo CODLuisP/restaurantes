@@ -307,8 +307,9 @@ export default function ChargePanel({
     if (docType === 'Boleta' && docNumber && onlyDigits(docNumber).length !== 8) {
       return 'El DNI debe tener 8 dígitos (o déjalo vacío para cliente varios).';
     }
-    if (method === 'Efectivo' && receivedNum != null && receivedNum < amountDue) {
-      return 'El efectivo recibido es menor al monto a cobrar.';
+    if (method === 'Efectivo') {
+      if (receivedNum == null) return 'Ingresa el monto recibido en efectivo.';
+      if (receivedNum < amountDue) return 'El efectivo recibido es menor al monto a cobrar.';
     }
     if (!selected.sesionMesaId) {
       return 'Esta cuenta no tiene una sesión activa en el sistema; no se puede cobrar.';

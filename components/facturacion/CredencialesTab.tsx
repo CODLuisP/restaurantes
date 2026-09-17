@@ -2,13 +2,17 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
-import { Eye, EyeOff, KeyRound, Building2, Radio, Truck, ChevronDown, ImagePlus, Pencil, ShieldAlert, RefreshCw, CheckCircle2, CalendarClock, AlertTriangle } from 'lucide-react';
+import { Eye, EyeOff, KeyRound, Building2, Radio, Truck, ChevronDown, ImagePlus, Pencil, ShieldAlert, RefreshCw, CheckCircle2, CalendarClock, AlertTriangle, Percent } from 'lucide-react';
 import { Input, Button, Spinner, Alert, Badge, Modal } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { getEmpresaFacturacion, updateEmpresaFacturacion, updateLogoFacturacion, generarApiKeyFacturacion, type EmpresaFacturacion } from '@/lib/api/facturacion';
 import type { EmpresaDto } from '@/lib/api/empresas';
 import { ApiError } from '@/lib/api/client';
+import { getConfiguracion, updateConfiguracion } from '@/lib/api/configuracion';
+import { getSucursales } from '@/lib/api/sucursales';
 import LogoCropModal from '@/components/configuracion/negocio/LogoCropModal';
+
+const IGV_OPCIONES = [18, 10.5] as const;
 
 function SectionHeader({ icon, title, description, noBorder }: { icon?: React.ReactNode; title: string; description?: string; noBorder?: boolean }) {
   return (
@@ -127,6 +131,12 @@ export default function CredencialesTab({ empresa: empresaLocal, isSuperAdmin, o
   const [savingLogo, setSavingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
+  /* IGV vive en `configuracion` (por sucursal), no en la empresa — se resuelve/guarda aparte del
+     resto de este formulario, que es todo a nivel empresa. */
+  const [sId, setSId] = useState<number | null>(null);
+  const [igvPorcentaje, setIgvPorcentaje] = useState<number | null>(null);
+  const [savingIgv, setSavingIgv] = useState(false);
+
   useEffect(() => {
     // Sin API key todavía no hay nada que pedirle a Ideatec: se muestra el botón de generar
     // en vez de intentar la consulta (que fallaría con "no tiene api_key_facturacion configurada").
@@ -151,6 +161,43 @@ export default function CredencialesTab({ empresa: empresaLocal, isSuperAdmin, o
       .catch(() => setError('No se pudo cargar la configuración SUNAT.'))
       .finally(() => setLoading(false));
   }, [token, empresaLocal?.tieneApiKeyFacturacion]);
+
+  useEffect(() => {
+    if (!token) return;
+    getSucursales(token).then(lista => {
+      const activas = lista.filter(s => s.activo);
+      const id = activas[0]?.id;
+      if (!id) return;
+      setSId(id);
+      getConfiguracion(token, id).then(c => setIgvPorcentaje(c.igvPorcentaje)).catch(() => {});
+    }).catch(() => {});
+  }, [token]);
+
+  const handleSelectIgv = async (valor: number) => {
+    if (!token || !sId || valor === igvPorcentaje) return;
+    setSavingIgv(true);
+    try {
+      const actual = await getConfiguracion(token, sId);
+      await updateConfiguracion(token, sId, {
+        igvPorcentaje: valor, monedaSimbolo: actual.monedaSimbolo, logoUrl: actual.logoUrl,
+        instagram: actual.instagram, facebook: actual.facebook, tiktok: actual.tiktok,
+        sitioWeb: actual.sitioWeb, reviewsLink: actual.reviewsLink,
+        zonaHoraria: actual.zonaHoraria, tipoNegocio: actual.tipoNegocio,
+        descripcionCorta: actual.descripcionCorta, descripcionCompleta: actual.descripcionCompleta,
+        whatsappPedidos: actual.whatsappPedidos, horariosJson: actual.horariosJson,
+        metodosPagoJson: actual.metodosPagoJson, metodosEntregaJson: actual.metodosEntregaJson,
+        ubicacionLat: actual.ubicacionLat, ubicacionLng: actual.ubicacionLng,
+        ubicacionDireccion: actual.ubicacionDireccion, mostrarDireccionMenu: actual.mostrarDireccionMenu,
+        impresoraCocina: actual.impresoraCocina,
+      });
+      setIgvPorcentaje(valor);
+      triggerToast(`IGV actualizado a ${valor}%.`, 'success');
+    } catch (err) {
+      triggerToast(err instanceof ApiError ? err.message : 'No se pudo actualizar el IGV.', 'error');
+    } finally {
+      setSavingIgv(false);
+    }
+  };
 
   const handleGenerarApiKey = async () => {
     if (!token || !codigoConfirmacion.trim()) return;
@@ -317,6 +364,22 @@ export default function CredencialesTab({ empresa: empresaLocal, isSuperAdmin, o
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input label="RUC" value={empresa?.ruc ?? ''} disabled hint="El RUC no puede modificarse." />
         <Input label="Razón social" value={empresa?.razonSocial ?? ''} disabled hint="Se obtiene de SUNAT." />
+      </div>
+
+      <SectionHeader icon={<Percent className="h-3.5 w-3.5 text-slate-400" />} title="IGV" description="Porcentaje aplicado al desglose de tus ventas y comprobantes." />
+      <div className="grid grid-cols-2 gap-3">
+        {IGV_OPCIONES.map(v => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => handleSelectIgv(v)}
+            disabled={savingIgv || igvPorcentaje == null}
+            className={`p-3 rounded-xl border text-left transition-colors disabled:opacity-60 ${igvPorcentaje === v ? 'border-brand bg-brand/5' : 'border-slate-200 hover:bg-slate-50'}`}
+          >
+            <p className="text-sm font-semibold text-slate-800">{v}%</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">{v === 18 ? 'Régimen general' : 'Tasa reducida'}</p>
+          </button>
+        ))}
       </div>
 
       <SectionHeader icon={<Radio className="h-3.5 w-3.5 text-slate-400" />} title="Entorno de operación" description="Define si trabajas en producción real o en pruebas con SUNAT." />
