@@ -47,10 +47,10 @@ export default function ComprobantesTable({
 }: ComprobantesTableProps) {
   return (
     <>
-      <div className="card-lg overflow-hidden relative shadow-sm border border-slate-200">
-        <div className="overflow-x-auto">
+      <div className="card-lg overflow-hidden relative shadow-sm border border-slate-200 flex-1 flex flex-col">
+        <div className="overflow-auto flex-1">
           <table className="w-full text-xs text-left">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="border-b border-slate-200 bg-slate-50 font-bold uppercase tracking-wider text-slate-500 font-sans">
                 <th className="px-4 py-3 text-[10px]">Fecha</th>
                 <th className="px-4 py-3 text-[10px]">

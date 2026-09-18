@@ -128,6 +128,7 @@ export default function CredencialesTab({ empresa: empresaLocal, isSuperAdmin, o
   const [logoBase64, setLogoBase64] = useState('');
   const [logoSource, setLogoSource] = useState<string | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [savingLogo, setSavingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
@@ -331,34 +332,47 @@ export default function CredencialesTab({ empresa: empresaLocal, isSuperAdmin, o
 
   return (
     <div className="space-y-4">
-      {empresaLocal.apiKeyFacturacionVenceEn && (
-        <VigenciaApiKey
-          venceEn={empresaLocal.apiKeyFacturacionVenceEn}
-          isSuperAdmin={isSuperAdmin}
-          onRenovar={() => setGenModalOpen(true)}
-        />
-      )}
-      <SectionHeader icon={<ImagePlus className="h-3.5 w-3.5 text-slate-400" />} title="Logo en comprobantes SUNAT" description="Independiente del logo de Información del negocio: solo afecta lo que Ideatec imprime en tus PDF/tickets." noBorder />
-      <div className="flex items-center gap-4">
-        <button
-          type="button"
-          onClick={() => logoInputRef.current?.click()}
-          disabled={savingLogo}
-          className="group/logo relative h-20 w-20 shrink-0 rounded-xl overflow-hidden border-2 border-dashed border-slate-200 hover:border-brand bg-slate-50 flex items-center justify-center transition-colors"
-        >
-          {savingLogo ? (
-            <Spinner size="sm" />
-          ) : logoSrc ? (
-            <img src={logoSrc} alt="Logo SUNAT" className="h-full w-full object-contain p-1.5 rounded-lg" referrerPolicy="no-referrer" />
-          ) : (
-            <ImagePlus className="h-5 w-5 text-slate-300" />
-          )}
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/logo:opacity-100 flex items-center justify-center transition-opacity rounded-lg">
-            <Pencil className="h-4 w-4 text-white" />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="p-5 rounded-xl border border-slate-200 space-y-3">
+          <SectionHeader icon={<ImagePlus className="h-3.5 w-3.5 text-slate-400" />} title="Logo en comprobantes SUNAT" description="Independiente del logo de Información del negocio: solo afecta lo que Ideatec imprime en tus PDF/tickets." noBorder />
+          <div className="flex items-center gap-4">
+            <div className="group/logo relative h-28 w-28 shrink-0 rounded-xl overflow-hidden border-2 border-dashed border-slate-200 hover:border-brand bg-slate-50 flex items-center justify-center transition-colors">
+              {savingLogo ? (
+                <Spinner size="sm" />
+              ) : logoSrc ? (
+                <button type="button" onClick={() => setPreviewOpen(true)} className="h-full w-full cursor-zoom-in">
+                  <img src={logoSrc} alt="Logo SUNAT" className="h-full w-full object-contain p-1.5 rounded-lg" referrerPolicy="no-referrer" />
+                </button>
+              ) : (
+                <ImagePlus className="h-6 w-6 text-slate-300" />
+              )}
+              <button
+                type="button"
+                onClick={() => logoInputRef.current?.click()}
+                disabled={savingLogo}
+                title="Cambiar logo"
+                className="absolute bottom-1 right-1 h-6 w-6 rounded-full bg-slate-800/80 hover:bg-brand text-white flex items-center justify-center transition-colors"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+            </div>
+            <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoSelect} className="hidden" />
           </div>
-        </button>
-        <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoSelect} className="hidden" />
+        </div>
+        {empresaLocal.apiKeyFacturacionVenceEn && (
+          <VigenciaApiKey
+            venceEn={empresaLocal.apiKeyFacturacionVenceEn}
+            isSuperAdmin={isSuperAdmin}
+            onRenovar={() => setGenModalOpen(true)}
+          />
+        )}
       </div>
+
+      <Modal open={previewOpen} onClose={() => setPreviewOpen(false)} title="Logo en comprobantes SUNAT" size="sm">
+        <div className="flex items-center justify-center p-4">
+          <img src={logoSrc} alt="Logo SUNAT" className="max-h-80 max-w-full object-contain" referrerPolicy="no-referrer" />
+        </div>
+      </Modal>
 
       <SectionHeader icon={<Building2 className="h-3.5 w-3.5 text-slate-400" />} title="Identificación tributaria" description="Datos registrados en SUNAT para tu empresa." />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -366,24 +380,28 @@ export default function CredencialesTab({ empresa: empresaLocal, isSuperAdmin, o
         <Input label="Razón social" value={empresa?.razonSocial ?? ''} disabled hint="Se obtiene de SUNAT." />
       </div>
 
-      <SectionHeader icon={<Percent className="h-3.5 w-3.5 text-slate-400" />} title="IGV" description="Porcentaje aplicado al desglose de tus ventas y comprobantes." />
-      <div className="grid grid-cols-2 gap-3">
-        {IGV_OPCIONES.map(v => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => handleSelectIgv(v)}
-            disabled={savingIgv || igvPorcentaje == null}
-            className={`p-3 rounded-xl border text-left transition-colors disabled:opacity-60 ${igvPorcentaje === v ? 'border-brand bg-brand/5' : 'border-slate-200 hover:bg-slate-50'}`}
-          >
-            <p className="text-sm font-semibold text-slate-800">{v}%</p>
-            <p className="text-[10px] text-slate-500 mt-0.5">{v === 18 ? 'Régimen general' : 'Tasa reducida'}</p>
-          </button>
-        ))}
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div>
+          <SectionHeader icon={<Percent className="h-3.5 w-3.5 text-slate-400" />} title="IGV" description="Porcentaje aplicado al desglose de tus ventas y comprobantes." />
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            {IGV_OPCIONES.map(v => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => handleSelectIgv(v)}
+                disabled={savingIgv || igvPorcentaje == null}
+                className={`p-3 rounded-xl border text-left transition-colors disabled:opacity-60 ${igvPorcentaje === v ? 'border-brand bg-brand/5' : 'border-slate-200 hover:bg-slate-50'}`}
+              >
+                <p className="text-sm font-semibold text-slate-800">{v}%</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">{v === 18 ? 'Régimen general' : 'Tasa reducida'}</p>
+              </button>
+            ))}
+          </div>
+        </div>
 
-      <SectionHeader icon={<Radio className="h-3.5 w-3.5 text-slate-400" />} title="Entorno de operación" description="Define si trabajas en producción real o en pruebas con SUNAT." />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <SectionHeader icon={<Radio className="h-3.5 w-3.5 text-slate-400" />} title="Entorno de operación" description="Define si trabajas en producción real o en pruebas con SUNAT." />
+          <div className="grid grid-cols-2 gap-3 mt-3">
         <button
           type="button"
           onClick={() => setEnvironment('produccion')}
@@ -400,6 +418,8 @@ export default function CredencialesTab({ empresa: empresaLocal, isSuperAdmin, o
           <p className="text-sm font-semibold text-slate-800">Beta / Homologación</p>
           <p className="text-[10px] text-slate-500 mt-0.5">Ambiente de pruebas de SUNAT</p>
         </button>
+          </div>
+        </div>
       </div>
 
       <SectionHeader icon={<KeyRound className="h-3.5 w-3.5 text-slate-400" />} title="Credenciales SOL" description="Usuario y clave de SUNAT Operaciones en Línea, necesarios para enviar Facturas, Boletas y Notas." />

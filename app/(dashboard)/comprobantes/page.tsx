@@ -33,7 +33,7 @@ import {
   mapApiToComprobante, normalizeEstadoSunat,
 } from '@/components/comprobantes/types';
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 50;
 
 const BRAND_COLOR = 'FF007542';
 const ES_NOTA = (tipo: TipoComprobante) => tipo === 'NotaCredito' || tipo === 'NotaDebito';
@@ -439,7 +439,7 @@ export default function ComprobantesPage() {
   };
 
   return (
-    <div className="space-y-5 animate-section">
+    <div className="flex flex-col h-[calc(100vh-6rem)] space-y-5 animate-section">
       {/* ── BARRA SUPERIOR DE HERRAMIENTAS ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 shrink-0">
