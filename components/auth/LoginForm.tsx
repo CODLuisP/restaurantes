@@ -74,7 +74,10 @@ export default function LoginForm() {
 
     // El middleware decide a dónde ir según el rol (ej. cocinero → /carta, resto → /dashboard).
     router.push('/');
-    router.refresh();
+
+    // Quitamos router.refresh(): causaba condición de carrera entre la cookie de sesión y el refresh;
+    // router.push('/') ya trae Server Components frescos en cada navegación.
+    // router.refresh();
   };
 
   return (

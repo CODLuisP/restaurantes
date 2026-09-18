@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import {
@@ -28,7 +28,8 @@ export default function CobrarPage() {
   /* "Completadas" son las ventas reales del backend cobradas hoy — no el historial mock del
      prototipo, que nunca se conectó y se quedaba mostrando datos de ejemplo aunque la base esté vacía. */
   const [completadasHoy, setCompletadasHoy] = useState(0);
-  useEffect(() => {
+
+  const refreshCompletadas = useCallback(() => {
     const token = authSession?.accessToken;
     const sucursalId = authSession?.user?.sucursalId ?? undefined;
     if (!token) return;
@@ -37,6 +38,8 @@ export default function CobrarPage() {
       .then(ventas => setCompletadasHoy(ventas.length))
       .catch(() => {});
   }, [authSession]);
+
+  useEffect(() => { refreshCompletadas(); }, [refreshCompletadas]);
 
   const canCharge = currentUser?.role === 'admin' || currentUser?.role === 'cajero';
 
@@ -225,7 +228,7 @@ export default function CobrarPage() {
               isCajaOpen={isCajaOpen}
               cashier={currentUser?.name}
               onAddItems={() => router.push(`/comandero?mesa=${encodeURIComponent(selected.ref)}`)}
-              onClosed={() => setSelectedKey(null)}
+              onClosed={() => { setSelectedKey(null); refreshCompletadas(); }}
             />
           )}
         </div>

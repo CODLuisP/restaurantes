@@ -1,6 +1,29 @@
 import { apiFetch } from './client';
 import { toFechaParam } from './reportes';
 
+export interface MozoResumenDto {
+  nombre: string;
+  cantidadSesiones: number;
+  totalVentas: number;
+}
+
+export interface TopCategoriaDto {
+  nombre: string;
+  totalVendido: number;
+}
+
+export interface TopProductoDto {
+  nombre: string;
+  cantidadVendida: number;
+  totalVendido: number;
+}
+
+export interface PedidoDemoradoDto {
+  mesa: string;
+  cantidadPedidos: number;
+  segundosEspera: number;
+}
+
 export interface DashboardResumenDto {
   ventasHoy: number;
   cantidadVentasHoy: number;
@@ -10,11 +33,20 @@ export interface DashboardResumenDto {
   pedidosHoy: number;
   pedidosEnCocinaAhora: number;
   tiempoPromedioOcupacionMinutos?: number | null;
+  pedidosCanceladosHoy: number;
+  tasaComprobantesElectronicos: number;
+  cantidadComprobantesElectronicos: number;
+  rendimientoPorMozo: MozoResumenDto[];
+  topCategoriasHoy: TopCategoriaDto[];
+  topProductosHoy: TopProductoDto[];
+  pedidosDemoradosEnCocina: PedidoDemoradoDto[];
 }
 
 export interface VentasResumenDto {
   cantidadVentas: number;
   totalVentas: number;
+  totalNotasCredito: number;
+  ventasNetas: number;
   ticketPromedio: number;
   totalEfectivo: number;
   totalTarjeta: number;
@@ -36,9 +68,10 @@ export interface VentasComparativoDto {
   mesAnterior: VentasResumenDto;
 }
 
-export function getDashboardResumen(token: string, sucursalId?: number) {
-  const qs = sucursalId ? `?sucursalId=${sucursalId}` : '';
-  return apiFetch<DashboardResumenDto>(`/api/dashboard/resumen${qs}`, { token });
+export function getDashboardResumen(token: string, fecha: Date, sucursalId?: number) {
+  const query = new URLSearchParams({ fecha: toFechaParam(fecha) });
+  if (sucursalId) query.set('sucursalId', String(sucursalId));
+  return apiFetch<DashboardResumenDto>(`/api/dashboard/resumen?${query.toString()}`, { token });
 }
 
 export function getDashboardVentas(

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import ExcelJS from 'exceljs';
-import { DollarSign, TrendingUp, ShoppingCart, Utensils, Users, FileText, Sparkles, ShieldAlert, Loader2, Radio } from 'lucide-react';
+import { DollarSign, TrendingUp, ShoppingCart, Utensils, Users, FileText, Sparkles, ShieldAlert, Loader2, XCircle, FileCheck, LayoutGrid } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
@@ -12,6 +12,7 @@ import {
   getDashboardResumen, getVentasComparativo, getVentasPorHora,
   type DashboardResumenDto, type VentasResumenDto, type VentaPorHoraDto,
 } from '@/lib/api/dashboard';
+import CocinaTimer from '@/components/dashboard/CocinaTimer';
 import { getVentas, type VentaDto } from '@/lib/api/ventas';
 import { getClientes } from '@/lib/api/clientes';
 import { toFechaParam } from '@/lib/api/reportes';
@@ -148,6 +149,7 @@ export default function DashboardPage() {
   const { token, isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
   const [resumen, setResumen] = useState<DashboardResumenDto | null>(null);
+  const [resumenSnapshotAt, setResumenSnapshotAt] = useState<number>(Date.now());
   const [ventasHoy, setVentasHoy] = useState<VentasResumenDto | null>(null);
   const [ventasAyer, setVentasAyer] = useState<VentasResumenDto | null>(null);
   const [ventasMes, setVentasMes] = useState<VentasResumenDto | null>(null);
@@ -174,7 +176,7 @@ export default function DashboardPage() {
     setError(null);
 
     Promise.all([
-      getDashboardResumen(token, sId ?? undefined),
+      getDashboardResumen(token, fechaSeleccionada, sId ?? undefined),
       getVentasComparativo(token, fechaSeleccionada, sId ?? undefined),
       getVentasPorHora(token, fechaSeleccionada, sId ?? undefined),
       getVentas(token, { sucursalId: sId ?? undefined, fechaInicio: fechaStr, fechaFin: fechaStr }),
@@ -182,6 +184,7 @@ export default function DashboardPage() {
     ])
       .then(([resumenRes, comparativoRes, horaRes, ventasRes, clientesRes]) => {
         setResumen(resumenRes);
+        setResumenSnapshotAt(Date.now());
         setVentasHoy(comparativoRes.hoy);
         setVentasAyer(comparativoRes.ayer);
         setVentasMes(comparativoRes.mesActual);
@@ -199,10 +202,6 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, [token, sId, isSuperAdmin, puedeVer, fechaSeleccionada]);
 
-  const pctVsAyer = useMemo(
-    () => pctCambio(ventasHoy?.totalVentas ?? 0, ventasAyer?.totalVentas ?? 0),
-    [ventasHoy, ventasAyer]
-  );
   const pctVsMesAnterior = useMemo(
     () => pctCambio(ventasMes?.totalVentas ?? 0, ventasMesAnterior?.totalVentas ?? 0),
     [ventasMes, ventasMesAnterior]
@@ -245,7 +244,9 @@ export default function DashboardPage() {
     {
       label: esHoy ? 'Ventas del Día' : 'Ventas del Día Elegido', icon: DollarSign, color: '#007542',
       value: money(ventasHoy?.totalVentas ?? 0),
-      sub: pctVsAyer === null ? 'Sin ventas el día anterior para comparar' : `${pctVsAyer >= 0 ? '+' : ''}${pctVsAyer.toFixed(1)}% vs día anterior`,
+      sub: ventasHoy && ventasHoy.totalNotasCredito > 0
+        ? `Netas: ${money(ventasHoy.totalVentas)} − ${money(ventasHoy.totalNotasCredito)} = ${money(ventasHoy.ventasNetas)}`
+        : `Ventas netas: ${money(ventasHoy?.ventasNetas ?? 0)}`,
     },
     {
       label: 'Ventas del Mes', icon: TrendingUp, color: '#1E8C45',
@@ -253,19 +254,29 @@ export default function DashboardPage() {
       sub: pctVsMesAnterior === null ? 'Sin ventas el mes anterior para comparar' : `${pctVsMesAnterior >= 0 ? '+' : ''}${pctVsMesAnterior.toFixed(1)}% vs mes anterior`,
     },
     {
-      label: 'Pedidos Activos', icon: ShoppingCart, color: '#3AA346', live: true,
+      label: 'Pedidos en Cocina Ahora', icon: ShoppingCart, color: '#3AA346',
       value: `${resumen?.pedidosEnCocinaAhora ?? 0}`,
       sub: `${resumen?.pedidosHoy ?? 0} pedidos hoy`,
     },
     {
-      label: 'Ticket Promedio', icon: Utensils, color: '#58BB43',
-      value: money(ventasHoy?.ticketPromedio ?? 0),
-      sub: esHoy ? 'Sobre ventas cobradas hoy' : 'Sobre ventas del día elegido',
+      label: 'Mesas Ocupadas Ahora', icon: LayoutGrid, color: '#58BB43',
+      value: esHoy ? `${resumen?.mesasOcupadas ?? 0}` : '—',
+      sub: esHoy ? `de ${resumen?.mesasTotal ?? 0} mesas en total` : 'Solo aplica para el día de hoy',
     },
     {
       label: 'Clientes CRM', icon: Users, color: '#1E8C45',
       value: `${clientesStats?.total ?? 0}`,
       sub: `+${clientesStats?.nuevos ?? 0} nuevos esa semana`,
+    },
+    {
+      label: 'Pedidos Cancelados', icon: XCircle, color: '#e11d48',
+      value: `${resumen?.pedidosCanceladosHoy ?? 0}`,
+      sub: 'cancelaciones hoy',
+    },
+    {
+      label: 'Comprobantes Electrónicos', icon: FileCheck, color: '#007542',
+      value: `${resumen?.tasaComprobantesElectronicos ?? 0}%`,
+      sub: `${resumen?.cantidadComprobantesElectronicos ?? 0} de ${resumen?.cantidadVentasHoy ?? 0} ventas`,
     },
   ];
 
@@ -307,33 +318,25 @@ export default function DashboardPage() {
       ) : (
       <>
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-3">
         {kpis.map((kpi, i) => {
           const Icon = kpi.icon;
           return (
-            <div key={i} className="card px-4 py-3 hover:shadow-md transition-all group duration-300">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="text-[10px] font-bold tracking-wider uppercase">{kpi.label}</span>
-                <span className="flex items-center gap-1.5">
-                  {kpi.live && (
-                    <span title="En vivo">
-                      <Radio className="h-5 w-5 text-rose-500 pulse-active" />
-                    </span>
-                  )}
-                  <Icon className="h-4 w-4 group-hover:scale-110 transition-transform duration-200" style={{ color: kpi.color }} />
-                </span>
+            <div key={i} className="card px-3 py-3 hover:shadow-md transition-all group duration-300">
+              <div className="flex items-start justify-between text-slate-500 gap-1">
+                <span className="text-[9px] font-bold tracking-wide uppercase leading-tight line-clamp-2">{kpi.label}</span>
+                <Icon className="h-3.5 w-3.5 shrink-0 mt-0.5 group-hover:scale-110 transition-transform duration-200" style={{ color: kpi.color }} />
               </div>
-              <p className="text-base font-bold text-slate-800 mt-1.5 font-mono">{kpi.value}</p>
-              <p className="text-[10px] text-slate-400 mt-1">{kpi.sub}</p>
+              <p className="text-sm font-bold text-slate-800 mt-1.5 font-mono">{kpi.value}</p>
+              <p className="text-[9px] text-slate-400 mt-0.5 leading-tight">{kpi.sub}</p>
             </div>
           );
         })}
       </div>
 
-      {/* Charts */}
+      {/* Curva + Rendimiento por Mozo */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Revenue chart */}
-        <div className="card p-4 lg:col-span-8 space-y-3">
+        <div className="card p-4 lg:col-span-7 space-y-3">
           <div className="pb-2 border-b border-slate-200">
             <h4 className="text-xs font-semibold text-slate-800">Curva de Ingresos Diarios (S/.)</h4>
             <p className="text-[10px] text-slate-500 mt-0.5">
@@ -343,14 +346,38 @@ export default function DashboardPage() {
           <RevenueChart ventasPorHora={ventasPorHora} esHoy={esHoy} />
         </div>
 
-        {/* Payment methods */}
-        <div className="card p-4 lg:col-span-4 space-y-3">
+        <div className="card p-4 lg:col-span-5 space-y-3">
+          <div className="pb-2 border-b border-slate-200">
+            <h4 className="text-xs font-semibold text-slate-800">Rendimiento por Mozo</h4>
+            <p className="text-[10px] text-slate-500 mt-0.5">Sesiones y ventas generadas {esHoy ? 'hoy' : 'ese día'}</p>
+          </div>
+          {(resumen?.rendimientoPorMozo ?? []).length === 0 ? (
+            <p className="text-[11px] text-slate-400">Sin datos de mozos para {esHoy ? 'hoy' : 'ese día'}.</p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {(resumen?.rendimientoPorMozo ?? []).map((m, i) => (
+                <div key={i} className="flex items-center justify-between py-2">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-800">{m.nombre}</p>
+                    <p className="text-[10px] text-slate-400">{m.cantidadSesiones} {m.cantidadSesiones === 1 ? 'mesa' : 'mesas'}</p>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-slate-700">{money(m.totalVentas)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Métodos de Pago + Mesas Rotación + Top Productos + Sin Movimiento */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="card p-4 space-y-3">
           <div>
             <h4 className="text-xs font-semibold text-slate-800">Métodos de Pago</h4>
-            <p className="text-[10px] text-slate-500 mt-0.5">Sobre las ventas cobradas {esHoy ? 'hoy' : 'ese día'}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Ventas cobradas {esHoy ? 'hoy' : 'ese día'}</p>
           </div>
           {metodosPago.length === 0 ? (
-            <p className="text-[11px] text-slate-400">Todavía no hay ventas cobradas {esHoy ? 'hoy' : 'ese día'}.</p>
+            <p className="text-[11px] text-slate-400">Sin ventas {esHoy ? 'hoy' : 'ese día'}.</p>
           ) : (
             <div className="space-y-3">
               {metodosPago.map(m => (
@@ -375,6 +402,75 @@ export default function DashboardPage() {
                 <Sparkles className="h-3 w-3 shrink-0" /> Tip Comercial
               </p>
               <p className="text-[10px] text-slate-600 leading-snug">{tipComercial}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="card p-4 space-y-3">
+          <div className="pb-2 border-b border-slate-200">
+            <h4 className="text-xs font-semibold text-slate-800">Top Categorías del Día</h4>
+            <p className="text-[10px] text-slate-500 mt-0.5">Por monto cobrado {esHoy ? 'hoy' : 'ese día'}</p>
+          </div>
+          {(resumen?.topCategoriasHoy ?? []).length === 0 ? (
+            <p className="text-[11px] text-slate-400">Sin ventas {esHoy ? 'hoy' : 'ese día'}.</p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {(resumen?.topCategoriasHoy ?? []).map((c, i) => (
+                <div key={i} className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[10px] font-mono text-slate-400 shrink-0">{i + 1}</span>
+                    <p className="text-xs font-medium text-slate-800 truncate">{c.nombre}</p>
+                  </div>
+                  <p className="font-mono text-xs font-bold text-slate-700 shrink-0 ml-2">{money(c.totalVendido)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="card p-4 space-y-3">
+          <div className="pb-2 border-b border-slate-200">
+            <h4 className="text-xs font-semibold text-slate-800">Top Platos Más Vendidos</h4>
+            <p className="text-[10px] text-slate-500 mt-0.5">Por unidades cobradas {esHoy ? 'hoy' : 'ese día'}</p>
+          </div>
+          {(resumen?.topProductosHoy ?? []).length === 0 ? (
+            <p className="text-[11px] text-slate-400">Sin ventas {esHoy ? 'hoy' : 'ese día'}.</p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {(resumen?.topProductosHoy ?? []).map((p, i) => (
+                <div key={i} className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[10px] font-mono text-slate-400 shrink-0">{i + 1}</span>
+                    <p className="text-xs font-medium text-slate-800 truncate">
+                      {p.nombre}
+                      <span className="text-slate-400 font-mono font-normal"> ({p.cantidadVendida})</span>
+                    </p>
+                  </div>
+                  <p className="font-mono text-xs font-bold text-slate-700 shrink-0 ml-2">{money(p.totalVendido)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Pedidos demorados en cocina */}
+        <div className="card p-4 space-y-3">
+          <div className="pb-2 border-b border-slate-200">
+            <h4 className="text-xs font-semibold text-slate-800">Demora en Cocina</h4>
+            <p className="text-[10px] text-slate-500 mt-0.5">Mesas con pedidos activos ahora</p>
+          </div>
+          {!esHoy ? (
+            <p className="text-[11px] text-slate-400">Solo disponible en tiempo real (hoy).</p>
+          ) : (resumen?.pedidosDemoradosEnCocina ?? []).length === 0 ? (
+            <p className="text-[11px] text-slate-400">Sin pedidos activos en cocina.</p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {(resumen?.pedidosDemoradosEnCocina ?? []).map((p, i) => (
+                <div key={i} className="flex items-center justify-between py-2">
+                  <p className="text-xs font-semibold text-slate-800">{p.mesa}</p>
+                  <CocinaTimer segundosIniciales={p.segundosEspera} snapshotAt={resumenSnapshotAt} isLive={true} />
+                </div>
+              ))}
             </div>
           )}
         </div>
