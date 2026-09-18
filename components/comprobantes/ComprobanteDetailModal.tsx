@@ -27,6 +27,7 @@ export default function ComprobanteDetailModal({
     || '-';
   const tipoLabel = selectedComprobante ? TIPO_COMPROBANTE_LABEL[selectedComprobante.tipo] : '';
   const esNota = selectedComprobante?.tipo === 'NotaCredito' || selectedComprobante?.tipo === 'NotaDebito';
+  const notasRelacionadas = selectedComprobante?.notasRelacionadas ?? [];
   const igvPorcentaje = selectedComprobante?.igvPorcentaje ?? 18;
   const igvFactor = 1 + igvPorcentaje / 100;
 
@@ -95,6 +96,22 @@ export default function ComprobanteDetailModal({
                 Fecha de envío SUNAT: {formatFechaHora(fechaEnvioSunat)}
               </div>
             )}
+          </div>
+        )}
+        {notasRelacionadas.length > 0 && (
+          <div className="rounded-lg px-4 py-2.5 mb-3 text-xs border bg-sky-50 text-sky-700 border-sky-200">
+            <div className="font-bold mb-1">
+              Este {tipoLabel.toLowerCase()} fue afectado por {notasRelacionadas.length === 1 ? 'la siguiente nota' : 'las siguientes notas'}:
+            </div>
+            <ul className="space-y-0.5 pl-1">
+              {notasRelacionadas.map(n => (
+                <li key={n.id} className="flex flex-wrap items-center gap-x-1.5">
+                  <span className="font-mono font-semibold">{n.numero}</span>
+                  <span>({n.tipoComprobante === 'nota_credito' ? 'Nota de Crédito' : 'Nota de Débito'}{n.desMotivo ? ` — ${n.desMotivo}` : ''})</span>
+                  <span className="font-semibold">S/ {n.total.toFixed(2)}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
         {selectedComprobante && (

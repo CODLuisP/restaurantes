@@ -40,6 +40,8 @@ const MOTIVOS_DEBITO = [
 
 // Motivos que aplican sobre ítems puntuales del comprobante, no sobre el total.
 const MOTIVOS_POR_ITEM = new Set(['05', '07']);
+// Motivos aún no soportados en este flujo — se muestran en el select pero deshabilitados.
+const MOTIVOS_DESHABILITADOS = new Set(['08']);
 
 export default function GenerarNotaModal({
   open, onClose, comprobante, tipoNota, token, onSuccess, triggerToast,
@@ -54,8 +56,11 @@ export default function GenerarNotaModal({
   const [cargandoItems, setCargandoItems] = useState(false);
   // ventaItemId -> cantidad seleccionada para afectar (0 = no seleccionado)
   const [cantidadesSeleccionadas, setCantidadesSeleccionadas] = useState<Record<number, number>>({});
+  // ventaItemId -> descuento por unidad ingresado (solo motivo 05, con IGV incluido)
+  const [descuentosUnitarios, setDescuentosUnitarios] = useState<Record<number, number>>({});
 
   const esMotivoPorItem = MOTIVOS_POR_ITEM.has(codMotivo) && tipoNota === 'credito';
+  const esDescuentoPorItem = codMotivo === '05' && tipoNota === 'credito';
 
   useEffect(() => {
     if (!open || !comprobante) return;
@@ -64,12 +69,16 @@ export default function GenerarNotaModal({
     setDesMotivo(primero.label);
     setMontoTotal(comprobante.monto.toFixed(2));
     setCantidadesSeleccionadas({});
+    setDescuentosUnitarios({});
     setItemsDetalle([]);
 
     if (!token) return;
     setCargandoItems(true);
     getComprobanteDetalle(token, parseInt(comprobante.id))
-      .then(detalle => setItemsDetalle(detalle.items))
+      .then(detalle => {
+        setItemsDetalle(detalle.items);
+        setDescuentosUnitarios(Object.fromEntries(detalle.items.map(it => [it.id, it.precioUnitario])));
+      })
       .catch(() => setItemsDetalle([]))
       .finally(() => setCargandoItems(false));
   }, [open, tipoNota]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -80,20 +89,32 @@ export default function GenerarNotaModal({
 
   const montoSeleccionadoPorItems = itemsDetalle.reduce((sum, it) => {
     const cant = cantidadesSeleccionadas[it.id] ?? 0;
-    return sum + cant * it.precioUnitario;
+    if (cant <= 0) return sum;
+    const precioUnitario = esDescuentoPorItem ? (descuentosUnitarios[it.id] ?? it.precioUnitario) : it.precioUnitario;
+    return sum + cant * precioUnitario;
   }, 0);
 
   const monto = esMotivoPorItem ? montoSeleccionadoPorItems : parseFloat(montoTotal || '0');
   const hayItemsSeleccionados = Object.values(cantidadesSeleccionadas).some(c => c > 0);
+  const itemsConDescuentoInvalido = esDescuentoPorItem
+    ? itemsDetalle.filter(it => {
+        const cant = cantidadesSeleccionadas[it.id] ?? 0;
+        if (cant <= 0) return false;
+        const descuento = descuentosUnitarios[it.id] ?? 0;
+        return !(descuento > 0) || descuento > it.precioUnitario;
+      })
+    : [];
   const montoInvalido = esMotivoPorItem
-    ? !hayItemsSeleccionados || monto <= 0
+    ? !hayItemsSeleccionados || monto <= 0 || itemsConDescuentoInvalido.length > 0
     : !monto || monto <= 0 || (tipoNota === 'credito' && monto > comprobante.monto);
 
   const handleMotivoChange = (codigo: string) => {
+    if (MOTIVOS_DESHABILITADOS.has(codigo)) return;
     setCodMotivo(codigo);
     const encontrado = motivos.find(m => m.codigo === codigo);
     setDesMotivo(encontrado?.label ?? '');
     setCantidadesSeleccionadas({});
+    setDescuentosUnitarios(Object.fromEntries(itemsDetalle.map(it => [it.id, it.precioUnitario])));
   };
 
   const toggleItem = (itemId: number, cantidadMaxima: number, checked: boolean) => {
@@ -105,6 +126,11 @@ export default function GenerarNotaModal({
     setCantidadesSeleccionadas(prev => ({ ...prev, [itemId]: clamped }));
   };
 
+  const setDescuentoUnitarioItem = (itemId: number, monto: number, precioOriginal: number) => {
+    const clamped = Math.max(0, Math.min(monto, precioOriginal));
+    setDescuentosUnitarios(prev => ({ ...prev, [itemId]: clamped }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!token || montoInvalido || enviando) return;
@@ -114,7 +140,11 @@ export default function GenerarNotaModal({
       const items = esMotivoPorItem
         ? Object.entries(cantidadesSeleccionadas)
             .filter(([, cant]) => cant > 0)
-            .map(([ventaItemId, cantidad]) => ({ ventaItemId: parseInt(ventaItemId), cantidad }))
+            .map(([ventaItemId, cantidad]) => ({
+              ventaItemId: parseInt(ventaItemId),
+              cantidad,
+              ...(esDescuentoPorItem ? { montoUnitarioConIgv: descuentosUnitarios[parseInt(ventaItemId)] ?? 0 } : {}),
+            }))
         : undefined;
 
       const result = await generarNota(token, parseInt(comprobante.id), {
@@ -141,7 +171,9 @@ export default function GenerarNotaModal({
 
         <Select label="Motivo" value={codMotivo} onChange={e => handleMotivoChange(e.target.value)} disabled={enviando}>
           {motivos.map(m => (
-            <option key={m.codigo} value={m.codigo}>{m.codigo} - {m.label}</option>
+            <option key={m.codigo} value={m.codigo} disabled={MOTIVOS_DESHABILITADOS.has(m.codigo)}>
+              {m.codigo} - {m.label}{MOTIVOS_DESHABILITADOS.has(m.codigo) ? ' (no disponible aún)' : ''}
+            </option>
           ))}
         </Select>
 
@@ -177,30 +209,52 @@ export default function GenerarNotaModal({
                     : it.comboNombre || 'Producto';
                   const cantidadSel = cantidadesSeleccionadas[it.id] ?? 0;
                   const checked = cantidadSel > 0;
+                  const descuentoUnit = descuentosUnitarios[it.id] ?? it.precioUnitario;
+                  const descuentoInvalido = checked && (!(descuentoUnit > 0) || descuentoUnit > it.precioUnitario);
                   return (
-                    <div key={it.id} className="flex items-center gap-2 px-3 py-2">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand shrink-0"
-                        checked={checked}
-                        disabled={enviando}
-                        onChange={e => toggleItem(it.id, it.cantidad, e.target.checked)}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-semibold text-slate-700 truncate">{nombre}</p>
-                        <p className="text-[10px] text-slate-400">
-                          S/ {it.precioUnitario.toFixed(2)} c/u · máx {it.cantidad}
-                        </p>
+                    <div key={it.id} className="flex flex-col gap-1.5 px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand shrink-0"
+                          checked={checked}
+                          disabled={enviando}
+                          onChange={e => toggleItem(it.id, it.cantidad, e.target.checked)}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[11px] font-semibold text-slate-700 truncate">{nombre}</p>
+                          <p className="text-[10px] text-slate-400">
+                            S/ {it.precioUnitario.toFixed(2)} c/u · máx {it.cantidad}
+                          </p>
+                        </div>
+                        <input
+                          type="number"
+                          min={0}
+                          max={it.cantidad}
+                          value={cantidadSel}
+                          disabled={!checked || enviando}
+                          onChange={e => setCantidadItem(it.id, parseInt(e.target.value) || 0, it.cantidad)}
+                          className="input w-16 px-2 py-1 text-[11px] text-center disabled:opacity-40"
+                        />
                       </div>
-                      <input
-                        type="number"
-                        min={0}
-                        max={it.cantidad}
-                        value={cantidadSel}
-                        disabled={!checked || enviando}
-                        onChange={e => setCantidadItem(it.id, parseInt(e.target.value) || 0, it.cantidad)}
-                        className="input w-16 px-2 py-1 text-[11px] text-center disabled:opacity-40"
-                      />
+                      {esDescuentoPorItem && checked && (
+                        <div className="flex items-center gap-2 pl-6">
+                          <label className="text-[10px] text-slate-500 shrink-0">Descuento por unidad (c/IGV)</label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={it.precioUnitario}
+                            step="0.01"
+                            value={descuentoUnit}
+                            disabled={enviando}
+                            onChange={e => setDescuentoUnitarioItem(it.id, parseFloat(e.target.value) || 0, it.precioUnitario)}
+                            className={`input w-20 px-2 py-1 text-[11px] text-right ${descuentoInvalido ? 'border-rose-400 bg-rose-50' : ''}`}
+                          />
+                          {descuentoInvalido && (
+                            <span className="text-[9px] text-rose-500">Debe ser mayor a 0 y hasta S/ {it.precioUnitario.toFixed(2)}</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

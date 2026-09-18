@@ -19,6 +19,8 @@ export interface ComprobanteListItem {
   hashCpe: string | null;
   tieneSunat: boolean;
   ventaAfectadaId: number | null;
+  /** Serie-correlativo del documento afectado (solo notas de crédito/débito). */
+  numeroVentaAfectada: string | null;
   codMotivo: string | null;
   desMotivo: string | null;
   /** Momento real en que se registró en la API de facturación (reservó serie/correlativo).
@@ -30,7 +32,6 @@ export interface ComprobanteDetail extends ComprobanteListItem {
   igvPorcentaje: number;
   descuento: number;
   propina: number;
-  numeroVentaAfectada: string | null;
   /** Detalle opcional de pago (Yape/Plin/Tarjeta) — null si no se registró número de operación. */
   numeroOperacion: string | null;
   entidadBancaria: string | null;
@@ -80,6 +81,8 @@ export interface ConvertirTicketDto {
 export interface CrearNotaItemDto {
   ventaItemId: number;
   cantidad: number;
+  /** Monto unitario con IGV a aplicar en vez del precio original (motivo "descuento por ítem"). */
+  montoUnitarioConIgv?: number;
 }
 
 export interface CrearNotaDto {

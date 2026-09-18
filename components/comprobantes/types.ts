@@ -1,4 +1,5 @@
 import type { PaymentMethod } from '@/types';
+import type { ComprobanteListItem } from '@/lib/api/comprobantes';
 
 export type EstadoSunat = 'Aceptado' | 'Rechazado' | 'Pendiente' | 'De Baja';
 export type TipoComprobante = 'Boleta' | 'Factura' | 'Ticket' | 'NotaCredito' | 'NotaDebito';
@@ -45,6 +46,8 @@ export interface Comprobante {
   numeroVentaAfectada?: string | null;
   codMotivo?: string | null;
   desMotivo?: string | null;
+  /** Notas de crédito/débito emitidas sobre este comprobante — solo se carga al abrir "Ver". */
+  notasRelacionadas?: ComprobanteListItem[];
 }
 
 export const TIPO_COMPROBANTE_LABEL: Record<TipoComprobante, string> = {

@@ -225,7 +225,7 @@ export default function ClientesPage() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <button onClick={handleExport} disabled={exporting} className="btn-secondary disabled:opacity-60">
+          <button onClick={handleExport} disabled={exporting} className="btn-secondary bg-white disabled:opacity-60">
             {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Excel
           </button>
           <button onClick={() => setShowNewModal(true)} className="btn-primary">

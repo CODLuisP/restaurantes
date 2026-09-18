@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarClock, ChevronLeft, ChevronRight, Loader2, Receipt, Hash, Wallet, MoreVertical, FileText } from 'lucide-react';
+import { useSession } from 'next-auth/react';
+import ExcelJS from 'exceljs';
+import { CalendarClock, ChevronLeft, ChevronRight, Loader2, Receipt, Hash, Wallet, MoreVertical, FileText, Download } from 'lucide-react';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import { SucursalSelector } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
@@ -11,6 +13,163 @@ import { getUsuarios, type Usuario } from '@/lib/api/usuarios';
 import { toFechaParam } from '@/lib/api/reportes';
 import { getFechaEnvioSunatVisible, formatFechaHora } from '@/lib/facturacion/fechaEnvioSunat';
 import { ConvertirTicketModal } from '@/components/caja/ConvertirTicketModal';
+
+const BRAND_COLOR = 'FF007542';
+
+/** Divide "B001-00000024" en { serie: "B001", correlativo: "00000024" }; los tickets internos
+ *  (sin numeroComprobante) usan "N.VENTA" + su correlativo propio, corrido por sucursal. */
+function splitNumeroVenta(v: VentaDto): { serie: string; correlativo: string } {
+  if (!v.numeroComprobante) return { serie: 'N.VENTA', correlativo: String(v.correlativoTicket ?? v.id) };
+  const idx = v.numeroComprobante.indexOf('-');
+  if (idx === -1) return { serie: v.numeroComprobante, correlativo: '' };
+  return { serie: v.numeroComprobante.slice(0, idx), correlativo: v.numeroComprobante.slice(idx + 1) };
+}
+
+async function exportVentasDiaExcel(ventas: VentaDto[], usuario: string, contexto: string) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'RestoPro';
+  workbook.created = new Date();
+
+  const sheet = workbook.addWorksheet('Ventas del Día', { views: [{ state: 'frozen', ySplit: 4 }] });
+
+  const columnas = [
+    'Fecha', 'Hora', 'Serie', 'Correlativo', 'N° Documento', 'Razón Social',
+    'Base', 'IGV', 'Importe Total', 'Serie Afectada',
+  ];
+  sheet.columns = [
+    { key: 'fecha', width: 12 },
+    { key: 'hora', width: 9 },
+    { key: 'serie', width: 10 },
+    { key: 'correlativo', width: 14 },
+    { key: 'numDoc', width: 14 },
+    { key: 'razonSocial', width: 32 },
+    { key: 'base', width: 14 },
+    { key: 'igv', width: 12 },
+    { key: 'total', width: 15 },
+    { key: 'serieAfectada', width: 16 },
+  ];
+
+  // ── Encabezado (título + metadata) ──
+  const ahora = new Date();
+  sheet.mergeCells(1, 1, 1, columnas.length);
+  const tituloCell = sheet.getCell(1, 1);
+  tituloCell.value = 'REPORTE DE VENTAS DEL DÍA — RESTOPRO';
+  tituloCell.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+  tituloCell.alignment = { vertical: 'middle', horizontal: 'left' };
+  tituloCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND_COLOR } };
+  sheet.getRow(1).height = 28;
+
+  sheet.mergeCells(2, 1, 2, columnas.length);
+  const subtituloCell = sheet.getCell(2, 1);
+  subtituloCell.value =
+    `Generado el ${ahora.toLocaleDateString('es-PE')} ${ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}` +
+    `  ·  Por: ${usuario}  ·  ${contexto}  ·  Total: ${ventas.length} venta${ventas.length === 1 ? '' : 's'}`;
+  subtituloCell.font = { italic: true, size: 10, color: { argb: 'FF64748B' } };
+  subtituloCell.alignment = { vertical: 'middle', horizontal: 'left' };
+
+  // ── Fila 3 en blanco como respiro visual ──
+
+  // ── Encabezado de la tabla ──
+  const headerRow = sheet.getRow(4);
+  headerRow.values = columnas;
+  headerRow.eachCell(cell => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E8C45' } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    cell.border = { bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } } };
+  });
+  headerRow.height = 20;
+
+  // ── Filas de datos (ya vienen ordenadas por fecha/hora, más reciente primero) ──
+  ventas.forEach((v, idx) => {
+    const fecha = new Date(v.pagadoAt);
+    const fechaStr = fecha.toLocaleDateString('es-PE');
+    const horaStr = fecha.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+    const { serie, correlativo } = splitNumeroVenta(v);
+    const esNota = v.tipoComprobante === 'nota_credito' || v.tipoComprobante === 'nota_debito';
+    // La nota de crédito resta del total, así que se muestra en negativo.
+    const signoVisual = v.tipoComprobante === 'nota_credito' ? -1 : 1;
+
+    const row = sheet.addRow({
+      fecha: fechaStr,
+      hora: horaStr,
+      serie,
+      correlativo,
+      numDoc: v.numDoc || '-',
+      razonSocial: v.razonSocial || v.nombreCliente || 'Clientes Varios',
+      base: signoVisual * v.subtotal,
+      igv: signoVisual * v.igvMonto,
+      total: signoVisual * v.total,
+      serieAfectada: esNota ? (v.numeroVentaAfectada ?? '') : '',
+    });
+
+    row.getCell('base').numFmt = '"S/." #,##0.00';
+    row.getCell('igv').numFmt = '"S/." #,##0.00';
+    row.getCell('total').numFmt = '"S/." #,##0.00';
+    row.getCell('total').font = { bold: true };
+    row.getCell('correlativo').alignment = { horizontal: 'center' };
+    row.getCell('serieAfectada').alignment = { horizontal: 'center' };
+
+    // Resalta toda la línea según el tipo: nota de crédito en gris, nota de débito en un tono
+    // igual de discreto (ámbar claro) — sin tocar el color de letra, solo el fondo.
+    const fondoFila = v.tipoComprobante === 'nota_credito'
+      ? 'FFE2E8F0'
+      : v.tipoComprobante === 'nota_debito'
+      ? 'FFFFF3E0'
+      : idx % 2 === 1
+      ? 'FFF8FAFC'
+      : null;
+    const colorTexto = v.tipoComprobante === 'nota_credito' ? 'FF475569' : null;
+
+    if (fondoFila) {
+      for (let col = 1; col <= columnas.length; col++) {
+        const cell = row.getCell(col);
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fondoFila } };
+        if (colorTexto) cell.font = { ...cell.font, color: { argb: colorTexto } };
+      }
+    }
+  });
+
+  // ── Fila de totales: neta — las notas de débito AUMENTAN el total y las notas de crédito
+  // lo DISMINUYEN, igual que en la contabilidad real (tickets, boletas y facturas suman).
+  const signo = (tipo: string) => (tipo === 'nota_credito' ? -1 : 1);
+  const netoBase = ventas.reduce((acc, v) => acc + signo(v.tipoComprobante) * v.subtotal, 0);
+  const netoIgv = ventas.reduce((acc, v) => acc + signo(v.tipoComprobante) * v.igvMonto, 0);
+  const netoTotal = ventas.reduce((acc, v) => acc + signo(v.tipoComprobante) * v.total, 0);
+
+  if (ventas.length > 0) {
+    const totalRow = sheet.addRow({});
+    totalRow.height = 20;
+    sheet.mergeCells(totalRow.number, 1, totalRow.number, 6);
+    const etiquetaCell = totalRow.getCell(1);
+    etiquetaCell.value = 'TOTAL NETO';
+    etiquetaCell.alignment = { vertical: 'middle', horizontal: 'right' };
+
+    totalRow.getCell('base').value = netoBase;
+    totalRow.getCell('igv').value = netoIgv;
+    totalRow.getCell('total').value = netoTotal;
+    (['base', 'igv', 'total'] as const).forEach(key => {
+      totalRow.getCell(key).numFmt = '"S/." #,##0.00';
+    });
+
+    for (let col = 1; col <= columnas.length; col++) {
+      const cell = totalRow.getCell(col);
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E8C45' } };
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    }
+  }
+
+  sheet.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: columnas.length } };
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `ventas-dia-${new Date().toISOString().split('T')[0]}.xlsx`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 const TIPO_LABEL: Record<string, string> = {
   ticket: 'N. Venta',
@@ -34,6 +193,7 @@ const ROLES_VISIBLES = ['admin', 'cajero', 'mozo'];
 const money = (n: number) => `S/. ${n.toFixed(2)}`;
 const itemsCount = (v: VentaDto) => v.items.reduce((a, i) => a + i.cantidad, 0);
 const horaVenta = (v: VentaDto) => new Date(v.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+const numeroVenta = (v: VentaDto) => v.numeroComprobante || `N.Venta #${v.correlativoTicket ?? v.id}`;
 const fechaLarga = (d: Date) => d.toLocaleDateString('es-PE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 
 function addDias(d: Date, delta: number): Date {
@@ -43,6 +203,7 @@ function addDias(d: Date, delta: number): Date {
 }
 
 export default function VentasDelDiaPage() {
+  const { data: session } = useSession();
   const { token, isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
   const { triggerToast } = useApp();
 
@@ -54,6 +215,7 @@ export default function VentasDelDiaPage() {
   const [error, setError] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [convertirVenta, setConvertirVenta] = useState<VentaDto | null>(null);
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   /* Menú de opciones por fila: se renderiza vía portal con posición fija calculada del botón,
      porque el listado vive dentro de contenedores con overflow (scroll + card redondeado) que
@@ -135,6 +297,27 @@ export default function VentasDelDiaPage() {
   const totalMonto = ventas.reduce((a, v) => a + v.total, 0);
   const seleccionada = ventas.find(v => v.id === selectedId) ?? null;
 
+  const handleExportExcel = async () => {
+    if (!ventas.length) { triggerToast('No hay ventas para exportar en este día.', 'error'); return; }
+    setExportingExcel(true);
+    try {
+      const usuario = session?.user?.name ?? session?.user?.username ?? 'Usuario';
+      const sucursalActual = sucursales.find(s => s.id === sId);
+      const cajeroActual = cajeroId ? usuarios.find(u => u.id === cajeroId)?.nombre : null;
+      const contexto = [
+        `Sucursal: ${sucursalActual ? `${sucursalActual.nombre}${sucursalActual.codEstablecimiento ? ` (${sucursalActual.codEstablecimiento})` : ''}` : 'Todas'}`,
+        `Fecha: ${fechaLarga(dia)}`,
+        `Cajero: ${cajeroActual ?? 'Todos'}`,
+      ].join(' · ');
+      await exportVentasDiaExcel(ventas, usuario, contexto);
+      triggerToast('Reporte de ventas del día descargado como archivo Excel.', 'success');
+    } catch {
+      triggerToast('No se pudo generar el archivo Excel.', 'error');
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   return (
     <div className="space-y-4 animate-section">
       <div className="flex items-center gap-3">
@@ -189,6 +372,15 @@ export default function VentasDelDiaPage() {
               <option key={u.id} value={u.id}>{u.nombre}</option>
             ))}
           </select>
+
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={exportingExcel}
+            className="btn-secondary bg-white text-[11px] py-1.5 px-3 disabled:opacity-60"
+          >
+            {exportingExcel ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Excel
+          </button>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -244,7 +436,7 @@ export default function VentasDelDiaPage() {
                       >
                         <div className="min-w-0">
                           <p className={`text-sm font-bold truncate ${isAnulacion ? 'text-rose-500 line-through' : 'text-slate-800'}`}>
-                            {v.numeroComprobante || `Venta #${v.id}`}
+                            {numeroVenta(v)}
                           </p>
                           <p className="text-[10px] text-slate-400">{TIPO_LABEL[v.tipoComprobante] ?? v.tipoComprobante}</p>
                         </div>
@@ -284,7 +476,7 @@ export default function VentasDelDiaPage() {
             ) : (
               <div className="card-lg p-4 space-y-4">
                 <div>
-                  <p className="text-sm font-bold text-slate-800">{seleccionada.numeroComprobante || `Venta #${seleccionada.id}`}</p>
+                  <p className="text-sm font-bold text-slate-800">{numeroVenta(seleccionada)}</p>
                   <p className="text-[11px] text-slate-500">
                     Fecha: {new Date(seleccionada.pagadoAt).toLocaleString('es-PE')}
                   </p>

@@ -1,7 +1,9 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
-import { FileText, Loader2 } from 'lucide-react';
+import { useSession } from 'next-auth/react';
+import ExcelJS from 'exceljs';
+import { FileText, Loader2, Download } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { useComprobantes } from '@/hooks/useComprobantes';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
@@ -13,6 +15,8 @@ import {
   reenviarSunat,
   emitirComprobante,
   getComprobanteDetalle,
+  getNotasDeVenta,
+  getComprobantes,
   type NotaVentaResult,
 } from '@/lib/api/comprobantes';
 import { getMiEmpresa, type EmpresaDto } from '@/lib/api/empresas';
@@ -31,7 +35,164 @@ import {
 
 const ITEMS_PER_PAGE = 10;
 
+const BRAND_COLOR = 'FF007542';
+const ES_NOTA = (tipo: TipoComprobante) => tipo === 'NotaCredito' || tipo === 'NotaDebito';
+
+/** Divide "B001-00000024" en { serie: "B001", correlativo: "00000024" }. */
+function splitNumero(numero: string): { serie: string; correlativo: string } {
+  const idx = numero.indexOf('-');
+  if (idx === -1) return { serie: numero, correlativo: '' };
+  return { serie: numero.slice(0, idx), correlativo: numero.slice(idx + 1) };
+}
+
+async function exportComprobantesExcel(comprobantes: Comprobante[], usuario: string, filtroTxt: string, sucursalTxt: string) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'RestoPro';
+  workbook.created = new Date();
+
+  const sheet = workbook.addWorksheet('Comprobantes', { views: [{ state: 'frozen', ySplit: 4 }] });
+
+  const columnas = [
+    'Fecha', 'Hora', 'Serie', 'Correlativo', 'N° Documento', 'Razón Social',
+    'Base', 'IGV', 'Importe Total', 'Serie Afectada',
+  ];
+  sheet.columns = [
+    { key: 'fecha', width: 12 },
+    { key: 'hora', width: 9 },
+    { key: 'serie', width: 10 },
+    { key: 'correlativo', width: 14 },
+    { key: 'numDoc', width: 14 },
+    { key: 'razonSocial', width: 32 },
+    { key: 'base', width: 14 },
+    { key: 'igv', width: 12 },
+    { key: 'total', width: 15 },
+    { key: 'serieAfectada', width: 16 },
+  ];
+
+  // ── Encabezado (título + metadata) ──
+  const ahora = new Date();
+  sheet.mergeCells(1, 1, 1, columnas.length);
+  const tituloCell = sheet.getCell(1, 1);
+  tituloCell.value = 'REPORTE DE COMPROBANTES — RESTOPRO';
+  tituloCell.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+  tituloCell.alignment = { vertical: 'middle', horizontal: 'left' };
+  tituloCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND_COLOR } };
+  sheet.getRow(1).height = 28;
+
+  sheet.mergeCells(2, 1, 2, columnas.length);
+  const subtituloCell = sheet.getCell(2, 1);
+  subtituloCell.value =
+    `Generado el ${ahora.toLocaleDateString('es-PE')} ${ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}` +
+    `  ·  Por: ${usuario}  ·  Sucursal: ${sucursalTxt}  ·  ${filtroTxt}  ·  Total: ${comprobantes.length} comprobante${comprobantes.length === 1 ? '' : 's'}`;
+  subtituloCell.font = { italic: true, size: 10, color: { argb: 'FF64748B' } };
+  subtituloCell.alignment = { vertical: 'middle', horizontal: 'left' };
+
+  // ── Fila 3 en blanco como respiro visual ──
+
+  // ── Encabezado de la tabla ──
+  const headerRow = sheet.getRow(4);
+  headerRow.values = columnas;
+  headerRow.eachCell(cell => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E8C45' } };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    cell.border = { bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } } };
+  });
+  headerRow.height = 20;
+
+  // ── Filas de datos (ya vienen ordenadas por fecha, más reciente primero) ──
+  comprobantes.forEach((c, idx) => {
+    const [fechaStr, horaStr] = c.fecha.split(' ');
+    const { serie, correlativo } = splitNumero(c.numero);
+    // La nota de crédito resta del total, así que se muestra en negativo (el formato de
+    // moneda antepone el "-" automáticamente para números negativos).
+    const signoVisual = c.tipo === 'NotaCredito' ? -1 : 1;
+
+    const row = sheet.addRow({
+      fecha: fechaStr ?? '',
+      hora: horaStr ?? '',
+      serie,
+      correlativo,
+      numDoc: c.clienteDoc.number,
+      razonSocial: c.clienteDoc.name,
+      base: signoVisual * c.subtotal,
+      igv: signoVisual * c.igv,
+      total: signoVisual * c.monto,
+      serieAfectada: ES_NOTA(c.tipo) ? (c.numeroVentaAfectada ?? '') : '',
+    });
+
+    row.getCell('base').numFmt = '"S/." #,##0.00';
+    row.getCell('igv').numFmt = '"S/." #,##0.00';
+    row.getCell('total').numFmt = '"S/." #,##0.00';
+    row.getCell('total').font = { bold: true };
+    row.getCell('correlativo').alignment = { horizontal: 'center' };
+    row.getCell('serieAfectada').alignment = { horizontal: 'center' };
+
+    // Resalta toda la línea según el tipo: nota de crédito en gris, nota de débito en un tono
+    // igual de discreto (ámbar claro) — sin tocar el color de letra, solo el fondo.
+    const fondoFila = c.tipo === 'NotaCredito'
+      ? 'FFE2E8F0'
+      : c.tipo === 'NotaDebito'
+      ? 'FFFFF3E0'
+      : idx % 2 === 1
+      ? 'FFF8FAFC'
+      : null;
+    const colorTexto = c.tipo === 'NotaCredito' ? 'FF475569' : null;
+
+    if (fondoFila) {
+      for (let col = 1; col <= columnas.length; col++) {
+        const cell = row.getCell(col);
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fondoFila } };
+        if (colorTexto) cell.font = { ...cell.font, color: { argb: colorTexto } };
+      }
+    }
+  });
+
+  // ── Fila de totales: neta, no una simple suma — las notas de débito AUMENTAN el total
+  // (intereses/penalidades que se cobran de más) y las notas de crédito lo DISMINUYEN
+  // (descuentos/anulaciones), igual que en la contabilidad real.
+  const signo = (tipo: TipoComprobante) => (tipo === 'NotaCredito' ? -1 : 1);
+  const netoBase = comprobantes.reduce((acc, c) => acc + signo(c.tipo) * c.subtotal, 0);
+  const netoIgv = comprobantes.reduce((acc, c) => acc + signo(c.tipo) * c.igv, 0);
+  const netoTotal = comprobantes.reduce((acc, c) => acc + signo(c.tipo) * c.monto, 0);
+
+  if (comprobantes.length > 0) {
+    const totalRow = sheet.addRow({});
+    totalRow.height = 20;
+    sheet.mergeCells(totalRow.number, 1, totalRow.number, 6);
+    const etiquetaCell = totalRow.getCell(1);
+    etiquetaCell.value = 'TOTAL NETO';
+    etiquetaCell.alignment = { vertical: 'middle', horizontal: 'right' };
+
+    totalRow.getCell('base').value = netoBase;
+    totalRow.getCell('igv').value = netoIgv;
+    totalRow.getCell('total').value = netoTotal;
+    (['base', 'igv', 'total'] as const).forEach(key => {
+      totalRow.getCell(key).numFmt = '"S/." #,##0.00';
+    });
+
+    // Pinta toda la fila de verde (igual que el encabezado), incluida la última columna aunque quede vacía.
+    for (let col = 1; col <= columnas.length; col++) {
+      const cell = totalRow.getCell(col);
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E8C45' } };
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    }
+  }
+
+  sheet.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: columnas.length } };
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `comprobantes-${new Date().toISOString().split('T')[0]}.xlsx`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function ComprobantesPage() {
+  const { data: session } = useSession();
   const { triggerToast, searchQuery } = useApp();
   const { isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
@@ -72,6 +233,51 @@ export default function ComprobantesPage() {
       return ok;
     });
   }, [comprobantes, montoMin, montoMax]);
+
+  const [exportingExcel, setExportingExcel] = useState(false);
+
+  const handleExportExcel = async () => {
+    if (!token) return;
+    // Superadmin sin sucursal elegida: nada que exportar.
+    if (isSuperAdmin && !sId) { triggerToast('Elige una sucursal para exportar.', 'error'); return; }
+    setExportingExcel(true);
+    try {
+      // Trae TODO lo que cumple los filtros actuales (no solo la página visible en pantalla).
+      const resultado = await getComprobantes(token, {
+        sucursalId: sId ?? undefined,
+        tipoComprobante: filterTipo || undefined,
+        estadoSunat: filterEstado || undefined,
+        fechaInicio: fechaDesde || undefined,
+        fechaFin: fechaHasta || undefined,
+        search: searchQuery || undefined,
+        ordenarPorCorrelativo,
+        page: 1,
+        pageSize: Math.max(totalCount, 1),
+      });
+      const todos = resultado.items.map(mapApiToComprobante).filter(c => {
+        if (montoMin && c.monto < parseFloat(montoMin)) return false;
+        if (montoMax && c.monto > parseFloat(montoMax)) return false;
+        return true;
+      });
+
+      const partesFiltro: string[] = [];
+      partesFiltro.push(filterTipo ? `Tipo: ${filterTipo}` : 'Todos los tipos');
+      partesFiltro.push(filterEstado ? `SUNAT: ${filterEstado}` : 'SUNAT: Todos');
+      if (fechaDesde || fechaHasta) partesFiltro.push(`Del ${fechaDesde || '...'} al ${fechaHasta || '...'}`);
+
+      const usuario = session?.user?.name ?? session?.user?.username ?? 'Usuario';
+      const sucursalActual = sucursales.find(s => s.id === sId);
+      const sucursalTxt = sucursalActual
+        ? `${sucursalActual.nombre}${sucursalActual.codEstablecimiento ? ` (${sucursalActual.codEstablecimiento})` : ''}`
+        : 'Todas';
+      await exportComprobantesExcel(todos, usuario, partesFiltro.join(' · '), sucursalTxt);
+      triggerToast('Reporte de comprobantes descargado como archivo Excel.', 'success');
+    } catch {
+      triggerToast('No se pudo generar el archivo Excel.', 'error');
+    } finally {
+      setExportingExcel(false);
+    }
+  };
 
   /** Formato de impresión elegido por comprobante */
   const [comprobanteSizes, setComprobanteSizes] = useState<Record<string, FormatoImpresion>>({});
@@ -187,8 +393,12 @@ export default function ComprobantesPage() {
   const handleNotaSuccess = (result: NotaVentaResult) => {
     if (result.exitoso) {
       triggerToast(`Nota ${result.numeroComprobante ?? ''} generada y enviada a SUNAT.`, 'success');
-    } else {
+    } else if (result.ventaId) {
+      // La nota sí quedó registrada (tiene id local) pero SUNAT la rechazó o quedó pendiente.
       triggerToast(`La nota se registró pero SUNAT respondió: ${result.mensaje ?? 'sin detalle'}.`, 'warning');
+    } else {
+      // No se llegó a crear nada (validación propia: saldo insuficiente, ítem inválido, etc.).
+      triggerToast(result.mensaje ?? 'No se pudo generar la nota.', 'error');
     }
     refetch();
   };
@@ -196,8 +406,13 @@ export default function ComprobantesPage() {
   const handleVerDetalle = async (comp: Comprobante | null) => {
     if (!comp) { setSelectedComprobante(null); return; }
     if (!token) return;
+    // Las notas solo pueden afectar boletas/facturas — evita la consulta para el resto.
+    const puedeTenerNotas = comp.tipo === 'Boleta' || comp.tipo === 'Factura';
     try {
-      const detalle = await getComprobanteDetalle(token, parseInt(comp.id));
+      const [detalle, notas] = await Promise.all([
+        getComprobanteDetalle(token, parseInt(comp.id)),
+        puedeTenerNotas ? getNotasDeVenta(token, parseInt(comp.id)) : Promise.resolve([]),
+      ]);
       const itemsMapped = detalle.items.map(i => ({
         name: i.productoNombre
           ? (i.varianteNombre ? `${i.productoNombre} (${i.varianteNombre})` : i.productoNombre)
@@ -216,6 +431,7 @@ export default function ComprobantesPage() {
         entidadBancaria: detalle.entidadBancaria,
         observacionPago: detalle.observacionPago,
         fechaRegistroFacturacion: detalle.fechaRegistroFacturacion,
+        notasRelacionadas: notas,
       });
     } catch {
       setSelectedComprobante(comp);
@@ -266,9 +482,18 @@ export default function ComprobantesPage() {
           <button
             type="button"
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className={`btn-secondary text-[11px] py-1.5 px-3 ${showAdvanced ? 'bg-slate-200 border-slate-400' : ''}`}
+            className={`btn-secondary bg-white text-[11px] py-1.5 px-3 ${showAdvanced ? 'bg-slate-200 border-slate-400' : ''}`}
           >
             Filtros avanzados
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={exportingExcel}
+            className="btn-secondary bg-white text-[11px] py-1.5 px-3 disabled:opacity-60"
+          >
+            {exportingExcel ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Excel
           </button>
 
         </div>

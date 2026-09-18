@@ -30,6 +30,8 @@ export interface VentaDto {
   vuelto?: number | null;
   pagadoAt: string;
   tipoComprobante: string;
+  /** Correlativo interno del ticket (venta interna sin serie SUNAT), corrido por sucursal. Null para boleta/factura/notas. */
+  correlativoTicket?: number | null;
   tipoDoc?: string | null;
   numDoc?: string | null;
   razonSocial?: string | null;
@@ -48,6 +50,8 @@ export interface VentaDto {
   numeroOperacion?: string | null;
   entidadBancaria?: string | null;
   observacionPago?: string | null;
+  /** Serie-correlativo del documento afectado (solo notas de crédito/débito). */
+  numeroVentaAfectada?: string | null;
   items: VentaItemDto[];
 }
 
