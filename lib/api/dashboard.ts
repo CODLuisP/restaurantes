@@ -44,8 +44,15 @@ export interface DashboardResumenDto {
 
 export interface VentasResumenDto {
   cantidadVentas: number;
+  /** Ventas brutas: tickets, boletas y facturas, sin notas de crédito/débito. */
   totalVentas: number;
-  totalNotasCredito: number;
+  /** Notas que afectan documentos del mismo rango: ajustan las ventas netas. */
+  ncPeriodo: number;
+  ndPeriodo: number;
+  /** Notas que afectan documentos de antes del rango: se muestran aparte, NO ajustan las netas. */
+  ncAnteriores: number;
+  ndAnteriores: number;
+  /** Brutas + notas de débito − notas de crédito, solo las del periodo. */
   ventasNetas: number;
   ticketPromedio: number;
   totalEfectivo: number;

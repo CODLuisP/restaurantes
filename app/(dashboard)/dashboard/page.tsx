@@ -13,6 +13,7 @@ import {
   type DashboardResumenDto, type VentasResumenDto, type VentaPorHoraDto,
 } from '@/lib/api/dashboard';
 import CocinaTimer from '@/components/dashboard/CocinaTimer';
+import { DesgloseNotas } from '@/components/reportes/DesgloseNotas';
 import { getVentas, type VentaDto } from '@/lib/api/ventas';
 import { getClientes } from '@/lib/api/clientes';
 import { toFechaParam } from '@/lib/api/reportes';
@@ -203,7 +204,7 @@ export default function DashboardPage() {
   }, [token, sId, isSuperAdmin, puedeVer, fechaSeleccionada]);
 
   const pctVsMesAnterior = useMemo(
-    () => pctCambio(ventasMes?.totalVentas ?? 0, ventasMesAnterior?.totalVentas ?? 0),
+    () => pctCambio(ventasMes?.ventasNetas ?? 0, ventasMesAnterior?.ventasNetas ?? 0),
     [ventasMes, ventasMesAnterior]
   );
 
@@ -240,18 +241,27 @@ export default function DashboardPage() {
     );
   }
 
-  const kpis: { label: string; icon: typeof DollarSign; color: string; value: string; sub: string; live?: boolean }[] = [
+  // Titular = ventas netas; debajo, las brutas y solo las notas que ajustan ese período.
+  const detalleNeto = (v: VentasResumenDto | null) => {
+    if (!v) return '';
+    return [
+      `Bruto ${money(v.totalVentas)}`,
+      v.ncPeriodo > 0 ? `− NC ${money(v.ncPeriodo)}` : '',
+      v.ndPeriodo > 0 ? `+ ND ${money(v.ndPeriodo)}` : '',
+    ].filter(Boolean).join(' ');
+  };
+
+  const kpis: { label: string; icon: typeof DollarSign; color: string; value: string; sub: string; sub2?: string; live?: boolean }[] = [
     {
-      label: esHoy ? 'Ventas del Día' : 'Ventas del Día Elegido', icon: DollarSign, color: '#007542',
-      value: money(ventasHoy?.totalVentas ?? 0),
-      sub: ventasHoy && ventasHoy.totalNotasCredito > 0
-        ? `Netas: ${money(ventasHoy.totalVentas)} − ${money(ventasHoy.totalNotasCredito)} = ${money(ventasHoy.ventasNetas)}`
-        : `Ventas netas: ${money(ventasHoy?.ventasNetas ?? 0)}`,
+      label: esHoy ? 'Ventas Netas del Día' : 'Ventas Netas del Día Elegido', icon: DollarSign, color: '#007542',
+      value: money(ventasHoy?.ventasNetas ?? 0),
+      sub: detalleNeto(ventasHoy),
     },
     {
-      label: 'Ventas del Mes', icon: TrendingUp, color: '#1E8C45',
-      value: money(ventasMes?.totalVentas ?? 0),
-      sub: pctVsMesAnterior === null ? 'Sin ventas el mes anterior para comparar' : `${pctVsMesAnterior >= 0 ? '+' : ''}${pctVsMesAnterior.toFixed(1)}% vs mes anterior`,
+      label: 'Ventas Netas del Mes', icon: TrendingUp, color: '#1E8C45',
+      value: money(ventasMes?.ventasNetas ?? 0),
+      sub: detalleNeto(ventasMes),
+      sub2: pctVsMesAnterior === null ? 'Sin ventas el mes anterior para comparar' : `${pctVsMesAnterior >= 0 ? '+' : ''}${pctVsMesAnterior.toFixed(1)}% vs mes anterior`,
     },
     {
       label: 'Pedidos en Cocina Ahora', icon: ShoppingCart, color: '#3AA346',
@@ -329,10 +339,21 @@ export default function DashboardPage() {
               </div>
               <p className="text-sm font-bold text-slate-800 mt-1.5 font-mono">{kpi.value}</p>
               <p className="text-[9px] text-slate-400 mt-0.5 leading-tight">{kpi.sub}</p>
+              {kpi.sub2 && <p className="text-[9px] text-slate-400 leading-tight">{kpi.sub2}</p>}
             </div>
           );
         })}
       </div>
+
+      {ventasHoy && (
+        <DesgloseNotas
+          ncPeriodo={ventasHoy.ncPeriodo}
+          ndPeriodo={ventasHoy.ndPeriodo}
+          ncAnteriores={ventasHoy.ncAnteriores}
+          ndAnteriores={ventasHoy.ndAnteriores}
+          periodo={esHoy ? 'de hoy' : 'del día'}
+        />
+      )}
 
       {/* Curva + Rendimiento por Mozo */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">

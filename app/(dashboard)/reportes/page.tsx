@@ -1,159 +1,293 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Share2, Loader2 } from 'lucide-react';
-import ExcelJS from 'exceljs';
+import { useEffect, useMemo, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import { useApp } from '@/context/AppContext';
+import { exportClientes } from '@/lib/reportes/excelResumen';
+import { METODO_PAGO_LABEL } from '@/lib/reportes/excel';
+import { CalendarRange, Download, FileSpreadsheet, Loader2, TrendingUp, TrendingDown, Wallet, Percent, Receipt, Ticket } from 'lucide-react';
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell,
+} from 'recharts';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
-import { SucursalSelector } from '@/components/ui';
-import { getReporteResumen, getRankingProductos, toFechaParam, type ReporteResumenDto, type RankingProductosDto } from '@/lib/api/reportes';
+import { SucursalSelector, Select } from '@/components/ui';
+import { ReportesExcelModal } from '@/components/reportes/ReportesExcelModal';
+import { DesgloseNotas } from '@/components/reportes/DesgloseNotas';
+import { getUsuarios, type Usuario } from '@/lib/api/usuarios';
+import {
+  getReporteResumen, getRankingProductos, getReporteVentasPeriodo, getReporteClientes, toFechaParam,
+  type ReporteResumenDto, type RankingProductosDto, type ReporteVentasDto, type KpiVentasDto,
+} from '@/lib/api/reportes';
+import { PERIODOS, rangoPeriodo, parseFecha, diasEnRango, type PeriodoRapido } from '@/lib/reportes/periodos';
 
-const CATEGORY_COLORS = ['bg-brand', 'bg-brand-hover', 'bg-emerald-500', 'bg-amber-500', 'bg-indigo-500', 'bg-rose-500'];
+// Paleta de la marca (verdes) con plomo como neutro, sin colores extra que compitan.
+const CATEGORY_COLORS = ['bg-brand', 'bg-brand-hover', 'bg-brand-subtle', 'bg-brand-accent', 'bg-slate-400', 'bg-slate-300'];
 
-/** Primer día del mes actual, en horario local (no UTC). */
-function primerDiaDelMes(): Date {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
+// Recharts necesita hex; coinciden con los tokens de design-tokens.css.
+const COLOR_VENTAS = '#007542';
+const COLOR_IGV = '#94a3b8';
 
+const DOC_META: Record<string, { label: string; color: string }> = {
+  boleta:       { label: 'Boletas',          color: '#007542' },
+  factura:      { label: 'Facturas',         color: '#094127' },
+  ticket:       { label: 'Notas de venta',   color: '#58BB43' },
+  nota_credito: { label: 'Notas de crédito', color: '#94a3b8' },
+  nota_debito:  { label: 'Notas de débito',  color: '#cbd5e1' },
+};
+
+/** Roles que realmente cobran/atienden una venta — excluye cocinero, repartidor, etc. */
+const ROLES_VISIBLES = ['admin', 'cajero', 'mozo'];
+
+const money = (n: number) => `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtMinutos = (min: number | null) => (min == null ? 'Sin datos' : `${Math.round(min)} min`);
 const fmtHora24 = (h: number) => `${String(h).padStart(2, '0')}:00`;
 
+const DIAS_CORTOS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+function calcTrend(actual: number, anterior: number): { texto: string; sube: boolean } | null {
+  if (anterior === 0) return actual === 0 ? null : { texto: 'Nuevo', sube: true };
+  const diff = ((actual - anterior) / Math.abs(anterior)) * 100;
+  return { texto: `${diff >= 0 ? '+' : ''}${diff.toFixed(1)}%`, sube: diff >= 0 };
+}
+
+interface PuntoGrafico { etiqueta: string; ventas: number; igv: number }
+
+/** Una barra por día (rango corto) o por mes (rango largo), rellenando los períodos sin ventas con 0. */
+function armarSerie(desde: string, hasta: string, diaria: ReporteVentasDto['diaria']): PuntoGrafico[] {
+  const porDia = new Map(diaria.map(d => [d.fecha, d]));
+  const dias = diasEnRango(desde, hasta);
+  const inicio = parseFecha(desde);
+
+  if (dias > 62) {
+    const meses = new Map<string, PuntoGrafico>();
+    for (let i = 0; i < dias; i++) {
+      const d = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + i);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      if (!meses.has(key)) meses.set(key, { etiqueta: MESES_CORTOS[d.getMonth()], ventas: 0, igv: 0 });
+      const p = meses.get(key)!;
+      const v = porDia.get(toFechaParam(d));
+      if (v) { p.ventas += v.ventas; p.igv += v.igv; }
+    }
+    return [...meses.values()];
+  }
+
+  return Array.from({ length: dias }, (_, i) => {
+    const d = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + i);
+    const v = porDia.get(toFechaParam(d));
+    const etiqueta = dias <= 7
+      ? DIAS_CORTOS[d.getDay()]
+      : `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+    return { etiqueta, ventas: v?.ventas ?? 0, igv: v?.igv ?? 0 };
+  });
+}
+
+function KpiCard({ icon, label, value, actual, anterior, detalle }: {
+  icon: React.ReactNode; label: string; value: string; actual: number; anterior: number; detalle?: string;
+}) {
+  const trend = calcTrend(actual, anterior);
+  return (
+    <div className="card p-3 space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="w-8 h-8 rounded-lg bg-brand/10 text-brand flex items-center justify-center shrink-0">{icon}</div>
+        {trend && (
+          <span
+            title="Comparado con el período anterior de igual duración"
+            className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${trend.sube ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}
+          >
+            {trend.sube ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+            {trend.texto}
+          </span>
+        )}
+      </div>
+      <div>
+        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wide">{label}</p>
+        <p className="text-xl font-mono font-bold text-slate-800 leading-tight">{value}</p>
+        {detalle && <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">{detalle}</p>}
+      </div>
+    </div>
+  );
+}
+
 export default function ReportesPage() {
+  const { data: session } = useSession();
   const { triggerToast } = useApp();
   const { token, isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
-  const [fechaInicio, setFechaInicio] = useState(() => toFechaParam(primerDiaDelMes()));
-  const [fechaFin, setFechaFin] = useState(() => toFechaParam(new Date()));
+  const [periodo, setPeriodo] = useState<PeriodoRapido | 'personalizado'>('mes');
+  const [showCustom, setShowCustom] = useState(false);
+  const [draftDesde, setDraftDesde] = useState('');
+  const [draftHasta, setDraftHasta] = useState('');
+  const [fechaInicio, setFechaInicio] = useState(() => rangoPeriodo('mes').desde);
+  const [fechaFin, setFechaFin] = useState(() => rangoPeriodo('mes').hasta);
+  const [usuarioId, setUsuarioId] = useState<number | null>(null);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+
   const [reporte, setReporte] = useState<ReporteResumenDto | null>(null);
   const [ranking, setRanking] = useState<RankingProductosDto | null>(null);
+  const [ventas, setVentas] = useState<ReporteVentasDto | null>(null);
   const [rankingTab, setRankingTab] = useState<'top' | 'bottom'>('top');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [exporting, setExporting] = useState(false);
+  const [showExcel, setShowExcel] = useState(false);
+  const [exportandoClientes, setExportandoClientes] = useState(false);
+
+  // Los usuarios dependen de la sucursal; al cambiarla se reinicia el filtro.
+  useEffect(() => {
+    if (!token || !sId) return;
+    setUsuarioId(null);
+    getUsuarios(token, { sucursalId: sId })
+      .then(data => setUsuarios(data.filter(u => ROLES_VISIBLES.includes(u.rolNombre.toLowerCase()))))
+      .catch(() => setUsuarios([]));
+  }, [token, sId]);
 
   useEffect(() => {
     if (!token || !sId) return;
+    let cancelado = false;
     setLoading(true);
     setError(false);
+    const filtros = { sucursalId: sId, fechaInicio, fechaFin, usuarioId: usuarioId ?? undefined };
     Promise.all([
-      getReporteResumen(token, { sucursalId: sId, fechaInicio, fechaFin }),
-      getRankingProductos(token, { sucursalId: sId, fechaInicio, fechaFin }),
+      getReporteResumen(token, filtros),
+      getRankingProductos(token, filtros),
+      getReporteVentasPeriodo(token, filtros),
     ])
-      .then(([resumenRes, rankingRes]) => {
+      .then(([resumenRes, rankingRes, ventasRes]) => {
+        if (cancelado) return;
         setReporte(resumenRes);
         setRanking(rankingRes);
+        setVentas(ventasRes);
       })
-      .catch(() => setError(true))
-      .finally(() => setLoading(false));
-  }, [token, sId, fechaInicio, fechaFin]);
+      .catch(() => { if (!cancelado) setError(true); })
+      .finally(() => { if (!cancelado) setLoading(false); });
+    return () => { cancelado = true; };
+  }, [token, sId, fechaInicio, fechaFin, usuarioId]);
 
+  const elegirPeriodo = (p: PeriodoRapido) => {
+    const r = rangoPeriodo(p);
+    setPeriodo(p);
+    setShowCustom(false);
+    setFechaInicio(r.desde);
+    setFechaFin(r.hasta);
+  };
+
+  // Al abrir "Personalizar" el borrador arranca con el rango vigente (no vacío).
+  const togglePersonalizar = () => {
+    if (!showCustom) { setDraftDesde(fechaInicio); setDraftHasta(fechaFin); }
+    setShowCustom(v => !v);
+  };
+
+  const borradorValido = !!draftDesde && !!draftHasta && draftDesde <= draftHasta;
+  const borradorCambio = draftDesde !== fechaInicio || draftHasta !== fechaFin;
+
+  const aplicarPersonalizado = () => {
+    if (!borradorValido) return;
+    setPeriodo('personalizado');
+    setFechaInicio(draftDesde);
+    setFechaFin(draftHasta);
+  };
+
+  const serie = useMemo(
+    () => (ventas ? armarSerie(fechaInicio, fechaFin, ventas.diaria) : []),
+    [ventas, fechaInicio, fechaFin]
+  );
+  const donut = useMemo(
+    () => (ventas?.documentos ?? []).map(d => ({
+      name: DOC_META[d.tipo]?.label ?? d.tipo,
+      value: d.cantidad,
+      color: DOC_META[d.tipo]?.color ?? '#94a3b8',
+    })),
+    [ventas]
+  );
+
+  const totalMedios = ventas?.mediosPago.reduce((a, m) => a + m.total, 0) ?? 0;
   const totalCategorias = reporte?.categorias.reduce((a, c) => a + c.totalVendido, 0) ?? 0;
-  const maxAforo = Math.max(1, ...(reporte?.aforo.map(a => a.cantidad) ?? [0]));
 
-  const handleExportExcel = async () => {
-    if (!reporte) return;
-    setExporting(true);
+  const exportarClientes = async () => {
+    if (!token || !sId) return;
+    setExportandoClientes(true);
     try {
-      const workbook = new ExcelJS.Workbook();
-      workbook.creator = 'RestoPro';
-      workbook.created = new Date();
-
-      const catSheet = workbook.addWorksheet('Categorías más vendidas');
-      catSheet.columns = [
-        { header: 'Categoría', key: 'nombre', width: 30 },
-        { header: 'Cantidad vendida', key: 'cantidad', width: 18 },
-        { header: 'Total vendido (S/.)', key: 'total', width: 20 },
-      ];
-      reporte.categorias.forEach(c =>
-        catSheet.addRow({ nombre: c.categoriaNombre, cantidad: c.cantidadVendida, total: c.totalVendido })
+      const todos = await getReporteClientes(token, { sucursalId: sId, fechaInicio, fechaFin, usuarioId: usuarioId ?? undefined });
+      const usuarioNombre = usuarioId ? usuarios.find(u => u.id === usuarioId)?.nombre : null;
+      await exportClientes(
+        todos,
+        {
+          generadoPor: session?.user?.name ?? 'Usuario',
+          contexto: `Sucursal: ${sucursales.find(s => s.id === sId)?.nombre ?? '—'}  ·  ${fechaInicio} al ${fechaFin}  ·  Usuario: ${usuarioNombre ?? 'Todos'}`,
+        },
+        `resumen-clientes-${fechaInicio}-a-${fechaFin}`
       );
-      catSheet.getRow(1).font = { bold: true };
-      catSheet.getColumn('total').numFmt = '"S/." #,##0.00';
-
-      const tiemposSheet = workbook.addWorksheet('Tiempos de operación');
-      tiemposSheet.columns = [
-        { header: 'Métrica', key: 'metrica', width: 32 },
-        { header: 'Minutos promedio', key: 'valor', width: 20 },
-      ];
-      tiemposSheet.addRow({ metrica: 'Preparación en Cocina', valor: reporte.tiempos.prepCocinaMinutos ?? 'Sin datos' });
-      tiemposSheet.addRow({ metrica: 'Tiempo Permanencia Mesa', valor: reporte.tiempos.permanenciaMesaMinutos ?? 'Sin datos' });
-      tiemposSheet.addRow({ metrica: 'Despacho Delivery (aprox.)', valor: reporte.tiempos.despachoDeliveryMinutos ?? 'Sin datos' });
-      tiemposSheet.getRow(1).font = { bold: true };
-
-      const aforoSheet = workbook.addWorksheet('Aforo por hora');
-      aforoSheet.columns = [
-        { header: 'Hora', key: 'hora', width: 10 },
-        { header: 'Cantidad de pedidos', key: 'cantidad', width: 20 },
-      ];
-      reporte.aforo.forEach(a => aforoSheet.addRow({ hora: fmtHora24(a.hora), cantidad: a.cantidad }));
-      aforoSheet.getRow(1).font = { bold: true };
-
-      if (ranking) {
-        const productosSheet = workbook.addWorksheet('Ranking de productos');
-        productosSheet.columns = [
-          { header: 'Ranking', key: 'ranking', width: 10 },
-          { header: 'Producto', key: 'nombre', width: 30 },
-          { header: 'Cantidad vendida', key: 'cantidad', width: 18 },
-          { header: 'Total vendido (S/.)', key: 'total', width: 20 },
-        ];
-        ranking.top.forEach((p, i) =>
-          productosSheet.addRow({ ranking: `Top ${i + 1}`, nombre: p.productoNombre, cantidad: p.cantidadVendida, total: p.totalVendido })
-        );
-        ranking.bottom.forEach((p, i) =>
-          productosSheet.addRow({ ranking: `Bottom ${i + 1}`, nombre: p.productoNombre, cantidad: p.cantidadVendida, total: p.totalVendido })
-        );
-        productosSheet.getRow(1).font = { bold: true };
-        productosSheet.getColumn('total').numFmt = '"S/." #,##0.00';
-      }
-
-      const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `reporte-${fechaInicio}-a-${fechaFin}.xlsx`;
-      link.click();
-      URL.revokeObjectURL(url);
-
       triggerToast('Reporte descargado como archivo Excel.', 'success');
     } catch {
       triggerToast('No se pudo generar el archivo Excel.', 'error');
     } finally {
-      setExporting(false);
+      setExportandoClientes(false);
     }
   };
+  const maxAforo = Math.max(1, ...(reporte?.aforo.map(a => a.cantidad) ?? [0]));
+  const actual: KpiVentasDto | undefined = ventas?.actual;
+  const anterior: KpiVentasDto | undefined = ventas?.anterior;
+  const sucursalNombre = sucursales.find(s => s.id === sId)?.nombre ?? '—';
+  const tituloGrafico = diasEnRango(fechaInicio, fechaFin) > 62 ? 'Ventas por mes' : 'Ventas por día';
 
   return (
-    <div className="space-y-6 animate-section">
+    <div className="space-y-4 animate-section">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h3 className="text-xl font-bold text-gray-900">Módulo de Reportería del Sistema</h3>
           <p className="text-xs text-gray-500">Visualizaciones avanzadas para decisiones corporativas mensuales.</p>
         </div>
-        <button
-          onClick={handleExportExcel}
-          disabled={!reporte || exporting}
-          className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {exporting ? (
-            <><Loader2 className="h-4 w-4 animate-spin" /> Generando...</>
-          ) : (
-            <><Share2 className="h-4 w-4" /> Exportar a Excel (.xlsx)</>
-          )}
+        <button onClick={() => setShowExcel(true)} disabled={!sId} className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
+          <FileSpreadsheet className="h-4 w-4" /> Reportes Excel
         </button>
       </div>
 
-      {/* Filtros: sucursal (solo superadmin) y rango de fechas */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+      {/* Filtros: período, sucursal (solo superadmin) y usuario */}
+      <div className="flex flex-col lg:flex-row lg:items-end gap-3">
+        <div className="flex flex-wrap items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-xs w-fit">
+          {PERIODOS.map(p => (
+            <button
+              key={p.key}
+              onClick={() => elegirPeriodo(p.key)}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${periodo === p.key ? 'bg-brand text-white shadow-xs' : 'text-slate-500 hover:bg-slate-50'}`}
+            >
+              {p.label}
+            </button>
+          ))}
+          <button
+            onClick={togglePersonalizar}
+            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5 ${periodo === 'personalizado' ? 'bg-brand text-white shadow-xs' : showCustom ? 'bg-slate-100 text-slate-700' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            <CalendarRange className="h-3.5 w-3.5" /> Personalizar
+          </button>
+        </div>
+
         <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sId} onChange={selectSucursal} />
-        <div className="flex items-center gap-2 text-xs">
-          <label className="text-slate-500 font-semibold">Desde</label>
-          <input type="date" value={fechaInicio} max={fechaFin} onChange={e => setFechaInicio(e.target.value)} className="input px-2 py-1.5 text-xs" />
-          <label className="text-slate-500 font-semibold">Hasta</label>
-          <input type="date" value={fechaFin} min={fechaInicio} max={toFechaParam(new Date())} onChange={e => setFechaFin(e.target.value)} className="input px-2 py-1.5 text-xs" />
+
+        <div className="w-full sm:w-52">
+          <Select value={usuarioId ?? ''} onChange={e => setUsuarioId(e.target.value ? Number(e.target.value) : null)} aria-label="Usuario">
+            <option value="">Todos los usuarios</option>
+            {usuarios.map(u => <option key={u.id} value={u.id}>{u.nombre}</option>)}
+          </Select>
         </div>
       </div>
+
+      {showCustom && (
+        <div className="flex flex-wrap items-center gap-2 bg-white border border-slate-200 rounded-xl p-2 w-fit text-xs shadow-xs">
+          <input type="date" value={draftDesde} max={draftHasta || toFechaParam(new Date())}
+            onChange={e => setDraftDesde(e.target.value)} className="input px-2 py-1.5 text-xs" aria-label="Desde" />
+          <span className="text-slate-400">→</span>
+          <input type="date" value={draftHasta} min={draftDesde} max={toFechaParam(new Date())}
+            onChange={e => setDraftHasta(e.target.value)} className="input px-2 py-1.5 text-xs" aria-label="Hasta" />
+          <button
+            onClick={aplicarPersonalizado}
+            disabled={!borradorValido || !borradorCambio}
+            className="btn-primary text-[11px] px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Aplicar
+          </button>
+        </div>
+      )}
 
       {loading && (
         <div className="card-lg p-12 flex flex-col items-center justify-center gap-3">
@@ -168,10 +302,103 @@ export default function ReportesPage() {
         </div>
       )}
 
+      {!loading && !error && actual && anterior && (
+        <>
+          {/* KPIs con tendencia vs. el período anterior */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard
+              icon={<Wallet className="h-4 w-4" />} label="Ventas netas (inc. IGV)" value={money(actual.totalVentas)}
+              actual={actual.totalVentas} anterior={anterior.totalVentas}
+              detalle={[
+                `Bruto ${money(actual.totalBruto)}`,
+                actual.ncPeriodo > 0 ? `− NC ${money(actual.ncPeriodo)}` : '',
+                actual.ndPeriodo > 0 ? `+ ND ${money(actual.ndPeriodo)}` : '',
+              ].filter(Boolean).join(' ')}
+            />
+            <KpiCard icon={<Percent className="h-4 w-4" />} label="IGV" value={money(actual.totalIgv)} actual={actual.totalIgv} anterior={anterior.totalIgv} />
+            <KpiCard icon={<Receipt className="h-4 w-4" />} label="Documentos emitidos" value={actual.documentos.toLocaleString('es-PE')} actual={actual.documentos} anterior={anterior.documentos} />
+            <KpiCard icon={<Ticket className="h-4 w-4" />} label="Promedio por venta" value={money(actual.ticketPromedio)} actual={actual.ticketPromedio} anterior={anterior.ticketPromedio} />
+          </div>
+
+          <DesgloseNotas
+            ncPeriodo={actual.ncPeriodo}
+            ndPeriodo={actual.ndPeriodo}
+            ncAnteriores={actual.ncAnteriores}
+            ndAnteriores={actual.ndAnteriores}
+            periodo="del período"
+          />
+
+          {/* Ventas por día/mes + distribución de documentos */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="card-lg p-4 space-y-3 lg:col-span-2">
+              <div>
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">{tituloGrafico}</h4>
+                <p className="text-[11px] text-slate-400">Comparativa de ventas e IGV</p>
+              </div>
+              {actual.documentos === 0 ? (
+                <p className="text-xs text-slate-400 italic py-16 text-center">Sin ventas en el rango seleccionado.</p>
+              ) : (
+                <div className="h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={serie} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis dataKey="etiqueta" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        formatter={(value, name) => [money(Number(value)), name === 'ventas' ? 'Ventas' : 'IGV']}
+                        cursor={{ fill: 'rgba(0,117,66,0.06)' }}
+                        contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }}
+                      />
+                      <Bar dataKey="ventas" fill={COLOR_VENTAS} radius={[4, 4, 0, 0]} maxBarSize={28} />
+                      <Bar dataKey="igv" fill={COLOR_IGV} radius={[4, 4, 0, 0]} maxBarSize={28} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              <div className="flex items-center justify-center gap-4 text-[11px] text-slate-500">
+                <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: COLOR_VENTAS }} />Ventas</span>
+                <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: COLOR_IGV }} />IGV</span>
+              </div>
+            </div>
+
+            <div className="card-lg p-4 space-y-3">
+              <div>
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Distribución de documentos</h4>
+                <p className="text-[11px] text-slate-400">Cantidad por tipo de comprobante</p>
+              </div>
+              {donut.length === 0 ? (
+                <p className="text-xs text-slate-400 italic py-16 text-center">Sin documentos en el rango seleccionado.</p>
+              ) : (
+                <>
+                  <div className="h-36">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={donut} dataKey="value" nameKey="name" innerRadius="60%" outerRadius="90%" paddingAngle={2} stroke="none">
+                          {donut.map(d => <Cell key={d.name} fill={d.color} />)}
+                        </Pie>
+                        <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {donut.map(d => (
+                      <li key={d.name} className="flex items-center justify-between text-xs text-slate-600">
+                        <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full" style={{ background: d.color }} />{d.name}</span>
+                        <span className="font-mono font-bold text-slate-800">{d.value}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
       {!loading && !error && reporte && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Categorías más vendidas */}
-          <div className="card-lg p-5 space-y-4">
+          <div className="card-lg p-4 space-y-3">
             <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Categorías Más Vendidas</h4>
             {reporte.categorias.length === 0 ? (
               <p className="text-xs text-slate-400 italic py-6 text-center">Sin ventas en el rango seleccionado.</p>
@@ -195,8 +422,8 @@ export default function ReportesPage() {
             )}
           </div>
 
-          {/* Tiempos promedio de operación */}
-          <div className="card-lg p-5 space-y-4">
+          {/* Tiempos promedio de operación (no dependen del usuario) */}
+          <div className="card-lg p-4 space-y-3">
             <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Tiempos Promedio Operación</h4>
             <div className="space-y-4">
               {[
@@ -215,8 +442,8 @@ export default function ReportesPage() {
             </div>
           </div>
 
-          {/* Distribución de aforo por horarios */}
-          <div className="card-lg p-5 space-y-4">
+          {/* Distribución de aforo por horarios (no depende del usuario) */}
+          <div className="card-lg p-4 space-y-3">
             <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Distribución de Aforo por Horarios</h4>
             {reporte.aforo.length === 0 ? (
               <p className="text-xs text-slate-400 italic py-6 text-center">Sin pedidos en el rango seleccionado.</p>
@@ -224,10 +451,7 @@ export default function ReportesPage() {
               <div className="flex justify-between items-end h-28 pt-2 gap-1 overflow-x-auto">
                 {reporte.aforo.map(bar => (
                   <div key={bar.hora} className="flex-1 min-w-[18px] flex flex-col items-center gap-1" title={`${fmtHora24(bar.hora)} — ${bar.cantidad} pedidos`}>
-                    <div
-                      className="w-full bg-brand rounded"
-                      style={{ height: `${Math.max(4, (bar.cantidad / maxAforo) * 96)}px` }}
-                    />
+                    <div className="w-full bg-brand rounded" style={{ height: `${Math.max(4, (bar.cantidad / maxAforo) * 96)}px` }} />
                     <span className="text-[8px] text-slate-500 font-mono">{fmtHora24(bar.hora)}</span>
                   </div>
                 ))}
@@ -237,8 +461,10 @@ export default function ReportesPage() {
         </div>
       )}
 
-      {!loading && !error && ranking && (
-        <div className="card-lg p-5 space-y-4">
+      {!loading && !error && ranking && ventas && (
+        <>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="card-lg p-4 space-y-3">
           <div className="flex items-center justify-between gap-3">
             <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Ranking de Productos</h4>
             <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5">
@@ -259,7 +485,7 @@ export default function ReportesPage() {
           {(rankingTab === 'top' ? ranking.top : ranking.bottom).length === 0 ? (
             <p className="text-xs text-slate-400 italic py-6 text-center">Sin ventas en el rango seleccionado.</p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
+            <div>
               {(rankingTab === 'top' ? ranking.top : ranking.bottom).map((p, i) => (
                 <div key={p.productoId} className="flex items-center justify-between gap-3 py-1.5 border-b border-slate-100 last:border-0">
                   <div className="flex items-center gap-2 min-w-0">
@@ -275,7 +501,97 @@ export default function ReportesPage() {
             </div>
           )}
         </div>
+
+        {/* Medios de pago (sin notas de crédito/débito) */}
+        <div className="card-lg p-4 space-y-3">
+          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Medios de Pago</h4>
+          {ventas.mediosPago.length === 0 ? (
+            <p className="text-xs text-slate-400 italic py-6 text-center">Sin pagos en el rango seleccionado.</p>
+          ) : (
+            <div className="space-y-3">
+              {ventas.mediosPago.map((m, i) => {
+                const pct = totalMedios > 0 ? Math.round((m.total / totalMedios) * 100) : 0;
+                return (
+                  <div key={m.medio}>
+                    <div className="flex justify-between items-baseline text-xs text-slate-600 mb-1 gap-3">
+                      <span className="font-semibold">{METODO_PAGO_LABEL[m.medio] ?? m.medio}
+                        <span className="ml-2 text-[10px] font-mono font-normal text-slate-400">{m.cantidad} op.</span>
+                      </span>
+                      <span className="font-mono shrink-0"><b className="text-slate-800">{money(m.total)}</b> <span className="text-slate-400">· {pct}%</span></span>
+                    </div>
+                    <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div className={`h-full ${CATEGORY_COLORS[i % CATEGORY_COLORS.length]} rounded-full`} style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        </div>
+
+        {/* Resumen por cliente: top 10 por monto; el listado completo va en el Excel */}
+        <div className="card-lg p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Resumen por Cliente</h4>
+              <p className="text-[11px] text-slate-400">Top 10 por monto · montos netos</p>
+            </div>
+            <button
+              onClick={exportarClientes}
+              disabled={exportandoClientes || ventas.clientes.length === 0}
+              className="btn-secondary text-[11px] px-3 py-1.5 inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {exportandoClientes ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+              Exportar todos
+            </button>
+          </div>
+          {ventas.clientes.length === 0 ? (
+            <p className="text-xs text-slate-400 italic py-6 text-center">Sin ventas en el rango seleccionado.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-200">
+                    <th className="text-left font-bold py-1.5 pr-3">Cliente</th>
+                    <th className="text-center font-bold py-1.5 px-3">N° Docs</th>
+                    <th className="text-right font-bold py-1.5 px-3">Subtotal</th>
+                    <th className="text-right font-bold py-1.5 px-3">IGV</th>
+                    <th className="text-right font-bold py-1.5 pl-3">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ventas.clientes.map(c => (
+                    <tr key={`${c.numDoc ?? '-'}-${c.cliente}`} className="border-b border-slate-100 last:border-0">
+                      <td className="py-1.5 pr-3 text-slate-700">
+                        <span className="font-semibold">{c.cliente}</span>
+                        {c.numDoc && <span className="ml-2 text-[10px] font-mono text-slate-400">{c.numDoc}</span>}
+                      </td>
+                      <td className="py-1.5 px-3 text-center font-mono text-slate-500">{c.documentos}</td>
+                      <td className="py-1.5 px-3 text-right font-mono text-slate-600">{money(c.subtotal)}</td>
+                      <td className="py-1.5 px-3 text-right font-mono text-slate-600">{money(c.igv)}</td>
+                      <td className="py-1.5 pl-3 text-right font-mono font-bold text-slate-800">{money(c.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        </>
       )}
+
+      <ReportesExcelModal
+        open={showExcel}
+        onClose={() => setShowExcel(false)}
+        token={token}
+        sucursalId={sId}
+        sucursalNombre={sucursalNombre}
+        usuarios={usuarios}
+        desdeInicial={fechaInicio}
+        hastaInicial={fechaFin}
+        usuarioInicial={usuarioId}
+      />
     </div>
   );
 }
