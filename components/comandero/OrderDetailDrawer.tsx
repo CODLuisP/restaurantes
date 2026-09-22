@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Bell, Bike, Building2, Check, Loader2, Pencil, ShoppingBag, Trash2, X } from 'lucide-react';
+import { Bell, Bike, Building2, Check, Loader2, Pencil, Receipt, ShoppingBag, Trash2, X } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
+import { useTicketsConfig } from '@/hooks/app/useTicketsConfig';
+import { imprimirPreCuenta } from '@/lib/print/precuenta';
 import type { ActiveOrder, Table } from '@/types';
 
 type BusyAction = 'cancel' | 'confirm' | 'delivered' | null;
@@ -32,6 +34,7 @@ export default function OrderDetailDrawer({
   onMarkDeliveredOrder: (orderId: string) => Promise<void>;
 }) {
   const { tables, activeOrders, impresoraCocina } = useApp();
+  const { businessName, logoUrl, ruc, direccion, paperSize } = useTicketsConfig();
   const [busyAction, setBusyAction] = useState<BusyAction>(null);
 
   const table: Table | undefined = view.kind === 'mesa' ? tables.find(t => t.name === view.tableName) : undefined;
@@ -70,6 +73,22 @@ export default function OrderDetailDrawer({
      como "pendiente" para siempre, así que el mozo lo marca entregado él mismo. */
   const puedeMarcarEntregado =
     impresoraCocina && !pendienteConfirmacion && !!pedidoEstado && pedidoEstado !== 'entregado' && pedidoEstado !== 'cancelado';
+
+  const mozo = view.kind === 'mesa' ? table?.waiter : order?.waiter;
+  const handlePrintPreCuenta = () => {
+    imprimirPreCuenta(
+      {
+        businessName,
+        logoUrl,
+        ruc,
+        direccion,
+        mesa: view.kind === 'mesa' ? table!.name : undefined,
+        mozo,
+        items: items.map(i => ({ cantidad: i.quantity, nombre: i.product.name, precioUnitario: i.product.price })),
+      },
+      paperSize
+    );
+  };
 
   return (
     <div className="w-full lg:w-96 shrink-0 lg:-my-8 lg:-mr-8 lg:h-[calc(100vh-4rem)] lg:sticky lg:top-16">
@@ -214,6 +233,13 @@ export default function OrderDetailDrawer({
               className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-brand hover:bg-brand-hover py-2.5 rounded-xl transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <Pencil className="w-3.5 h-3.5" /> Editar pedido
+            </button>
+            <button
+              onClick={handlePrintPreCuenta}
+              disabled={busyAction !== null || items.length === 0}
+              className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-slate-700 border border-slate-200 hover:bg-slate-50 py-2.5 rounded-xl transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <Receipt className="w-3.5 h-3.5" /> Imprimir pre-cuenta
             </button>
             <button
               onClick={handleCancel}

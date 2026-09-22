@@ -17,6 +17,8 @@ export function useTicketsConfig() {
   const [paperSize, setPaperSize] = useState<PaperSize>('80mm');
   const [businessName, setBusinessName] = useState<string | undefined>(undefined);
   const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined);
+  const [ruc, setRuc] = useState<string | undefined>(undefined);
+  const [direccion, setDireccion] = useState<string | undefined>(undefined);
 
   const refreshTicketsConfig = useCallback(async () => {
     if (!token) return;
@@ -33,6 +35,8 @@ export function useTicketsConfig() {
       const empresa = await getMiEmpresa(token);
       setBusinessName(empresa.razonSocial || empresa.nombreComercial || empresa.nombre || undefined);
       setLogoUrl(empresa.logoUrl ?? undefined);
+      setRuc(empresa.ruc || undefined);
+      setDireccion(empresa.direccionCompleta || empresa.direccion || undefined);
     } catch {
       /* silencioso: si falla, los bloques "Negocio"/"Imagen" simplemente no se imprimen */
     }
@@ -40,5 +44,5 @@ export function useTicketsConfig() {
 
   useEffect(() => { refreshTicketsConfig(); }, [refreshTicketsConfig]);
 
-  return { cocinaBlocks, paperSize, businessName, logoUrl, refreshTicketsConfig };
+  return { cocinaBlocks, paperSize, businessName, logoUrl, ruc, direccion, refreshTicketsConfig };
 }
