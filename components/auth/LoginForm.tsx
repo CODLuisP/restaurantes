@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -11,8 +10,6 @@ import {
 } from 'lucide-react';
 
 export default function LoginForm() {
-  const router = useRouter();
-
   const [loginMethod, setLoginMethod] = useState<'password' | 'pin'>('password');
   const [username, setUsername]       = useState('');
   const [password, setPassword]       = useState('');
@@ -72,12 +69,13 @@ export default function LoginForm() {
       return;
     }
 
-    // El middleware decide a dónde ir según el rol (ej. cocinero → /carta, resto → /dashboard).
-    router.push('/');
-
-    // Quitamos router.refresh(): causaba condición de carrera entre la cookie de sesión y el refresh;
-    // router.push('/') ya trae Server Components frescos en cada navegación.
-    // router.refresh();
+    // Navegación completa (no router.push): con signIn({redirect:false}) la cookie de sesión se
+    // acaba de crear, y una navegación soft puede reutilizar la caché de router de "/" de antes de
+    // loguearse (login sin sesión) o llegar al middleware antes de que la cookie esté asentada —
+    // en producción (detrás de proxy/Cloudflare) esto se traducía en quedarse colgado o necesitar
+    // recargar la página a mano. Un reload real del navegador manda la cookie fresca sí o sí y el
+    // middleware decide a dónde ir según el rol (ej. cocinero → /carta, resto → /dashboard).
+    window.location.href = '/';
   };
 
   return (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type MutableRefObject } from 'react';
+import { useRef, useState, type MutableRefObject } from 'react';
 import { Loader2, Minus, Plus, Send, ShoppingCart, Trash2, Utensils, X } from 'lucide-react';
 import { Spinner } from '@/components/ui';
 import type { OrderItem, OrderType } from '@/types';
@@ -50,6 +50,12 @@ export default function OrderPanel({
   /* Ítems "ya en servicio" que están descontándose/quitándose en este momento — bloquea sus
      propios controles y muestra un loading en vez de dejar el clic sin ningún efecto visible. */
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+
+  /* Congela "ya en la mesa"/"ya en el pedido" en su valor previo al envío — ver comentario junto
+     a su uso en el bloque de totales. */
+  const lastExistingTotal = useRef(existingTotal);
+  if (!sending) lastExistingTotal.current = existingTotal;
+  const frozenExistingTotal = sending ? lastExistingTotal.current : existingTotal;
 
   const runBusy = async (productId: string, action: () => Promise<void>) => {
     setBusyIds(prev => new Set(prev).add(productId));
@@ -219,16 +225,20 @@ export default function OrderPanel({
 
           {/* Totales y Botones */}
           <div className="border-t border-slate-100 pt-4 mt-4 shrink-0 space-y-3">
+            {/* Mientras se envía, el backend confirma y "existingTotal" se refresca con lo recién
+               enviado ANTES de que el carrito local ("cartTotal") se vacíe — ese instante intermedio
+               sumaría el mismo monto dos veces. Se congela "existingTotal" en su último valor
+               conocido (previo al envío) hasta que termine, para no mostrar ese doble conteo. */}
             <div className="space-y-1 text-xs text-slate-500">
               {orderType === 'mesa' ? (
                 <>
                   <div className="flex justify-between font-mono"><span>Comanda nueva</span><span>S/. {cartTotal.toFixed(2)}</span></div>
-                  <div className="flex justify-between font-mono"><span>Ya en la mesa</span><span>S/. {existingTotal.toFixed(2)}</span></div>
-                  <div className="flex justify-between font-mono font-extrabold text-sm text-slate-800 border-t border-dashed border-slate-200 pt-2"><span>Total</span><span>S/. {(cartTotal + existingTotal).toFixed(2)}</span></div>
+                  <div className="flex justify-between font-mono"><span>Ya en la mesa</span><span>S/. {frozenExistingTotal.toFixed(2)}</span></div>
+                  <div className="flex justify-between font-mono font-extrabold text-sm text-slate-800 border-t border-dashed border-slate-200 pt-2"><span>Total</span><span>S/. {(cartTotal + frozenExistingTotal).toFixed(2)}</span></div>
                 </>
               ) : (
                 <>
-                  {editingOrderId && <div className="flex justify-between font-mono"><span>Ya en el pedido</span><span>S/. {existingTotal.toFixed(2)}</span></div>}
+                  {editingOrderId && <div className="flex justify-between font-mono"><span>Ya en el pedido</span><span>S/. {frozenExistingTotal.toFixed(2)}</span></div>}
                   <div className="flex justify-between font-mono font-extrabold text-sm text-slate-800"><span>{editingOrderId ? 'Nuevo en este envío' : 'Total'}</span><span>S/. {cartTotal.toFixed(2)}</span></div>
                 </>
               )}
