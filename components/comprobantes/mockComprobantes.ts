@@ -22,7 +22,7 @@ export const INITIAL_MOCK_COMPROBANTES: Comprobante[] = [
     items: [
       { name: 'Arroz con Mariscos Meloso', quantity: 4, price: 42.00 },
       { name: 'Ceviche Clásico Carretillero', quantity: 4, price: 39.50 },
-      { name: 'Chicha Morada RestoPro (Jarra 1L)', quantity: 1, price: 18.00 },
+      { name: 'Chicha Morada RestoFly (Jarra 1L)', quantity: 1, price: 18.00 },
       { name: 'Inka Kola Personal Vidrio', quantity: 1, price: 12.40 }
     ]
   },
@@ -127,7 +127,7 @@ export const INITIAL_MOCK_COMPROBANTES: Comprobante[] = [
     items: [
       { name: 'Arroz con Mariscos Meloso', quantity: 4, price: 42.00 },
       { name: 'Ceviche Clásico Carretillero', quantity: 4, price: 39.50 },
-      { name: 'Chicha Morada RestoPro (Jarra 1L)', quantity: 1, price: 18.00 },
+      { name: 'Chicha Morada RestoFly (Jarra 1L)', quantity: 1, price: 18.00 },
       { name: 'Inka Kola Personal Vidrio', quantity: 1, price: 12.40 }
     ]
   },
@@ -191,7 +191,7 @@ export const INITIAL_MOCK_COMPROBANTES: Comprobante[] = [
     items: [
       { name: 'Anticuchos de Corazón (2 palos)', quantity: 5, price: 28.50 },
       { name: 'Arroz con Mariscos Meloso', quantity: 3, price: 42.00 },
-      { name: 'Chicha Morada RestoPro (Jarra 1L)', quantity: 1, price: 18.00 },
+      { name: 'Chicha Morada RestoFly (Jarra 1L)', quantity: 1, price: 18.00 },
       { name: 'Inka Kola Personal Vidrio', quantity: 1, price: 3.50 }
     ]
   },

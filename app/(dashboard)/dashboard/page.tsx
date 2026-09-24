@@ -61,7 +61,7 @@ const BRAND_COLOR = 'FF007542';
 
 async function exportVentasExcel(ventas: VentaDto[], fecha: Date, usuario: string) {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'RestoPro';
+  workbook.creator = 'RestoFly';
   workbook.created = new Date();
 
   const sheet = workbook.addWorksheet('Ventas', { views: [{ state: 'frozen', ySplit: 4 }] });
@@ -80,7 +80,7 @@ async function exportVentasExcel(ventas: VentaDto[], fecha: Date, usuario: strin
   // ── Encabezado (título + metadata) ──
   sheet.mergeCells(1, 1, 1, columnas.length);
   const tituloCell = sheet.getCell(1, 1);
-  tituloCell.value = 'REPORTE DE VENTAS — RESTOPRO';
+  tituloCell.value = 'REPORTE DE VENTAS — RESTOFLY';
   tituloCell.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
   tituloCell.alignment = { vertical: 'middle', horizontal: 'left' };
   tituloCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND_COLOR } };
@@ -297,7 +297,7 @@ export default function DashboardPage() {
         <div>
           <h3 className="text-lg font-bold text-slate-800 tracking-tight">Resumen Ejecutivo de Ventas</h3>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            Monitoreo de operaciones gastronómicas — RestoPro Perú.
+            Monitoreo de operaciones gastronómicas — RestoFly Perú.
           </p>
         </div>
         <div className="flex items-center gap-2">

@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   RestoPro — Design Tokens
+   RestoFly — Design Tokens
    Cambiar un valor aquí actualiza todos los componentes que lo
    usan. No toques colores hardcodeados en los archivos TSX/TSX.
    ═══════════════════════════════════════════════════════════════ */
@@ -7,7 +7,7 @@
 @theme {
 
   /* ── Paleta de marca ─────────────────────────────────────────
-     Verde corporativo RestoPro Perú.
+     Verde corporativo RestoFly Perú.
      Cambia aquí para rebrandear toda la app.                   */
   --color-brand:        #007542;
   --color-brand-hover:  #1E8C45;

@@ -27,7 +27,7 @@ function splitNumeroVenta(v: VentaDto): { serie: string; correlativo: string } {
 
 async function exportVentasDiaExcel(ventas: VentaDto[], usuario: string, contexto: string) {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'RestoPro';
+  workbook.creator = 'RestoFly';
   workbook.created = new Date();
 
   const sheet = workbook.addWorksheet('Ventas del Día', { views: [{ state: 'frozen', ySplit: 4 }] });
@@ -53,7 +53,7 @@ async function exportVentasDiaExcel(ventas: VentaDto[], usuario: string, context
   const ahora = new Date();
   sheet.mergeCells(1, 1, 1, columnas.length);
   const tituloCell = sheet.getCell(1, 1);
-  tituloCell.value = 'REPORTE DE VENTAS DEL DÍA — RESTOPRO';
+  tituloCell.value = 'REPORTE DE VENTAS DEL DÍA — RESTOFLY';
   tituloCell.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
   tituloCell.alignment = { vertical: 'middle', horizontal: 'left' };
   tituloCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND_COLOR } };

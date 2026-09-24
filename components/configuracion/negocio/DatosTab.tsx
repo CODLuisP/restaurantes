@@ -166,7 +166,7 @@ export default function DatosTab() {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input label="Razón social" value={razonSocial} onChange={e => setRazonSocial(e.target.value)} placeholder="SHALOM EMPRESARIAL S.A.C." />
-        <Input label="Nombre comercial" value={nombreComercial} onChange={e => setNombreComercial(e.target.value)} placeholder="RestoPro" />
+        <Input label="Nombre comercial" value={nombreComercial} onChange={e => setNombreComercial(e.target.value)} placeholder="RestoFly" />
         <Input label="Condición" value={condicion} onChange={e => setCondicion(e.target.value)} disabled />
         <Input label="Estado del contribuyente" value={estadoContribuyente} onChange={e => setEstadoContribuyente(e.target.value)} disabled />
         <Input label="Departamento" value={departamento} onChange={e => setDepartamento(e.target.value)} />

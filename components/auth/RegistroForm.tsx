@@ -205,7 +205,7 @@ export default function RegistroForm() {
             <Utensils className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="font-bold text-base tracking-tight leading-none text-gray-900">RestoPro Perú</h1>
+            <h1 className="font-bold text-base tracking-tight leading-none text-gray-900">RestoFly Perú</h1>
             <span className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">Peru SaaS POS</span>
           </div>
         </div>

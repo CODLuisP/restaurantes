@@ -71,7 +71,7 @@ const TIPO_LABEL: Record<string, string> = {
  *  cálculo que la página (`kpi`): las notas que afectan documentos anteriores al rango no ajustan las netas. */
 export async function exportVentasDetalladas(ventas: VentaDto[], kpi: KpiVentasDto, ctx: ContextoExcel, nombreArchivo: string) {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'RestoPro';
+  workbook.creator = 'RestoFly';
   workbook.created = new Date();
   const sheet = workbook.addWorksheet('Ventas', { views: [{ state: 'frozen', ySplit: 4 }] });
 
@@ -82,7 +82,7 @@ export async function exportVentasDetalladas(ventas: VentaDto[], kpi: KpiVentasD
     { key: 'razon', width: 32 }, { key: 'cajero', width: 20 }, { key: 'pago', width: 14 },
     { key: 'base', width: 14 }, { key: 'igv', width: 12 }, { key: 'total', width: 15 },
   ];
-  armarCabecera(sheet, 'REPORTE DE VENTAS — RESTOPRO', columnas, ctx, `Total: ${ventas.length} documento${ventas.length === 1 ? '' : 's'}`);
+  armarCabecera(sheet, 'REPORTE DE VENTAS — RESTOFLY', columnas, ctx, `Total: ${ventas.length} documento${ventas.length === 1 ? '' : 's'}`);
 
   const signo = (tipo: string) => (tipo === 'nota_credito' ? -1 : 1);
   ventas.forEach((v, idx) => {
@@ -149,13 +149,13 @@ export async function exportVentasDetalladas(ventas: VentaDto[], kpi: KpiVentasD
 /** Ranking de productos ya ordenado/limitado por el backend. */
 export async function exportTopProductos(productos: ProductoVentaDto[], ctx: ContextoExcel, nombreArchivo: string, orden: 'monto' | 'cantidad') {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'RestoPro';
+  workbook.creator = 'RestoFly';
   workbook.created = new Date();
   const sheet = workbook.addWorksheet('Top Productos', { views: [{ state: 'frozen', ySplit: 4 }] });
 
   const columnas = ['#', 'Producto', 'Cantidad vendida', 'Total vendido'];
   sheet.columns = [{ key: 'n', width: 6 }, { key: 'nombre', width: 40 }, { key: 'cantidad', width: 18 }, { key: 'total', width: 18 }];
-  armarCabecera(sheet, 'TOP PRODUCTOS — RESTOPRO', columnas, ctx,
+  armarCabecera(sheet, 'TOP PRODUCTOS — RESTOFLY', columnas, ctx,
     `${productos.length} producto${productos.length === 1 ? '' : 's'} · Orden: ${orden === 'monto' ? 'mayor monto' : 'mayor cantidad'}`);
 
   productos.forEach((p, i) => {

@@ -109,7 +109,7 @@ export default function LoginForm() {
               <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center backdrop-blur-md border border-white/20">
                 <Utensils className="w-5 h-5 text-brand-accent" />
               </div>
-              <span className="font-semibold tracking-wider text-sm uppercase text-emerald-100">RestoPro Perú</span>
+              <span className="font-semibold tracking-wider text-sm uppercase text-emerald-100">RestoFly Perú</span>
             </div>
 
             <div>
@@ -173,7 +173,7 @@ export default function LoginForm() {
                 <Utensils className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="font-bold text-base tracking-tight leading-none text-gray-900">RestoPro Perú</h1>
+                <h1 className="font-bold text-base tracking-tight leading-none text-gray-900">RestoFly Perú</h1>
                 <span className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">Peru SaaS POS</span>
               </div>
             </div>
@@ -286,7 +286,7 @@ export default function LoginForm() {
                     <button type="submit" disabled={isLoading}
                       className="w-full mt-4 bg-brand hover:bg-brand-hover text-white py-2.5 px-4 rounded-lg font-medium text-xs transition-all duration-150 focus:ring-4 focus:ring-brand/20 flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:bg-gray-300 disabled:cursor-not-allowed">
                       {isLoading
-                        ? <><Loader2 className="w-4 h-4 animate-spin" /> Iniciando sesión en RestoPro...</>
+                        ? <><Loader2 className="w-4 h-4 animate-spin" /> Iniciando sesión en RestoFly...</>
                         : 'Comenzar Turno de Trabajo'}
                     </button>
                   </form>

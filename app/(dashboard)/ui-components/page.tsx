@@ -96,7 +96,7 @@ export default function UIComponentsPage() {
       <div className="mb-8">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl font-bold text-slate-800">Design System — RestoPro Perú</h2>
+            <h2 className="text-xl font-bold text-slate-800">Design System — RestoFly Perú</h2>
             <p className="text-xs text-slate-500 mt-1">
               Librería de componentes reutilizables. Importa desde{' '}
               <code className="bg-slate-100 px-1.5 py-0.5 rounded text-brand font-mono">@/components/ui</code>
@@ -227,7 +227,7 @@ export default function UIComponentsPage() {
                 <Badge variant="success">Disponible</Badge>
                 <Badge variant="warning">Reservada</Badge>
                 <Badge variant="danger">Agotado</Badge>
-                <Badge variant="brand">RestoPro</Badge>
+                <Badge variant="brand">RestoFly</Badge>
                 <Badge variant="info">Sincronizado</Badge>
                 <Badge variant="neutral">Inactivo</Badge>
               </Row>
@@ -583,7 +583,7 @@ const [open, setOpen] = useState(false);
             </Alert>
           </Card>
 
-          <Code>{`/* app/design-tokens.css — Paleta de marca RestoPro */
+          <Code>{`/* app/design-tokens.css — Paleta de marca RestoFly */
 --color-brand:        #007542;   /* → bg-brand, text-brand, border-brand  */
 --color-brand-hover:  #1E8C45;   /* → hover:bg-brand-hover                */
 --color-brand-accent: #58BB43;   /* → bg-brand-accent, text-brand-accent  */
@@ -598,7 +598,7 @@ const [open, setOpen] = useState(false);
       {/* Footer note */}
       <div className="mt-12 pt-6 border-t border-slate-200 flex items-center gap-2 text-[10px] text-slate-400">
         <Star className="h-3 w-3 text-brand-accent" />
-        <span>RestoPro Design System v1.0 — todos los componentes importan desde <code className="font-mono text-brand">@/components/ui</code></span>
+        <span>RestoFly Design System v1.0 — todos los componentes importan desde <code className="font-mono text-brand">@/components/ui</code></span>
       </div>
     </div>
   );

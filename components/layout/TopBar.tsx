@@ -65,7 +65,7 @@ export default function TopBar() {
           href="/dashboard"
           className="text-xs bg-slate-200 hover:bg-brand/10 hover:text-brand transition-colors text-slate-600 font-mono px-2 py-1 rounded font-semibold"
         >
-          RESTOPRO
+          RESTOFLY
         </Link>
         <span className="text-slate-300">/</span>
         <h2 className="text-md font-semibold text-slate-800 capitalize tracking-tight font-sans">

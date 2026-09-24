@@ -18,7 +18,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'RestoPro — SaaS POS Perú',
+  title: 'RestoFly — SaaS POS Perú',
   description: 'Sistema de gestión de restaurantes para Perú. Punto de venta, cocina, inventario y más.',
 };
 

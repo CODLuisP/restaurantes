@@ -19,7 +19,7 @@ export default function StubPage({ section }: StubPageProps) {
       <div>
         <h4 className="text-lg font-bold text-slate-800 capitalize">{section} — Módulo Diseñado</h4>
         <p className="text-xs text-slate-500 mt-1">
-          Esta vista ha sido diseñada y estructurada formalmente en el mapa de navegación SaaS Corporativo RestoPro Perú.
+          Esta vista ha sido diseñada y estructurada formalmente en el mapa de navegación SaaS Corporativo RestoFly Perú.
         </p>
       </div>
       <div className="bg-slate-50 p-4 rounded-xl text-left border border-slate-200">

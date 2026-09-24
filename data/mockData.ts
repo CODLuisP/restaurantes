@@ -1,10 +1,10 @@
 import type { Product, Customer, KitchenOrder, User, ActiveOrder } from '@/types';
 
 export const MOCK_USERS: User[] = [
-  { id: 'u1', name: 'Carlos Cabrera', role: 'admin',  email: 'carlos.cabrera@restopro.pe', pin: '1092', station: 'Mesa de Control Central',     active: true },
-  { id: 'u2', name: 'Miguel Prado',   role: 'cajero', email: 'miguel.prado@restopro.pe',   pin: '4480', station: 'Módulo de Caja Principal',    active: true },
-  { id: 'u3', name: 'Lucía Mendoza',  role: 'mozo',   email: 'lucia.mendoza@restopro.pe',  pin: '2540', station: 'Terraza Principal y Salón A', active: true },
-  { id: 'u4', name: 'Elena Quispe',   role: 'mozo',   email: 'elena.quispe@restopro.pe',   pin: '0887', station: 'Salón B & Barra',            active: true },
+  { id: 'u1', name: 'Carlos Cabrera', role: 'admin',  email: 'carlos.cabrera@restofly.pe', pin: '1092', station: 'Mesa de Control Central',     active: true },
+  { id: 'u2', name: 'Miguel Prado',   role: 'cajero', email: 'miguel.prado@restofly.pe',   pin: '4480', station: 'Módulo de Caja Principal',    active: true },
+  { id: 'u3', name: 'Lucía Mendoza',  role: 'mozo',   email: 'lucia.mendoza@restofly.pe',  pin: '2540', station: 'Terraza Principal y Salón A', active: true },
+  { id: 'u4', name: 'Elena Quispe',   role: 'mozo',   email: 'elena.quispe@restofly.pe',   pin: '0887', station: 'Salón B & Barra',            active: true },
 ];
 
 export const MOCK_PRODUCTS: Product[] = [
@@ -87,7 +87,7 @@ export const MOCK_PRODUCTS: Product[] = [
   },
   {
     id: 'p8',
-    name: 'Chicha Morada RestoPro (Jarra 1L)',
+    name: 'Chicha Morada RestoFly (Jarra 1L)',
     price: 18.00,
     category: 'Bebidas',
     image: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&q=80&w=400',
@@ -205,7 +205,7 @@ export const INITIAL_KITCHEN_ORDERS: KitchenOrder[] = [
     table: 'Mesa 2',
     items: [
       { name: 'Ceviche Clásico Carretillero', quantity: 2 },
-      { name: 'Chicha Morada RestoPro (Jarra 1L)', quantity: 1 },
+      { name: 'Chicha Morada RestoFly (Jarra 1L)', quantity: 1 },
     ],
     status: 'pendiente',
     time: '14:20',

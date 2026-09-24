@@ -352,7 +352,7 @@ export default function UsuariosPage() {
           <Input label="Usuario" placeholder="ana.torres" value={form.username} disabled={!!editando}
             hint={editando ? 'El usuario no se puede modificar.' : undefined}
             onChange={e => setForm(f => ({ ...f, username: e.target.value }))} />
-          <Input label="Correo (opcional)" type="email" placeholder="ana.torres@restopro.pe" value={form.email}
+          <Input label="Correo (opcional)" type="email" placeholder="ana.torres@restofly.pe" value={form.email}
             onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
           <Select label="Rol" value={form.rolId} onChange={e => setForm(f => ({ ...f, rolId: e.target.value }))}>
             <option value="" disabled>Seleccione un rol</option>

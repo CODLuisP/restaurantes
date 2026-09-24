@@ -144,7 +144,7 @@ export default function Sidebar() {
           </div>
           {!isCollapsed && (
             <div className="relative overflow-hidden">
-              <h1 className="font-sans font-bold text-base tracking-tight leading-none text-white truncate">RestoPro</h1>
+              <h1 className="font-sans font-bold text-base tracking-tight leading-none text-white truncate">RestoFly</h1>
               <span className="text-[10px] text-white/60 font-mono tracking-widest uppercase">Peru SaaS POS</span>
             </div>
           )}
@@ -382,7 +382,7 @@ export default function Sidebar() {
                 <div className="bg-[#D91B5C] h-1/3" />
               </div>
               <div className="text-xs min-w-0">
-                <p className="font-semibold text-white/95 truncate">RestoPro Perú</p>
+                <p className="font-semibold text-white/95 truncate">RestoFly Perú</p>
                 <p className="text-[10px] text-white/50 truncate">RUC: 20123456789</p>
               </div>
             </div>

@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🍽️ RestoPro — SaaS POS Perú
+# 🍽️ RestoFly — SaaS POS Perú
 
 **Sistema de gestión integral para restaurantes**
 Punto de venta, comandas, cocina en tiempo real, caja, facturación (SUNAT) y menú digital con QR.
@@ -29,7 +29,7 @@ Construido con **Next.js 15 · React 19 · TypeScript · Tailwind CSS 4**
 
 ## 📖 Descripción
 
-**RestoPro** es una plataforma tipo SaaS para la gestión completa de un restaurante, pensada para el mercado peruano (soles, boletas/facturas SUNAT, Yape/Plin). Cubre todo el ciclo operativo: el mozo toma la comanda desde el **Comandero**, la orden llega en tiempo real al **KDS de Cocina**, el cajero **cobra** y emite el comprobante, y todo el efectivo queda controlado en la **Caja** con arqueo por turnos.
+**RestoFly** es una plataforma tipo SaaS para la gestión completa de un restaurante, pensada para el mercado peruano (soles, boletas/facturas SUNAT, Yape/Plin). Cubre todo el ciclo operativo: el mozo toma la comanda desde el **Comandero**, la orden llega en tiempo real al **KDS de Cocina**, el cajero **cobra** y emite el comprobante, y todo el efectivo queda controlado en la **Caja** con arqueo por turnos.
 
 Incluye además un **menú digital público** que los comensales consultan escaneando un **código QR** en la mesa.
 
@@ -122,9 +122,9 @@ Puedes ingresar con correo o con **PIN rápido**:
 
 | Rol | Nombre | Email | PIN |
 |-----|--------|-------|-----|
-| 🛡️ Admin | Carlos Cabrera | `carlos.cabrera@restopro.pe` | `1092` |
-| 💰 Cajero | Miguel Prado | `miguel.prado@restopro.pe` | `4480` |
-| 🧑‍🍳 Mozo | Lucía Mendoza | `lucia.mendoza@restopro.pe` | `2540` |
+| 🛡️ Admin | Carlos Cabrera | `carlos.cabrera@restofly.pe` | `1092` |
+| 💰 Cajero | Miguel Prado | `miguel.prado@restofly.pe` | `4480` |
+| 🧑‍🍳 Mozo | Lucía Mendoza | `lucia.mendoza@restofly.pe` | `2540` |
 
 ---
 
@@ -227,6 +227,6 @@ El acceso a cada módulo se controla por rol (`components/layout/Sidebar.tsx`):
 
 <div align="center">
 
-**RestoPro** · Gestión gastronómica inteligente 🇵🇪
+**RestoFly** · Gestión gastronómica inteligente 🇵🇪
 
 </div>

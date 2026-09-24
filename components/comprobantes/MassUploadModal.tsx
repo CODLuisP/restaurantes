@@ -45,7 +45,7 @@ export default function MassUploadModal({ open, onClose, onUploadComplete }: Mas
                 metodoPago: 'Tarjeta',
                 hash: 'FAB76A52C098',
                 tieneSunat: true,
-                items: [{ name: 'Catering corporativo RestoPro', quantity: 1, price: 1500.00 }]
+                items: [{ name: 'Catering corporativo RestoFly', quantity: 1, price: 1500.00 }]
               },
               {
                 id: 'M-2',
@@ -81,7 +81,7 @@ export default function MassUploadModal({ open, onClose, onUploadComplete }: Mas
                 tieneSunat: true,
                 items: [
                   { name: 'Ceviche Clásico Carretillero', quantity: 2, price: 39.50 },
-                  { name: 'Chicha Morada RestoPro (Jarra 1L)', quantity: 1, price: 18.00 },
+                  { name: 'Chicha Morada RestoFly (Jarra 1L)', quantity: 1, price: 18.00 },
                   { name: 'Suspiro a la Limeña de la Casa', quantity: 1, price: 16.00 }
                 ]
               },
@@ -146,7 +146,7 @@ export default function MassUploadModal({ open, onClose, onUploadComplete }: Mas
       open={open}
       onClose={progress === -1 ? onClose : () => {}}
       title="Carga Masiva de XML (Comprobantes)"
-      subtitle="Sube comprobantes emitidos en otros sistemas de facturación para guardarlos en RestoPro"
+      subtitle="Sube comprobantes emitidos en otros sistemas de facturación para guardarlos en RestoFly"
       size="md"
       fullHeight={false}
     >

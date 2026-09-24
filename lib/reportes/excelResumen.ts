@@ -31,13 +31,13 @@ function filaTotal(sheet: ExcelJS.Worksheet, columnas: number, moneda: string[],
 /** Medios de pago del rango (sin notas de crédito/débito), con su participación. */
 export async function exportMediosPago(medios: MedioPagoDto[], ctx: ContextoExcel, nombreArchivo: string) {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'RestoPro';
+  workbook.creator = 'RestoFly';
   workbook.created = new Date();
   const sheet = workbook.addWorksheet('Medios de pago', { views: [{ state: 'frozen', ySplit: 4 }] });
 
   const columnas = ['Medio de pago', 'Operaciones', 'Total', '% del total'];
   sheet.columns = [{ key: 'medio', width: 24 }, { key: 'cantidad', width: 16 }, { key: 'total', width: 18 }, { key: 'pct', width: 14 }];
-  armarCabecera(sheet, 'MEDIOS DE PAGO — RESTOPRO', columnas, ctx, `${medios.length} medio${medios.length === 1 ? '' : 's'}`);
+  armarCabecera(sheet, 'MEDIOS DE PAGO — RESTOFLY', columnas, ctx, `${medios.length} medio${medios.length === 1 ? '' : 's'}`);
 
   const totalGeneral = medios.reduce((a, m) => a + m.total, 0);
   rellenarFilas(sheet, medios.map(m => ({
@@ -54,7 +54,7 @@ export async function exportMediosPago(medios: MedioPagoDto[], ctx: ContextoExce
 /** Resumen por cliente (montos netos: las notas de crédito restan). */
 export async function exportClientes(clientes: ClienteResumenDto[], ctx: ContextoExcel, nombreArchivo: string) {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'RestoPro';
+  workbook.creator = 'RestoFly';
   workbook.created = new Date();
   const sheet = workbook.addWorksheet('Resumen por cliente', { views: [{ state: 'frozen', ySplit: 4 }] });
 
@@ -63,7 +63,7 @@ export async function exportClientes(clientes: ClienteResumenDto[], ctx: Context
     { key: 'cliente', width: 40 }, { key: 'numDoc', width: 16 }, { key: 'docs', width: 10 },
     { key: 'subtotal', width: 16 }, { key: 'igv', width: 14 }, { key: 'total', width: 16 },
   ];
-  armarCabecera(sheet, 'RESUMEN POR CLIENTE — RESTOPRO', columnas, ctx, `${clientes.length} cliente${clientes.length === 1 ? '' : 's'}`);
+  armarCabecera(sheet, 'RESUMEN POR CLIENTE — RESTOFLY', columnas, ctx, `${clientes.length} cliente${clientes.length === 1 ? '' : 's'}`);
 
   rellenarFilas(sheet, clientes.map(c => ({
     cliente: c.cliente, numDoc: c.numDoc ?? '-', docs: c.documentos, subtotal: c.subtotal, igv: c.igv, total: c.total,
@@ -88,7 +88,7 @@ export async function exportClientes(clientes: ClienteResumenDto[], ctx: Context
 /** Un turno de caja por fila: ventas por medio de pago, movimientos y efectivo esperado vs. cierre. */
 export async function exportControlCaja(turnos: ControlCajaTurnoDto[], ctx: ContextoExcel, nombreArchivo: string) {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'RestoPro';
+  workbook.creator = 'RestoFly';
   workbook.created = new Date();
   const sheet = workbook.addWorksheet('Control de caja', { views: [{ state: 'frozen', ySplit: 4 }] });
 
@@ -103,7 +103,7 @@ export async function exportControlCaja(turnos: ControlCajaTurnoDto[], ctx: Cont
     { key: 'otro', width: 13 }, { key: 'ingresos', width: 13 }, { key: 'egresos', width: 13 },
     { key: 'esperado', width: 17 }, { key: 'cierre', width: 15 }, { key: 'diferencia', width: 14 },
   ];
-  armarCabecera(sheet, 'CONTROL DE CAJA — RESTOPRO', columnas, ctx, `${turnos.length} turno${turnos.length === 1 ? '' : 's'}`);
+  armarCabecera(sheet, 'CONTROL DE CAJA — RESTOFLY', columnas, ctx, `${turnos.length} turno${turnos.length === 1 ? '' : 's'}`);
 
   const fechaHora = (s: string | null) => (s ? new Date(s).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' }) : '-');
   const dinero = ['apertura', 'total', 'efectivo', 'tarjeta', 'yape', 'plin', 'otro', 'ingresos', 'egresos', 'esperado', 'cierre', 'diferencia'];
