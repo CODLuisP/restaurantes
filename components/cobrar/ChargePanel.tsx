@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import {
-  Ban, CheckCircle2, ChevronDown, Divide, FileText, Loader2, MapPin, Pencil, Phone, Receipt, Search, Users, Wallet,
+  Ban, CheckCircle2, ChevronDown, Divide, FileText, Loader2, MapPin, Pencil, Phone, Receipt, Search, Users, Wallet, X,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
-import type { PaymentMethod, DocType, CustomerDoc, ChargeInput, SalesHistory } from '@/types';
+import type { PaymentMethod, DocType, CustomerDoc, ChargeInput, SalesHistory, PaymentLine } from '@/types';
 import {
   money, round2, onlyDigits, PAYMENTS, TYPE_META, ESTADO_PEDIDO_LABEL, type Chargeable, type SplitMode,
 } from './types';
@@ -227,24 +227,75 @@ export default function ChargePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docNumber, docType, clientes]);
 
-  /* ── Pago ── */
-  const [method, setMethod] = useState<PaymentMethod>('Efectivo');
-  const [received, setReceived] = useState('');
+  /* ── Pago combinado ──
+     1 línea (caso normal): su monto es implícito = amountDue, no se muestra el campo.
+     2+ líneas: cada una tiene su propio monto editable, salvo la última, que siempre se
+     autocompleta con lo que falta para cuadrar el total — así el cajero solo llena las
+     primeras N-1 líneas y la última se ajusta sola (incluso si edita una anterior después). */
+  interface PagoLinea {
+    method: PaymentMethod;
+    amount: string;
+    received: string; // solo si method === 'Efectivo'
+    numeroOperacion: string;
+    entidadBancaria: string;
+    observacion: string;
+  }
+  const blankLine = (m: PaymentMethod): PagoLinea =>
+    ({ method: m, amount: '', received: '', numeroOperacion: '', entidadBancaria: '', observacion: '' });
+  const [payments, setPayments] = useState<PagoLinea[]>([blankLine('Efectivo')]);
 
-  /* Detalle opcional de Yape/Plin/Tarjeta — los 3 campos son libres, no bloquean el cobro.
-     El backend solo guarda el registro en ventas_pago_detalle si numeroOperacion viene lleno. */
-  const [numeroOperacion, setNumeroOperacion] = useState('');
-  const [entidadBancaria, setEntidadBancaria] = useState('');
-  const [observacionPago, setObservacionPago] = useState('');
+  const updateLineMethod = (idx: number, m: PaymentMethod) =>
+    setPayments(prev => prev.map((p, i) => (i === idx ? { ...blankLine(m), amount: p.amount } : p)));
+
+  const updateLineField = (idx: number, field: 'numeroOperacion' | 'entidadBancaria' | 'observacion' | 'received', value: string) =>
+    setPayments(prev => prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p)));
+
+  const updateLineAmount = (idx: number, raw: string) => {
+    const value = raw.replace(/[^\d.]/g, '');
+    setPayments(prev => {
+      const next = prev.map((p, i) => (i === idx ? { ...p, amount: value } : p));
+      const lastIdx = next.length - 1;
+      if (idx !== lastIdx) {
+        const sumOtras = next.slice(0, lastIdx).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        next[lastIdx] = { ...next[lastIdx], amount: String(Math.max(0, round2(amountDue - sumOtras))) };
+      }
+      return next;
+    });
+  };
+
+  const addPaymentLine = () => {
+    const usados = new Set(payments.map(p => p.method));
+    const siguienteMetodo = visiblePayments.find(p => !usados.has(p.id))?.id;
+    if (!siguienteMetodo) return;
+    setPayments(prev => {
+      const base = prev.length === 1 ? [{ ...prev[0], amount: String(amountDue) }] : prev;
+      const sumaActual = base.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+      const restante = Math.max(0, round2(amountDue - sumaActual));
+      return [...base, { ...blankLine(siguienteMetodo), amount: String(restante) }];
+    });
+  };
+
+  const removePaymentLine = (idx: number) => {
+    setPayments(prev => {
+      if (prev.length <= 1) return prev;
+      const next = prev.filter((_, i) => i !== idx);
+      if (next.length > 1) {
+        const lastIdx = next.length - 1;
+        const sumOtras = next.slice(0, lastIdx).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        next[lastIdx] = { ...next[lastIdx], amount: String(Math.max(0, round2(amountDue - sumOtras))) };
+      }
+      return next;
+    });
+  };
 
   const [stage, setStage] = useState<'idle' | 'charging'>('idle');
   const submitting = stage !== 'idle';
 
-  /* Si el método seleccionado se deshabilita (o carga la config después del primer render),
-     cae al primero disponible en vez de dejar seleccionado un método que ya no se acepta. */
+  /* Si algún método usado se deshabilita (o carga la config después del primer render), vuelve a
+     una sola línea con el primero disponible en vez de dejar seleccionado algo que ya no se acepta. */
   useEffect(() => {
-    if (visiblePayments.length > 0 && !visiblePayments.some(p => p.id === method)) {
-      setMethod(visiblePayments[0].id);
+    if (visiblePayments.length > 0 && payments.some(p => !visiblePayments.some(vp => vp.id === p.method))) {
+      setPayments([blankLine(visiblePayments[0].id)]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visiblePayments.map(p => p.id).join(',')]);
@@ -272,6 +323,10 @@ export default function ChargePanel({
 
   const amountDue = splitMode === 'full' ? total : itemsDue;
 
+  const lineAmount = (idx: number) => payments.length === 1 ? amountDue : round2(Number(payments[idx].amount) || 0);
+  const paymentsTotal = round2(payments.reduce((s, _, i) => s + lineAmount(i), 0));
+  const pagoPendiente = round2(amountDue - paymentsTotal);
+
   const willCloseAfter =
     splitMode === 'full' ? true :
     unpaidItems.length > 0 && pickedItems.length === unpaidItems.length;
@@ -283,9 +338,6 @@ export default function ChargePanel({
   const base = round2(amountDue / (1 + igvPorcentaje / 100));
   const igv = round2(amountDue - base);
 
-  const receivedNum = received === '' ? null : Number(received);
-  const change = method === 'Efectivo' && receivedNum != null ? round2(receivedNum - amountDue) : null;
-
   /* Mesas solo se pueden cobrar cuando cocina ya entregó todos los platos. Llevar/delivery no
      tienen esta restricción: se pueden cobrar (ej. pago anticipado) antes de que salgan. Con
      "Impresora en cocina" activo no hay KDS que marque "entregado" — el pedido se imprime y el
@@ -296,7 +348,7 @@ export default function ChargePanel({
   const validate = (): string | null => {
     if (!isCajaOpen) return 'La caja está cerrada.';
     if (esperandoEntrega) return 'Aún no se puede cobrar: faltan platos por entregar en la mesa.';
-    if (!visiblePayments.some(p => p.id === method)) return 'Selecciona un método de pago habilitado.';
+    if (!payments.every(p => visiblePayments.some(vp => vp.id === p.method))) return 'Selecciona un método de pago habilitado.';
     if (amountDue <= 0) {
       return splitMode === 'items' ? 'Selecciona al menos un ítem para esta cuenta.' : 'Monto a cobrar inválido.';
     }
@@ -307,9 +359,15 @@ export default function ChargePanel({
     if (docType === 'Boleta' && docNumber && onlyDigits(docNumber).length !== 8) {
       return 'El DNI debe tener 8 dígitos (o déjalo vacío para cliente varios).';
     }
-    if (method === 'Efectivo') {
-      if (receivedNum == null) return 'Ingresa el monto recibido en efectivo.';
-      if (receivedNum < amountDue) return 'El efectivo recibido es menor al monto a cobrar.';
+    if (payments.length > 1 && payments.some((_, i) => lineAmount(i) <= 0)) {
+      return 'Cada método de pago debe tener un monto mayor a S/. 0 — quita las líneas en 0.';
+    }
+    if (Math.abs(pagoPendiente) > 0.009) return 'Los montos de los métodos de pago deben sumar el total a cobrar.';
+    for (let i = 0; i < payments.length; i++) {
+      if (payments[i].method !== 'Efectivo') continue;
+      const rec = payments[i].received === '' ? null : Number(payments[i].received);
+      if (rec == null) return 'Ingresa el monto recibido en efectivo.';
+      if (rec < lineAmount(i)) return 'El efectivo recibido es menor al monto de esa línea.';
     }
     if (!selected.sesionMesaId) {
       return 'Esta cuenta no tiene una sesión activa en el sistema; no se puede cobrar.';
@@ -332,23 +390,28 @@ export default function ChargePanel({
 
     const chargingItems = splitMode === 'items' ? pickedItems : selected.items;
 
+    const paymentLines: PaymentLine[] = payments.map((p, i) => ({
+      method: p.method,
+      amount: lineAmount(i),
+      received: p.method === 'Efectivo' && p.received !== '' ? Number(p.received) : undefined,
+      numeroOperacion: p.method !== 'Efectivo' && p.numeroOperacion.trim() ? p.numeroOperacion.trim() : undefined,
+      entidadBancaria: p.method !== 'Efectivo' && p.entidadBancaria.trim() ? p.entidadBancaria.trim() : undefined,
+      observacion: p.method !== 'Efectivo' && p.observacion.trim() ? p.observacion.trim() : undefined,
+    }));
+
     try {
       setStage('charging');
       const input: ChargeInput = {
-        method,
+        payments: paymentLines,
         docType,
         cashier,
         customer: customerDoc?.name ?? selected.customer,
         customerDoc,
         clienteId,
-        received: method === 'Efectivo' && receivedNum != null ? receivedNum : undefined,
         amount: amountDue,
         itemsCount: itemsCountForCharge,
         closeAfter: willCloseAfter,
         chargeItems: chargingItems.map(i => ({ pedidoItemId: Number(i.product.id), cantidad: i.quantity })),
-        numeroOperacion: method !== 'Efectivo' && numeroOperacion.trim() ? numeroOperacion.trim() : undefined,
-        entidadBancaria: method !== 'Efectivo' && entidadBancaria.trim() ? entidadBancaria.trim() : undefined,
-        observacion: method !== 'Efectivo' && observacionPago.trim() ? observacionPago.trim() : undefined,
       };
 
       const sale = selected.kind === 'mesa'
@@ -374,12 +437,9 @@ export default function ChargePanel({
           { sale, itemLabels: chargingItems.map(i => `${i.quantity}× ${i.product.name}`) },
         ]);
       }
-      setReceived('');
+      setPayments([blankLine(payments[0].method)]);
       setDocNumber('');
       setDocName('');
-      setNumeroOperacion('');
-      setEntidadBancaria('');
-      setObservacionPago('');
       clearCliente();
     } finally {
       setStage('idle');
@@ -403,8 +463,6 @@ export default function ChargePanel({
     splitMode === 'items' ? selected.items.filter(i => paidItemIds.has(i.product.id)).reduce((s, i) => s + i.product.price * i.quantity, 0) : 0
   );
   const remaining = round2(total - paidAmount);
-
-  const quickCash = [amountDue, 20, 50, 100, 200];
 
   return (
     <div className="card-lg p-5 space-y-4 sticky top-20">
@@ -673,87 +731,149 @@ export default function ChargePanel({
 
       {/* Método de pago */}
       <div className="space-y-2 border-t border-slate-200 pt-3">
-        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Método de pago</p>
-        <div className="grid grid-cols-3 gap-1.5">
-          {visiblePayments.map(p => (
-            <button
-              key={p.id}
-              onClick={() => setMethod(p.id)}
-              className={`py-2 text-[10px] font-bold rounded-lg border transition-all flex flex-col items-center gap-1 ${
-                method === p.id ? 'bg-brand/10 border-brand text-brand' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
-              }`}
-            >
-              {p.icon} {p.label}
-            </button>
-          ))}
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Método de pago</p>
+          {payments.length > 1 && (
+            <span className={`text-[10px] font-bold ${Math.abs(pagoPendiente) < 0.01 ? 'text-emerald-600' : 'text-rose-500'}`}>
+              {Math.abs(pagoPendiente) < 0.01
+                ? 'Cuadrado'
+                : pagoPendiente > 0 ? `Falta ${money(pagoPendiente)}` : `Sobra ${money(Math.abs(pagoPendiente))}`}
+            </span>
+          )}
         </div>
+
+        {payments.map((p, idx) => {
+          const isLast = idx === payments.length - 1;
+          const amount = lineAmount(idx);
+          const receivedNum = p.received === '' ? null : Number(p.received);
+          const change = p.method === 'Efectivo' && receivedNum != null ? round2(receivedNum - amount) : null;
+          const usadoEnOtraLinea = new Set(payments.filter((_, i) => i !== idx).map(pp => pp.method));
+          const quickCashLinea = [amount, 20, 50, 100, 200];
+
+          return (
+            <div key={idx} className="space-y-2 bg-slate-50 rounded-xl p-3">
+              <div className="flex items-center gap-1.5">
+                <div className="grid grid-cols-3 gap-1.5 flex-1">
+                  {visiblePayments.map(vp => (
+                    <button
+                      key={vp.id}
+                      type="button"
+                      disabled={usadoEnOtraLinea.has(vp.id)}
+                      onClick={() => updateLineMethod(idx, vp.id)}
+                      className={`py-2 text-[10px] font-bold rounded-lg border transition-all flex flex-col items-center gap-1 ${
+                        p.method === vp.id
+                          ? 'bg-brand/10 border-brand text-brand'
+                          : 'border-slate-200 text-slate-500 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent'
+                      }`}
+                    >
+                      {vp.icon} {vp.label}
+                    </button>
+                  ))}
+                </div>
+                {payments.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removePaymentLine(idx)}
+                    className="text-slate-400 hover:text-rose-500 p-1.5 shrink-0"
+                    aria-label="Quitar este método de pago"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {payments.length > 1 && (
+                <div className="space-y-1">
+                  <input
+                    value={p.amount}
+                    onChange={e => updateLineAmount(idx, e.target.value)}
+                    inputMode="decimal"
+                    placeholder="Monto de esta línea"
+                    className="input w-full px-3 py-2 text-sm font-mono"
+                  />
+                  {isLast && (
+                    <p className="text-[10px] text-slate-400 px-1">Se autocompletó con el restante — puedes ajustarlo.</p>
+                  )}
+                </div>
+              )}
+
+              {p.method === 'Efectivo' ? (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Wallet className="h-3.5 w-3.5" /> ¿Con cuánto paga?
+                  </label>
+                  <input
+                    value={p.received}
+                    onChange={e => updateLineField(idx, 'received', onlyDigits(e.target.value.replace('.', '')) ? e.target.value.replace(/[^\d.]/g, '') : '')}
+                    inputMode="decimal"
+                    placeholder={money(amount)}
+                    className="input w-full px-3 py-2 text-sm font-mono"
+                  />
+                  <div className="flex flex-wrap gap-1.5">
+                    {quickCashLinea.map((v, i2) => (
+                      <button
+                        key={i2}
+                        type="button"
+                        onClick={() => updateLineField(idx, 'received', String(round2(v)))}
+                        className="text-[10px] font-bold px-2 py-1 rounded-lg bg-white border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition-colors"
+                      >
+                        {i2 === 0 ? 'Exacto' : money(v)}
+                      </button>
+                    ))}
+                  </div>
+                  {receivedNum != null && (
+                    <div className={`flex justify-between items-center text-sm font-bold px-1 ${change != null && change >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                      <span className="text-[11px] uppercase tracking-wide">Vuelto</span>
+                      <span className="font-mono">{change != null ? money(Math.max(0, change)) : money(0)}</span>
+                    </div>
+                  )}
+                  {receivedNum != null && change != null && change < 0 && (
+                    <p className="text-[10px] text-rose-600">Falta {money(Math.abs(change))} para cubrir esta línea.</p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    Detalle de la operación (opcional)
+                  </label>
+                  <div className="flex gap-1.5">
+                    <input
+                      value={p.numeroOperacion}
+                      onChange={e => updateLineField(idx, 'numeroOperacion', e.target.value)}
+                      placeholder="N° operación"
+                      className="input w-[26%] min-w-0 px-2 py-2 text-xs text-right"
+                    />
+                    <input
+                      value={p.entidadBancaria}
+                      onChange={e => updateLineField(idx, 'entidadBancaria', e.target.value)}
+                      placeholder="Entidad bancaria"
+                      className="input w-[32%] min-w-0 px-2 py-2 text-xs text-right"
+                    />
+                    <input
+                      value={p.observacion}
+                      onChange={e => updateLineField(idx, 'observacion', e.target.value)}
+                      placeholder="Observación"
+                      className="input w-[42%] min-w-0 px-2 py-2 text-xs text-right"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
         {visiblePayments.length === 0 && (
           <p className="text-[11px] text-rose-500">No hay métodos de pago habilitados — actívalos en Configuración → Métodos de pago.</p>
         )}
 
-        {/* Efectivo → vuelto */}
-        {method === 'Efectivo' && (
-          <div className="space-y-2 bg-slate-50 rounded-xl p-3">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-              <Wallet className="h-3.5 w-3.5" /> ¿Con cuánto paga?
-            </label>
-            <input
-              value={received}
-              onChange={e => setReceived(onlyDigits(e.target.value.replace('.', '')) ? e.target.value.replace(/[^\d.]/g, '') : '')}
-              inputMode="decimal"
-              placeholder={money(amountDue)}
-              className="input w-full px-3 py-2 text-sm font-mono"
-            />
-            <div className="flex flex-wrap gap-1.5">
-              {quickCash.map((v, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setReceived(String(round2(v)))}
-                  className="text-[10px] font-bold px-2 py-1 rounded-lg bg-white border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition-colors"
-                >
-                  {idx === 0 ? 'Exacto' : money(v)}
-                </button>
-              ))}
-            </div>
-            {receivedNum != null && (
-              <div className={`flex justify-between items-center text-sm font-bold px-1 ${change != null && change >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                <span className="text-[11px] uppercase tracking-wide">Vuelto</span>
-                <span className="font-mono">{change != null ? money(Math.max(0, change)) : money(0)}</span>
-              </div>
-            )}
-            {receivedNum != null && change != null && change < 0 && (
-              <p className="text-[10px] text-rose-600">Falta {money(Math.abs(change))} para cubrir el monto.</p>
-            )}
-          </div>
-        )}
-
-        {/* Yape/Plin/Tarjeta → detalle de operación (opcional) */}
-        {method !== 'Efectivo' && (
-          <div className="space-y-2 bg-slate-50 rounded-xl p-3">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-              Detalle de la operación (opcional)
-            </label>
-            <div className="flex gap-1.5">
-              <input
-                value={numeroOperacion}
-                onChange={e => setNumeroOperacion(e.target.value)}
-                placeholder="N° operación"
-                className="input w-[26%] min-w-0 px-2 py-2 text-xs text-right"
-              />
-              <input
-                value={entidadBancaria}
-                onChange={e => setEntidadBancaria(e.target.value)}
-                placeholder="Entidad bancaria"
-                className="input w-[32%] min-w-0 px-2 py-2 text-xs text-right"
-              />
-              <input
-                value={observacionPago}
-                onChange={e => setObservacionPago(e.target.value)}
-                placeholder="Observación"
-                className="input w-[42%] min-w-0 px-2 py-2 text-xs text-right"
-              />
-            </div>
-          </div>
+        {payments.length < visiblePayments.length && (
+          <button
+            type="button"
+            onClick={addPaymentLine}
+            className="w-full text-[11px] font-bold text-brand hover:underline py-1"
+          >
+            + Agregar otro método de pago
+          </button>
         )}
       </div>
 

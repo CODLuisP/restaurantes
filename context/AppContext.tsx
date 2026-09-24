@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { MOCK_PRODUCTS, MOCK_CUSTOMERS, INITIAL_SALES_HISTORY } from '@/data/mockData';
 import type {
   Product, Table, Customer, OrderItem, Toast, SalesHistory,
-  CashSession, CashMovement, CashMovementType, DocType, ActiveOrder, ChargeInput,
+  CashSession, CashMovement, CashMovementType, DocType, ActiveOrder, ChargeInput, PaymentLine,
 } from '@/types';
 import { useToasts } from '@/hooks/app/useToasts';
 import { useCajaTurno } from '@/hooks/app/useCajaTurno';
@@ -29,6 +29,9 @@ const DOC_TYPE_TO_BACKEND: Record<DocType, string> = {
   'Factura': 'factura',
   'Nota de venta': 'ticket',
 };
+
+/** Nombre a mostrar del cobro: el método si hubo uno solo, o los métodos unidos si fue combinado. */
+const paymentLabel = (payments: PaymentLine[]) => payments.map(p => p.method).join(' + ');
 
 /** Efectivo/Yape-Plin/Tarjeta (UI) → efectivo/yape/tarjeta (backend). */
 const PAYMENT_TO_BACKEND: Record<string, string> = {
@@ -436,22 +439,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           items: input.chargeItems.map(i => ({ pedidoItemId: i.pedidoItemId, cantidad: i.cantidad })),
           descuento: 0,
           propina: 0,
-          metodoPago: PAYMENT_TO_BACKEND[input.method],
-          montoRecibido: input.received ?? null,
+          pagos: input.payments.map(p => ({
+            metodoPago: PAYMENT_TO_BACKEND[p.method],
+            monto: p.amount,
+            montoRecibido: p.method === 'Efectivo' ? (p.received ?? null) : null,
+            numeroOperacion: p.numeroOperacion ?? null,
+            entidadBancaria: p.entidadBancaria ?? null,
+            observacion: p.observacion ?? null,
+          })),
           tipoComprobante: DOC_TYPE_TO_BACKEND[input.docType],
           tipoDoc: input.customerDoc ? (input.customerDoc.type === 'RUC' ? 'ruc' : 'dni') : null,
           numDoc: input.customerDoc?.number ?? null,
           razonSocial: input.customerDoc?.name ?? null,
-          numeroOperacion: input.numeroOperacion ?? null,
-          entidadBancaria: input.entidadBancaria ?? null,
-          observacion: input.observacion ?? null,
         });
 
         const sale: SalesHistory = {
           id: String(venta.id),
           time: new Date(venta.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
           itemsCount,
-          paymentMethod: input.method,
+          paymentMethod: paymentLabel(input.payments),
           total: venta.total,
           table: tableName,
           docType: input.docType,
@@ -460,7 +466,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           waiter: table.waiter,
           cashier: input.cashier,
           customerDoc: input.customerDoc,
-          received: input.received,
+          received: venta.montoRecibido ?? undefined,
           change: venta.vuelto ?? undefined,
         };
 
@@ -472,7 +478,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         const docLabel = input.docType === 'Nota de venta' ? 'Nota de venta' : `${input.docType} (pendiente de N° SUNAT)`;
         triggerToast(
-          `Cobro de S/. ${amount.toFixed(2)} (${input.method}). ${docLabel}${venta.tipo === 'split' ? ' · cuenta parcial' : ''}.`,
+          `Cobro de S/. ${amount.toFixed(2)} (${sale.paymentMethod}). ${docLabel}${venta.tipo === 'split' ? ' · cuenta parcial' : ''}.`,
           'success'
         );
         return sale;
@@ -648,22 +654,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           items: input.chargeItems.map(i => ({ pedidoItemId: i.pedidoItemId, cantidad: i.cantidad })),
           descuento: 0,
           propina: 0,
-          metodoPago: PAYMENT_TO_BACKEND[input.method],
-          montoRecibido: input.received ?? null,
+          pagos: input.payments.map(p => ({
+            metodoPago: PAYMENT_TO_BACKEND[p.method],
+            monto: p.amount,
+            montoRecibido: p.method === 'Efectivo' ? (p.received ?? null) : null,
+            numeroOperacion: p.numeroOperacion ?? null,
+            entidadBancaria: p.entidadBancaria ?? null,
+            observacion: p.observacion ?? null,
+          })),
           tipoComprobante: DOC_TYPE_TO_BACKEND[input.docType],
           tipoDoc: input.customerDoc ? (input.customerDoc.type === 'RUC' ? 'ruc' : 'dni') : null,
           numDoc: input.customerDoc?.number ?? null,
           razonSocial: input.customerDoc?.name ?? null,
-          numeroOperacion: input.numeroOperacion ?? null,
-          entidadBancaria: input.entidadBancaria ?? null,
-          observacion: input.observacion ?? null,
         });
 
         const sale: SalesHistory = {
           id: String(venta.id),
           time: new Date(venta.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
           itemsCount,
-          paymentMethod: input.method,
+          paymentMethod: paymentLabel(input.payments),
           total: venta.total,
           table: order.type === 'llevar' ? `Para llevar (${order.id})` : `Delivery (${order.id})`,
           docType: input.docType,
@@ -671,7 +680,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           waiter: order.waiter,
           cashier: input.cashier,
           customerDoc: input.customerDoc,
-          received: input.received,
+          received: venta.montoRecibido ?? undefined,
           change: venta.vuelto ?? undefined,
         };
         setSalesHistory(prev => [sale, ...prev]);
@@ -681,7 +690,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         const docLabel = input.docType === 'Nota de venta' ? 'Nota de venta' : `${input.docType} (pendiente de N° SUNAT)`;
         triggerToast(
-          `Cobro de ${order.id} · S/. ${amount.toFixed(2)} (${input.method}). ${docLabel}${venta.tipo === 'split' ? ' · cuenta parcial' : ''}.`,
+          `Cobro de ${order.id} · S/. ${amount.toFixed(2)} (${sale.paymentMethod}). ${docLabel}${venta.tipo === 'split' ? ' · cuenta parcial' : ''}.`,
           'success'
         );
         return sale;

@@ -113,7 +113,7 @@ export default function Sidebar() {
 
   const visibleItems = menuItems.filter(item => {
     if (item.href === '/cocina' && impresoraCocina) return false;
-    if (item.href === '/facturacion' && !usarFacturacionElectronica) return false;
+    if ((item.href === '/facturacion' || item.href === '/comprobantes') && !usarFacturacionElectronica) return false;
     if (isSuperAdmin && HREFS_OCULTOS_SUPERADMIN.includes(item.href)) return false;
     return !item.roles || !currentUser || item.roles.includes(currentUser.role);
   });

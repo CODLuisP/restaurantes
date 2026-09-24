@@ -25,9 +25,12 @@ export interface VentaDto {
   descuento: number;
   propina: number;
   total: number;
+  /** Resumen: el método si hubo uno solo, "combinado" si hubo varios (ver pagos). */
   metodoPago: string;
   montoRecibido?: number | null;
   vuelto?: number | null;
+  /** Desglose real del cobro — una línea por método usado (pago combinado). */
+  pagos: VentaPagoDto[];
   pagadoAt: string;
   tipoComprobante: string;
   /** Correlativo interno del ticket (venta interna sin serie SUNAT), corrido por sucursal. Null para boleta/factura/notas. */
@@ -55,9 +58,31 @@ export interface VentaDto {
   items: VentaItemDto[];
 }
 
+export interface VentaPagoDto {
+  metodoPago: string;
+  monto: number;
+  montoRecibido?: number | null;
+  vuelto?: number | null;
+  numeroOperacion?: string | null;
+  entidadBancaria?: string | null;
+  observacion?: string | null;
+}
+
 export interface VentaItemInputDto {
   pedidoItemId: number;
   cantidad: number;
+}
+
+export interface PagoInputDto {
+  /** efectivo, tarjeta, yape, plin, otro */
+  metodoPago: string;
+  /** Porción del total cobrada con este método. */
+  monto: number;
+  /** Solo si metodoPago = "efectivo". Si se omite, se asume pago exacto (= monto, vuelto 0). */
+  montoRecibido?: number | null;
+  numeroOperacion?: string | null;
+  entidadBancaria?: string | null;
+  observacion?: string | null;
 }
 
 export interface CreateVentaDto {
@@ -69,18 +94,13 @@ export interface CreateVentaDto {
   items: VentaItemInputDto[];
   descuento: number;
   propina: number;
-  /** efectivo, tarjeta, yape, plin, otro */
-  metodoPago: string;
-  montoRecibido?: number | null;
+  /** Pago combinado: 1 o más líneas cuyos montos deben sumar el total de la venta. */
+  pagos: PagoInputDto[];
   /** ticket, boleta, factura */
   tipoComprobante: string;
   tipoDoc?: string | null;
   numDoc?: string | null;
   razonSocial?: string | null;
-  /** Detalle opcional de pago (Yape/Plin/Tarjeta). Solo se guarda si numeroOperacion viene lleno. */
-  numeroOperacion?: string | null;
-  entidadBancaria?: string | null;
-  observacion?: string | null;
 }
 
 export function crearVenta(token: string, dto: CreateVentaDto) {

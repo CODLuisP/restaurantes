@@ -151,9 +151,22 @@ export interface CustomerDoc {
   name: string;
 }
 
+/** Una línea de pago combinado: método + porción del total que cubre. */
+export interface PaymentLine {
+  method: PaymentMethod;
+  amount: number;
+  /** Efectivo entregado por el cliente en esta línea (solo si method = 'Efectivo'); si se omite, se asume pago exacto. */
+  received?: number;
+  /** Detalle opcional de la operación (Yape/Plin/Tarjeta). */
+  numeroOperacion?: string;
+  entidadBancaria?: string;
+  observacion?: string;
+}
+
 /** Datos con los que se cobra una comanda (o una parte, en cuentas separadas). */
 export interface ChargeInput {
-  method: PaymentMethod;
+  /** Pago combinado: 1 o más líneas cuyos montos deben sumar el total a cobrar. */
+  payments: PaymentLine[];
   docType: DocType;
   cashier?: string;
   customer?: string;
@@ -161,8 +174,6 @@ export interface ChargeInput {
   customerDoc?: CustomerDoc;
   /** Cliente del CRM vinculado a esta venta (si se seleccionó uno existente o se detectó por documento). */
   clienteId?: number;
-  /** Efectivo entregado por el cliente (para calcular el vuelto). */
-  received?: number;
   /** Monto a cobrar; si se omite, se cobra el total pendiente. Se usa en cuentas separadas. */
   amount?: number;
   /** Nº de ítems de esta (sub)cuenta. */
@@ -171,10 +182,6 @@ export interface ChargeInput {
   closeAfter?: boolean;
   /** Ítems reales (id de pedido_item del backend + cantidad) que cubre este cobro — obligatorio para registrar la venta real. */
   chargeItems: { pedidoItemId: number; cantidad: number }[];
-  /** Detalle opcional de pago (Yape/Plin/Tarjeta). Solo se guarda si numeroOperacion viene lleno. */
-  numeroOperacion?: string;
-  entidadBancaria?: string;
-  observacion?: string;
 }
 
 /* Canal / tipo de pedido */
@@ -208,7 +215,8 @@ export interface SalesHistory {
   id: string;
   time: string;
   itemsCount: number;
-  paymentMethod: PaymentMethod;
+  /** Nombre del método, o "Efectivo + Yape / Plin" si el cobro se combinó entre varios. */
+  paymentMethod: string;
   total: number;
   table: string;
   docType?: DocType;
