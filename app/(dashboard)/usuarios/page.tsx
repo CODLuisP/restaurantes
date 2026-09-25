@@ -9,7 +9,6 @@ import { Modal, Button, Input, Select, Badge, LoadingRow } from '@/components/ui
 import { ApiError } from '@/lib/api/client';
 import { getUsuarios, createUsuario, updateUsuario, type Usuario } from '@/lib/api/usuarios';
 import { getRoles, type Rol } from '@/lib/api/roles';
-import { getSucursales, type Sucursal } from '@/lib/api/sucursales';
 
 const ROL_ICONOS: Record<string, React.ReactNode> = {
   superadmin: <Crown className="h-3.5 w-3.5" />,
@@ -57,13 +56,14 @@ const FORM_VACIO: FormState = { nombre: '', username: '', email: '', rolId: '', 
 export default function UsuariosPage() {
   const { data: session } = useSession();
   const { currentUser } = useAuth();
-  const { triggerToast, searchQuery } = useApp();
+  const { triggerToast, searchQuery, sucursales: todasSucursales } = useApp();
   const token = session?.accessToken;
   const esSuperAdmin = session?.user.role === 'superadmin';
+  /* Solo el superadmin ve/elige sucursal (filtro, columna y formulario); la lista viene de AppContext. */
+  const sucursales = esSuperAdmin ? todasSucursales : [];
 
   const [usuarios, setUsuarios]     = useState<Usuario[]>([]);
   const [roles, setRoles]           = useState<Rol[]>([]);
-  const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [loading, setLoading]       = useState(true);
   const [saving, setSaving]         = useState(false);
 
@@ -78,20 +78,15 @@ export default function UsuariosPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const [usuariosData, rolesData, sucursalesData] = await Promise.all([
-        getUsuarios(token),
-        getRoles(token),
-        esSuperAdmin ? getSucursales(token) : Promise.resolve([]),
-      ]);
+      const [usuariosData, rolesData] = await Promise.all([getUsuarios(token), getRoles(token)]);
       setUsuarios(usuariosData);
       setRoles(rolesData);
-      setSucursales(sucursalesData);
     } catch (err) {
       triggerToast(err instanceof ApiError ? err.message : 'No se pudo cargar el personal.', 'error');
     } finally {
       setLoading(false);
     }
-  }, [token, esSuperAdmin, triggerToast]);
+  }, [token, triggerToast]);
 
   useEffect(() => {
     cargarDatos();

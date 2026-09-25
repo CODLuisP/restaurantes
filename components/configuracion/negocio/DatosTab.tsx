@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { ImagePlus, Pencil, Printer, Search, Loader2, KeyRound, ShieldAlert } from 'lucide-react';
 import { Input, Toggle, Button, Spinner, Modal, Alert } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
-import { getMiEmpresa, updateEmpresa, type EmpresaDto } from '@/lib/api/empresas';
+import { updateEmpresa } from '@/lib/api/empresas';
 import { resizeImageToBlob, subirImagenProducto, extractCloudflareImageId, eliminarImagenProductoCloudflare } from '@/lib/uploadImagen';
 import LogoCropModal from './LogoCropModal';
 
@@ -25,10 +25,9 @@ function maskApiKey(key: string): string {
 
 export default function DatosTab() {
   const { data: session } = useSession();
-  const { triggerToast } = useApp();
+  const { triggerToast, refreshNegocioConfig, empresa, negocioConfigLoading, negocioConfigErrores } = useApp();
   const token = session?.accessToken;
   const isSuperAdmin = session?.user?.role === 'superadmin';
-  const [empresa, setEmpresa] = useState<EmpresaDto | null>(null);
   const [apiKeyEditando, setApiKeyEditando] = useState(false);
   const [apiKeyConfirmOpen, setApiKeyConfirmOpen] = useState(false);
   const [apiKeyDraft, setApiKeyDraft] = useState('');
@@ -49,24 +48,30 @@ export default function DatosTab() {
   const [usarFacturacionElectronica, setUsarFacturacionElectronica] = useState(false);
   const [consultando, setConsultando] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const loading = negocioConfigLoading && !empresa;
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [logoSource, setLogoSource] = useState<string | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
 
+  /* La empresa viene de AppContext; el formulario se llena una sola vez al abrir la pestaña
+     (los refrescos posteriores del contexto no pisan lo que el usuario está editando). */
+  const hidratado = useRef(false);
   useEffect(() => {
-    if (!token) return;
-    setLoading(true);
-    getMiEmpresa(token).then(e => {
-      setEmpresa(e); setRuc(e.ruc); setRazonSocial(e.razonSocial); setNombreComercial(e.nombreComercial);
-      setDireccion(e.direccion || ''); setDepartamento(e.departamento); setProvincia(e.provincia); setDistrito(e.distrito);
-      setCondicion(e.condicion || ''); setEstadoContribuyente(e.estadoContribuyente || '');
-      setDireccionCompleta(e.direccionCompleta || ''); setLogoUrl(e.logoUrl || '');
-      setPaperSize((e.paperSize as PaperSize) || '80mm'); setAutoAceptar(e.autoAceptarPedidos);
-      setUsarFacturacionElectronica(e.usarFacturacionElectronica);
-    }).catch(() => triggerToast('Error al cargar datos de la empresa.', 'error'))
-    .finally(() => setLoading(false));
-  }, [token]);
+    if (!empresa || hidratado.current) return;
+    hidratado.current = true;
+    const e = empresa;
+    setRuc(e.ruc); setRazonSocial(e.razonSocial); setNombreComercial(e.nombreComercial);
+    setDireccion(e.direccion || ''); setDepartamento(e.departamento); setProvincia(e.provincia); setDistrito(e.distrito);
+    setCondicion(e.condicion || ''); setEstadoContribuyente(e.estadoContribuyente || '');
+    setDireccionCompleta(e.direccionCompleta || ''); setLogoUrl(e.logoUrl || '');
+    setPaperSize((e.paperSize as PaperSize) || '80mm'); setAutoAceptar(e.autoAceptarPedidos);
+    setUsarFacturacionElectronica(e.usarFacturacionElectronica);
+  }, [empresa]);
+
+  useEffect(() => {
+    if (negocioConfigErrores.empresa && !empresa) triggerToast('Error al cargar datos de la empresa.', 'error');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [negocioConfigErrores.empresa]);
 
   const handleConsultarRuc = async () => {
     if (ruc.length !== 11) { triggerToast('Ingresa un RUC de 11 dígitos.', 'warning'); return; }
@@ -102,6 +107,7 @@ export default function DatosTab() {
         usarFacturacionElectronica,
       });
       triggerToast('Datos guardados.', 'success');
+      refreshNegocioConfig(); // el switch de facturación electrónica afecta menú, Cobrar y Ventas del día
     } catch { triggerToast('Error al guardar', 'error'); }
     finally { setSaving(false); }
   };
@@ -110,7 +116,7 @@ export default function DatosTab() {
     if (!token || !empresa) return;
     setSavingApiKey(true);
     try {
-      const actualizada = await updateEmpresa(token, empresa.id, {
+      await updateEmpresa(token, empresa.id, {
         nombre: nombreComercial || razonSocial || empresa.nombre, ruc,
         direccion: direccion || null, logoUrl: empresa.logoUrl, activo: empresa.activo,
         razonSocial: razonSocial || null, nombreComercial: nombreComercial || null,
@@ -120,10 +126,10 @@ export default function DatosTab() {
         usarFacturacionElectronica,
         apiKeyFacturacion: apiKeyDraft.trim(),
       });
-      setEmpresa(actualizada);
       setApiKeyEditando(false);
       setApiKeyDraft('');
       triggerToast('API Key de facturación actualizada.', 'success');
+      await refreshNegocioConfig(); // muestra la API key nueva (viene en la empresa del contexto)
     } catch { triggerToast('Error al guardar la API Key.', 'error'); }
     finally { setSavingApiKey(false); }
   };

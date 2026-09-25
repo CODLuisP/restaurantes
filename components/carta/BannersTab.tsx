@@ -6,7 +6,7 @@ import { Image as ImageIcon, ChevronUp, ChevronDown, Pencil, Trash2, X, Upload, 
 import { Modal, Button, Toggle, Select, Spinner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { getBanners, createBanner, updateBanner, deleteBanner, reorderBanners } from '@/lib/api/banners';
-import { getSucursales } from '@/lib/api/sucursales';
+import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import { resizeImageToBlob, subirImagenProducto, extractCloudflareImageId, eliminarImagenProductoCloudflare, getCloudflareVariant } from '@/lib/uploadImagen';
 import type { BannerDto, CreateBannerDto, UpdateBannerDto } from '@/types/banners';
 
@@ -43,8 +43,9 @@ export default function BannersTab() {
 
   const [banners, setBanners] = useState<BannerDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sucursales, setSucursales] = useState<{ id: number; nombre: string }[]>([]);
-  const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(null);
+  const {
+    sucursales, sId: selectedSucursalId, selectSucursal: handleSucursalChange, sucursalesLoading,
+  } = useSucursalSelector();
 
   const fetchBanners = useCallback(async (sId: number) => {
     if (!token) {
@@ -63,29 +64,9 @@ export default function BannersTab() {
   }, [token, triggerToast]);
 
   useEffect(() => {
-    if (!token) return;
-    setLoading(true);
-    getSucursales(token)
-      .then((lista) => {
-        const activas = lista.filter((s) => s.activo);
-        setSucursales(activas.map((s) => ({ id: s.id, nombre: s.nombre })));
-        const sId = session?.user?.sucursalId ?? activas[0]?.id;
-        if (!sId) {
-          setLoading(false);
-          return;
-        }
-        setSelectedSucursalId(sId);
-        fetchBanners(sId);
-      })
-      .catch(() => {
-        setLoading(false);
-      });
-  }, [token, session?.user?.sucursalId, fetchBanners]);
-
-  const handleSucursalChange = (nuevoId: number) => {
-    setSelectedSucursalId(nuevoId);
-    fetchBanners(nuevoId);
-  };
+    if (selectedSucursalId) fetchBanners(selectedSucursalId);
+    else if (!sucursalesLoading) setLoading(false);
+  }, [selectedSucursalId, sucursalesLoading, fetchBanners]);
 
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);

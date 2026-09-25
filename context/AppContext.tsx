@@ -9,8 +9,11 @@ import type {
 } from '@/types';
 import { useToasts } from '@/hooks/app/useToasts';
 import { useCajaTurno } from '@/hooks/app/useCajaTurno';
-import { useNegocioConfig } from '@/hooks/app/useNegocioConfig';
-import { useTicketsConfig } from '@/hooks/app/useTicketsConfig';
+import { useNegocioConfig, type NegocioConfigErrores, type NegocioTicket } from '@/hooks/app/useNegocioConfig';
+import type { EmpresaDto } from '@/lib/api/empresas';
+import type { Sucursal } from '@/lib/api/sucursales';
+import type { TicketsConfigDto } from '@/lib/api/ticketsConfig';
+import type { PaperSize } from '@/components/configuracion/tickets/ticketData';
 import type { MetodosPago, MetodosEntrega } from '@/lib/config/metodos';
 import { useMesasCatalogo } from '@/hooks/mesas/useMesasCatalogo';
 import { useActiveOrders } from '@/hooks/comandero/useActiveOrders';
@@ -59,9 +62,28 @@ interface AppContextType {
    *  cobrarse sin esperar a que el pedido quede "entregado". Se activa en Configuración > Métodos
    *  de entrega. */
   impresoraCocina: boolean;
+  /** Interruptor de facturación electrónica de la empresa. null = cargando / no disponible. */
+  usarFacturacionElectronica: boolean | null;
+  /** Sucursal del usuario sincronizada con la API de facturación. null = cargando o superadmin
+   *  (sin sucursal fija: usar la sincronización de la sucursal elegida en su selector). */
+  sucursalSincronizada: boolean | null;
+  /** Datos completos de la empresa (null mientras carga o si falló). */
+  empresa: EmpresaDto | null;
+  /** Todas las sucursales de la empresa (activas e inactivas) — cada vista filtra lo que necesita. */
+  sucursales: Sucursal[];
+  /** Para reflejar al instante un alta/edición de sucursal hecha en esta sesión. */
+  setSucursales: React.Dispatch<React.SetStateAction<Sucursal[]>>;
+  /** Diseño de tickets guardado en Configuración → Tickets (null si nunca se guardó). */
+  ticketsConfig: TicketsConfigDto | null;
+  /** Datos del negocio para los bloques "Negocio"/"Imagen" de los tickets impresos. */
+  negocioTicket: NegocioTicket;
+  ticketPaperSize: PaperSize;
   negocioConfigLoading: boolean;
-  /** Refresca métodos de pago/entrega e IGV desde el backend — se llama tras guardar cambios
-   *  en /configuracion para que Cobrar/Comandero los reflejen sin tener que recargar la sesión. */
+  /** Qué parte de la carga central falló, para que cada vista muestre su aviso. */
+  negocioConfigErrores: NegocioConfigErrores;
+  /** Recarga toda la configuración central (configuración, empresa, sucursales, tickets) — se
+   *  llama tras guardar cambios en esta sesión para que todas las vistas los reflejen sin
+   *  recargar la página. Cambios hechos desde otro dispositivo se ven al recargar la página. */
   refreshNegocioConfig: () => Promise<void>;
   tables: Table[];
   mesasLoading: boolean;
@@ -166,8 +188,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const { toasts, triggerToast, dismissToast } = useToasts();
   const caja = useCajaTurno(triggerToast);
-  const { metodosPago, metodosEntrega, igvPorcentaje, impresoraCocina, negocioConfigLoading, refreshNegocioConfig } = useNegocioConfig();
-  const { cocinaBlocks, paperSize: ticketPaperSize, businessName: ticketBusinessName, logoUrl: ticketLogoUrl } = useTicketsConfig();
+  const {
+    metodosPago, metodosEntrega, igvPorcentaje, impresoraCocina, sucursalSincronizada,
+    empresa, usarFacturacionElectronica, sucursales, setSucursales,
+    ticketsConfig, cocinaBlocks, ticketPaperSize, negocioTicket,
+    negocioConfigLoading, negocioConfigErrores, refreshNegocioConfig,
+  } = useNegocioConfig();
+  const ticketBusinessName = negocioTicket.businessName;
+  const ticketLogoUrl = negocioTicket.logoUrl;
   const {
     tables, setTables, mesasLoading, loadMesas, addTable, removeTable, setTableStatus,
     mergeTables: mergeTablesBackend, unmergeTable: unmergeTableBackend,
@@ -724,7 +752,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         metodosEntrega,
         igvPorcentaje,
         impresoraCocina,
+        usarFacturacionElectronica,
+        sucursalSincronizada,
+        empresa,
+        sucursales,
+        setSucursales,
+        ticketsConfig,
+        negocioTicket,
+        ticketPaperSize,
         negocioConfigLoading,
+        negocioConfigErrores,
         refreshNegocioConfig,
         tables,
         mesasLoading,

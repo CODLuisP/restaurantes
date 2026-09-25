@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { Bell, Bike, Building2, Check, Loader2, Pencil, Receipt, ShoppingBag, Trash2, X } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
-import { useTicketsConfig } from '@/hooks/app/useTicketsConfig';
 import { imprimirPreCuenta } from '@/lib/print/precuenta';
 import type { ActiveOrder, Table } from '@/types';
 
@@ -33,8 +32,8 @@ export default function OrderDetailDrawer({
   onMarkDeliveredTable: (tableName: string) => Promise<void>;
   onMarkDeliveredOrder: (orderId: string) => Promise<void>;
 }) {
-  const { tables, activeOrders, impresoraCocina } = useApp();
-  const { businessName, logoUrl, ruc, direccion, paperSize } = useTicketsConfig();
+  const { tables, activeOrders, impresoraCocina, negocioTicket, ticketPaperSize: paperSize } = useApp();
+  const { businessName, logoUrl, ruc, direccion } = negocioTicket;
   const [busyAction, setBusyAction] = useState<BusyAction>(null);
 
   const table: Table | undefined = view.kind === 'mesa' ? tables.find(t => t.name === view.tableName) : undefined;

@@ -12,7 +12,6 @@ import { SucursalSelector } from '@/components/ui/SucursalSelector';
 import { Alert, Button, Modal, Spinner } from '@/components/ui';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import { useApp } from '@/context/AppContext';
-import { getMiEmpresa, type EmpresaDto } from '@/lib/api/empresas';
 import { sincronizarEmpresaFacturacion } from '@/lib/api/facturacion';
 import { ApiError } from '@/lib/api/client';
 
@@ -31,23 +30,19 @@ export default function FacturacionPage() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const token = session?.accessToken;
-  const { triggerToast } = useApp();
+  const { triggerToast, empresa, negocioConfigLoading, refreshNegocioConfig } = useApp();
   const [tab, setTab] = useState<TabId>('informacion');
   const { isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
-  const [empresa, setEmpresa] = useState<EmpresaDto | null>(null);
-  const [sincronizado, setSincronizado] = useState<boolean | null>(null);
+  /* La empresa viene de AppContext. null = todavía cargando; si la carga falló se trata como
+     "no sincronizada" (igual que antes). sincronizadoLocal evita que, justo después de
+     sincronizar, se vuelva a ver el aviso mientras el contexto se refresca. */
+  const [sincronizadoLocal, setSincronizadoLocal] = useState(false);
+  const sincronizado: boolean | null = sincronizadoLocal
+    ? true
+    : empresa ? empresa.sincronizadoFacturacion : (negocioConfigLoading ? null : false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [sincronizando, setSincronizando] = useState(false);
-
-  const cargarEstadoEmpresa = () => {
-    if (!token) return;
-    getMiEmpresa(token)
-      .then(e => { setEmpresa(e); setSincronizado(e.sincronizadoFacturacion); })
-      .catch(() => setSincronizado(false));
-  };
-
-  useEffect(cargarEstadoEmpresa, [token]);
 
   const handleConfirmarSincronizacion = async () => {
     if (!token) return;
@@ -55,7 +50,8 @@ export default function FacturacionPage() {
     try {
       const res = await sincronizarEmpresaFacturacion(token);
       triggerToast(res.mensaje || 'Empresa sincronizada con SUNAT.', 'success');
-      setSincronizado(true);
+      setSincronizadoLocal(true);
+      refreshNegocioConfig();
     } catch (err) {
       triggerToast(err instanceof ApiError ? err.message : 'No se pudo sincronizar con SUNAT.', 'error');
     } finally {
@@ -151,7 +147,7 @@ export default function FacturacionPage() {
               <CredencialesTab
                 empresa={empresa}
                 isSuperAdmin={isSuperAdmin}
-                onApiKeyGenerada={cargarEstadoEmpresa}
+                onApiKeyGenerada={refreshNegocioConfig}
               />
             )}
             {tab === 'certificado' && <CertificadoTab empresa={empresa} />}

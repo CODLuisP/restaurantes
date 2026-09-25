@@ -11,7 +11,7 @@ import { useBusiness } from "@/context/BusinessContext";
 import { ProfileHeader, type ProfileTab } from "@/components/menu/ProfileHeader";
 import { buildSocialLinks, SocialLinksRow } from "@/components/menu/SocialLinksRow";
 import { BusinessInfoSection } from "@/components/menu/BusinessInfoSection";
-import { getSucursalById, updateSucursal } from "@/lib/api/sucursales";
+import { updateSucursal } from "@/lib/api/sucursales";
 import { getConfiguracion, updateConfiguracion } from "@/lib/api/configuracion";
 import { getBanners } from "@/lib/api/banners";
 import type { BannerDto } from "@/types/banners";
@@ -33,7 +33,7 @@ export default function MenuHeaderSection({
   catTabs, activeTab, onTabChange,
 }: MenuHeaderSectionProps) {
   const { data: session } = useSession();
-  const { triggerToast } = useApp();
+  const { triggerToast, sucursales, setSucursales } = useApp();
   const { business } = useBusiness();
   const token = session?.accessToken;
 
@@ -59,13 +59,17 @@ export default function MenuHeaderSection({
   const activeBanners = banners.filter((b) => b.activo);
   const socialLinks = buildSocialLinks(redesState);
 
+  /* Nombre/dirección/teléfono salen de las sucursales ya cargadas en AppContext. */
+  useEffect(() => {
+    const s = sucursales.find((x) => x.id === sucursalId);
+    if (!s) return;
+    setSucursalNombre(s.nombre);
+    setSucursalDireccion(s.direccion ?? "");
+    setSucursalTelefono(s.telefono ?? "");
+  }, [sucursales, sucursalId]);
+
   useEffect(() => {
     if (!token || !sucursalId) return;
-    getSucursalById(token, sucursalId).then((s) => {
-      setSucursalNombre(s.nombre);
-      setSucursalDireccion(s.direccion ?? "");
-      setSucursalTelefono(s.telefono ?? "");
-    }).catch(() => {});
     getConfiguracion(token, sucursalId).then((c) => {
       setSucursalLogo(c.logoUrl ?? "");
       setRedesState({
@@ -134,15 +138,14 @@ export default function MenuHeaderSection({
   const submitBusinessForm = async () => {
     if (!token || !sucursalId) return;
     try {
-      await updateSucursal(token, sucursalId, {
+      const actualizada = await updateSucursal(token, sucursalId, {
         nombre: bizForm.name.trim(),
         direccion: bizForm.address.trim() || null,
         telefono: bizForm.telefono.trim() || null,
         activo: true,
       });
-      setSucursalNombre(bizForm.name.trim());
-      setSucursalDireccion(bizForm.address.trim());
-      setSucursalTelefono(bizForm.telefono.trim());
+      // Se refleja en AppContext para que el resto de vistas vea el cambio (y este header, vía el efecto).
+      setSucursales((prev) => prev.map((x) => (x.id === sucursalId ? actualizada : x)));
       setShowBusinessForm(false);
       triggerToast("Información del negocio actualizada.", "success");
     } catch {

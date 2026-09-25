@@ -11,8 +11,6 @@ import {
   money, round2, onlyDigits, PAYMENTS, TYPE_META, ESTADO_PEDIDO_LABEL, type Chargeable, type SplitMode,
 } from './types';
 import { getSeriesFacturacion, type SeriesSucursal } from '@/lib/api/facturacion';
-import { getSucursalById } from '@/lib/api/sucursales';
-import { getMiEmpresa } from '@/lib/api/empresas';
 import { getClientes } from '@/lib/api/clientes';
 import type { Cliente } from '@/types/clientes';
 export default function ChargePanel({
@@ -24,7 +22,10 @@ export default function ChargePanel({
   onAddItems: () => void;
   onClosed: () => void;
 }) {
-  const { chargeTable, chargeOrder, triggerToast, metodosPago, igvPorcentaje, impresoraCocina } = useApp();
+  const {
+    chargeTable, chargeOrder, triggerToast, metodosPago, igvPorcentaje, impresoraCocina,
+    usarFacturacionElectronica, sucursalSincronizada,
+  } = useApp();
   const { data: session } = useSession();
 
   /* ── Series y correlativos reales desde la API de facturación ── */
@@ -61,32 +62,10 @@ export default function ChargePanel({
      queda "Pendiente" para siempre sin que el cajero se entere. Mientras no esté sincronizada,
      solo se ofrece "Sin comprob." — null mientras carga o si no aplica, para no bloquear de más
      por un hipo de red (se asume sincronizada hasta confirmar lo contrario). */
-  const [sucursalSincronizada, setSucursalSincronizada] = useState<boolean | null>(null);
-  useEffect(() => {
-    const token = session?.accessToken;
-    const sucursalId = session?.user?.sucursalId;
-    if (!token || !sucursalId) return;
-    let cancelado = false;
-    getSucursalById(token, sucursalId)
-      .then(s => { if (!cancelado) setSucursalSincronizada(s.sincronizadoFacturacion); })
-      .catch(() => { if (!cancelado) setSucursalSincronizada(null); });
-    return () => { cancelado = true; };
-  }, [session?.accessToken, session?.user?.sucursalId]);
-
   /* Interruptor general de la empresa (Configuración → Datos del negocio → "usar facturación
      electrónica"). Es el único paso que necesita el negocio para dejar de emitir boletas/facturas
-     sin tocar Ideatec ni resincronizar nada — apagarlo/prenderlo no afecta sucursalSincronizada. */
-  const [usarFacturacionElectronica, setUsarFacturacionElectronica] = useState<boolean | null>(null);
-  useEffect(() => {
-    const token = session?.accessToken;
-    if (!token) return;
-    let cancelado = false;
-    getMiEmpresa(token)
-      .then(e => { if (!cancelado) setUsarFacturacionElectronica(e.usarFacturacionElectronica); })
-      .catch(() => { if (!cancelado) setUsarFacturacionElectronica(null); });
-    return () => { cancelado = true; };
-  }, [session?.accessToken]);
-
+     sin tocar Ideatec ni resincronizar nada — apagarlo/prenderlo no afecta sucursalSincronizada.
+     Ambos se cargan una sola vez en AppContext (useNegocioConfig). */
   const comprobantesElectronicosDisponibles = sucursalSincronizada !== false && usarFacturacionElectronica !== false;
 
   /* Solo se ofrecen los métodos habilitados en /configuracion/metodos-pago. "Yape / Plin" es un

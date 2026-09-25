@@ -25,6 +25,8 @@ export interface ConfiguracionDto {
   ubicacionDireccion?: string | null;
   mostrarDireccionMenu?: boolean | null;
   impresoraCocina?: boolean;
+  /** Solo lectura: la sucursal ya está sincronizada con la API de facturación. */
+  sincronizadoFacturacion?: boolean;
 }
 export interface UpdateConfiguracionDto {
   igvPorcentaje: number;
