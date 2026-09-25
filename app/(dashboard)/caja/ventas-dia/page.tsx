@@ -13,6 +13,7 @@ import { getUsuarios, type Usuario } from '@/lib/api/usuarios';
 import { toFechaParam } from '@/lib/api/reportes';
 import { getFechaEnvioSunatVisible, formatFechaHora } from '@/lib/facturacion/fechaEnvioSunat';
 import { ConvertirTicketModal } from '@/components/caja/ConvertirTicketModal';
+import { formatMetodoPago } from '@/lib/config/metodos';
 
 const BRAND_COLOR = 'FF007542';
 
@@ -179,13 +180,6 @@ const TIPO_LABEL: Record<string, string> = {
   nota_debito: 'Nota de Débito',
 };
 
-const METODO_PAGO_LABEL: Record<string, string> = {
-  efectivo: 'Efectivo',
-  tarjeta: 'Tarjeta',
-  yape: 'Yape',
-  plin: 'Plin',
-  otro: 'Otro',
-};
 
 /** Roles que efectivamente pueden cobrar/atender una venta — excluye cocinero, repartidor, etc. */
 const ROLES_VISIBLES = ['admin', 'cajero', 'mozo'];
@@ -515,7 +509,7 @@ export default function VentasDelDiaPage() {
 
                 <div className="border-t border-dashed border-slate-200 pt-3 space-y-1">
                   <div className="flex items-center justify-between text-xs text-slate-600">
-                    <span className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5 text-slate-400" /> {METODO_PAGO_LABEL[seleccionada.metodoPago] ?? seleccionada.metodoPago}</span>
+                    <span className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5 text-slate-400" /> {formatMetodoPago(seleccionada.metodoPago)}</span>
                     <span className="font-mono">{money(seleccionada.total)}</span>
                   </div>
                   {pagoDetalle?.id === seleccionada.id && pagoDetalle.numeroOperacion && (

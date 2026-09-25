@@ -5,6 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Modal } from '@/components/ui';
 import type { EmpresaDto } from '@/lib/api/empresas';
 import { getFechaEnvioSunatVisible, formatFechaHora } from '@/lib/facturacion/fechaEnvioSunat';
+import { formatMetodoPago } from '@/lib/config/metodos';
 import { TIPO_COMPROBANTE_LABEL, type Comprobante, type FormatoImpresion } from './types';
 
 interface ComprobanteDetailModalProps {
@@ -140,7 +141,7 @@ export default function ComprobanteDetailModal({
                   <div className="font-bold text-center text-xs">{selectedComprobante.numero}</div>
                   <div className="border-b border-dashed border-slate-400 py-1"></div>
                   <div>FECHA: {selectedComprobante.fecha}</div>
-                  <div>MÉTODO: {selectedComprobante.metodoPago}</div>
+                  <div>MÉTODO: {formatMetodoPago(selectedComprobante.metodoPago)}</div>
                   {selectedComprobante.numeroOperacion && (
                     <div>OPERACIÓN: {selectedComprobante.numeroOperacion}{selectedComprobante.entidadBancaria ? ` — ${selectedComprobante.entidadBancaria}` : ''}</div>
                   )}
@@ -246,7 +247,7 @@ export default function ComprobanteDetailModal({
                   <div className="space-y-1 text-right">
                     <div><span className="font-bold text-slate-500">Fecha de Emisión:</span> <span className="font-medium text-slate-800">{selectedComprobante.fecha}</span></div>
                     <div><span className="font-bold text-slate-500">Moneda:</span> <span className="font-medium text-slate-800">Soles (PEN)</span></div>
-                    <div><span className="font-bold text-slate-500">Forma de Pago:</span> <span className="font-medium text-slate-800">Contado ({selectedComprobante.metodoPago})</span></div>
+                    <div><span className="font-bold text-slate-500">Forma de Pago:</span> <span className="font-medium text-slate-800">Contado ({formatMetodoPago(selectedComprobante.metodoPago)})</span></div>
                     {selectedComprobante.numeroOperacion && (
                       <div><span className="font-bold text-slate-500">N° Operación:</span> <span className="font-medium text-slate-800">{selectedComprobante.numeroOperacion}{selectedComprobante.entidadBancaria ? ` — ${selectedComprobante.entidadBancaria}` : ''}</span></div>
                     )}

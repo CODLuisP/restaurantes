@@ -42,3 +42,14 @@ export function parseMetodosEntrega(json?: string | null): MetodosEntrega {
   if (!json) return DEFAULT_METODOS_ENTREGA;
   try { return { ...DEFAULT_METODOS_ENTREGA, ...JSON.parse(json) }; } catch { return DEFAULT_METODOS_ENTREGA; }
 }
+
+/** Nombre para mostrar de cada método (clave = código que guarda el backend en venta_pagos). */
+export const METODO_PAGO_LABEL: Record<string, string> = {
+  efectivo: 'Efectivo', tarjeta: 'Tarjeta', yape: 'Yape', plin: 'Plin', otro: 'Otro',
+};
+
+/** Formatea el método de pago de una venta para mostrar — soporta pago combinado
+ *  (el backend lo devuelve como "efectivo + yape", esto lo pasa a "Efectivo + Yape"). */
+export function formatMetodoPago(value: string): string {
+  return value.split(' + ').map(m => METODO_PAGO_LABEL[m] ?? m).join(' + ');
+}

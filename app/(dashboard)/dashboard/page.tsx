@@ -17,6 +17,7 @@ import { DesgloseNotas } from '@/components/reportes/DesgloseNotas';
 import { getVentas, type VentaDto } from '@/lib/api/ventas';
 import { getClientes } from '@/lib/api/clientes';
 import { toFechaParam } from '@/lib/api/reportes';
+import { formatMetodoPago } from '@/lib/config/metodos';
 
 /* Recharts es pesado y solo corre en cliente — se carga aparte del bundle inicial. */
 const RevenueChart = dynamic(() => import('@/components/dashboard/RevenueChart'), {
@@ -40,14 +41,6 @@ function inicioSemana(d: Date): Date {
   lunes.setHours(0, 0, 0, 0);
   return lunes;
 }
-
-const METODO_LABEL: Record<string, string> = {
-  efectivo: 'Efectivo',
-  tarjeta: 'Tarjeta',
-  yape: 'Yape',
-  plin: 'Plin',
-  otro: 'Otro',
-};
 
 const METODO_BADGE: Record<string, string> = {
   efectivo: 'bg-amber-100 text-amber-800',
@@ -114,7 +107,7 @@ async function exportVentasExcel(ventas: VentaDto[], fecha: Date, usuario: strin
       mesa: v.mesaNumero ? `Mesa ${v.mesaNumero}` : '—',
       comprobante: v.numeroComprobante ?? '—',
       items: v.items.reduce((acc, i) => acc + i.cantidad, 0),
-      metodoPago: METODO_LABEL[v.metodoPago] ?? v.metodoPago,
+      metodoPago: formatMetodoPago(v.metodoPago),
       total: v.total,
     });
 
@@ -226,7 +219,7 @@ export default function DashboardPage() {
   const tipComercial = useMemo(() => {
     if (metodosPago.length === 0) return null;
     const top = metodosPago[0];
-    return `${METODO_LABEL[top.key] ?? top.key} lidera los cobros con ${top.pct}% del total.`;
+    return `${formatMetodoPago(top.key)} lidera los cobros con ${top.pct}% del total.`;
   }, [metodosPago]);
 
   if (!puedeVer) {
@@ -404,7 +397,7 @@ export default function DashboardPage() {
               {metodosPago.map(m => (
                 <div key={m.key}>
                   <div className="flex justify-between text-[11px] text-slate-700 font-medium mb-1">
-                    <span>{METODO_LABEL[m.key] ?? m.key}</span>
+                    <span>{formatMetodoPago(m.key)}</span>
                     <span className="font-mono">{m.pct}%</span>
                   </div>
                   <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
@@ -554,7 +547,7 @@ export default function DashboardPage() {
                   <td className="p-3 font-mono">{v.items.reduce((acc, i) => acc + i.cantidad, 0)}</td>
                   <td className="p-3">
                     <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${METODO_BADGE[v.metodoPago] ?? 'bg-slate-100 text-slate-700'}`}>
-                      {METODO_LABEL[v.metodoPago] ?? v.metodoPago}
+                      {formatMetodoPago(v.metodoPago)}
                     </span>
                   </td>
                   <td className="p-3 text-right font-mono font-bold text-gray-900">{money(v.total)}</td>
