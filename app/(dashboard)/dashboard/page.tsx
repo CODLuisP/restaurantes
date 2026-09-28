@@ -13,6 +13,7 @@ import {
   type DashboardResumenDto, type VentasResumenDto, type VentaPorHoraDto,
 } from '@/lib/api/dashboard';
 import CocinaTimer from '@/components/dashboard/CocinaTimer';
+import { DashboardPdfButton } from '@/components/dashboard/pdf/DashboardPdfButton';
 import { DesgloseNotas } from '@/components/reportes/DesgloseNotas';
 import { getVentas, type VentaDto } from '@/lib/api/ventas';
 import { getClientes } from '@/lib/api/clientes';
@@ -139,7 +140,7 @@ async function exportVentasExcel(ventas: VentaDto[], fecha: Date, usuario: strin
 
 export default function DashboardPage() {
   const { currentUser } = useAuth();
-  const { triggerToast } = useApp();
+  const { triggerToast, empresa } = useApp();
   const { token, isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
   const [resumen, setResumen] = useState<DashboardResumenDto | null>(null);
@@ -300,6 +301,22 @@ export default function DashboardPage() {
             max={hoyStr}
             onChange={e => e.target.value && setFechaSeleccionada(new Date(`${e.target.value}T00:00:00`))}
             className="input px-3 py-1.5 text-xs"
+          />
+          <DashboardPdfButton
+            data={loading || error || (isSuperAdmin && !sId) ? null : {
+              fecha: fechaSeleccionada,
+              esHoy,
+              empresa: empresa ? { razonSocial: empresa.razonSocial || empresa.nombre, nombreComercial: empresa.nombreComercial, ruc: empresa.ruc } : null,
+              sucursalNombre: sucursales.find(s => s.id === sId)?.nombre ?? null,
+              usuario: currentUser?.name ?? '—',
+              kpis,
+              ventasDia: ventasHoy,
+              metodosPago,
+              tipComercial,
+              resumen,
+              ventasPorHora,
+              ventas: ventasRecientes,
+            }}
           />
           <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sId} onChange={selectSucursal} />
         </div>
