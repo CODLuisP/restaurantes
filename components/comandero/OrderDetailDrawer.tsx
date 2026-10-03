@@ -142,10 +142,10 @@ export default function OrderDetailDrawer({
                 <p className="text-slate-500">Hora: <span className="text-slate-700 font-medium">{order!.createdAt}</span></p>
                 {order!.waiter && <p className="text-slate-500">Mozo: <span className="text-slate-700 font-medium">{order!.waiter}</span></p>}
                 {order!.docType && (
-                  <p className="text-slate-500">Comprobante: <span className="text-slate-700 font-medium uppercase font-bold">{order!.docType} {order!.ruc ? `(RUC ${order!.ruc})` : ''}</span></p>
+                  <p className="text-slate-500">Comprobante: <span className="text-slate-700 font-medium uppercase">{order!.docType} {order!.ruc ? `(RUC ${order!.ruc})` : ''}</span></p>
                 )}
                 {order!.paymentMethod && (
-                  <p className="text-slate-500">Pago: <span className="text-slate-700 font-medium font-bold">{order!.paymentMethod}</span></p>
+                  <p className="text-slate-500">Pago: <span className="text-slate-700 font-bold">{order!.paymentMethod}</span></p>
                 )}
                 {order!.paymentScreenshot && (
                   <div className="mt-2 pt-2 border-t border-slate-200">
