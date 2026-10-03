@@ -7,7 +7,7 @@ import { useTicketsConfig } from '@/hooks/app/useTicketsConfig';
 import { imprimirPreCuenta } from '@/lib/print/precuenta';
 import type { ActiveOrder, Table } from '@/types';
 
-type BusyAction = 'cancel' | 'confirm' | 'delivered' | null;
+type BusyAction = 'cancel' | 'confirm' | null;
 
 /** Estado del plato en Cocina, reflejado en vivo (mismo hub de SignalR que usa el KDS). */
 const KITCHEN_ESTADO_LABEL: Record<string, { label: string; className: string }> = {
@@ -19,7 +19,6 @@ const KITCHEN_ESTADO_LABEL: Record<string, { label: string; className: string }>
 
 export default function OrderDetailDrawer({
   view, onClose, canEdit, onEditTable, onEditOrder, onCancelTable, onCancelOrder, onConfirmTable, onConfirmOrder,
-  onMarkDeliveredTable, onMarkDeliveredOrder,
 }: {
   view: { kind: 'mesa'; tableName: string } | { kind: 'order'; orderId: string };
   onClose: () => void;
@@ -30,12 +29,12 @@ export default function OrderDetailDrawer({
   onCancelOrder: (orderId: string) => Promise<void>;
   onConfirmTable: (tableName: string) => Promise<void>;
   onConfirmOrder: (orderId: string) => Promise<void>;
-  onMarkDeliveredTable: (tableName: string) => Promise<void>;
-  onMarkDeliveredOrder: (orderId: string) => Promise<void>;
 }) {
-  const { tables, activeOrders, impresoraCocina } = useApp();
+  const { tables, activeOrders, impresoraCocina, marcarItemMesaEntregado, marcarItemActiveOrderEntregado } = useApp();
   const { businessName, logoUrl, ruc, direccion, paperSize } = useTicketsConfig();
   const [busyAction, setBusyAction] = useState<BusyAction>(null);
+  /** Ítems que se están marcando como entregados en este momento — bloquea su propio botón. */
+  const [busyItemIds, setBusyItemIds] = useState<Set<string>>(new Set());
 
   const table: Table | undefined = view.kind === 'mesa' ? tables.find(t => t.name === view.tableName) : undefined;
   const order: ActiveOrder | undefined = view.kind === 'order' ? activeOrders.find(o => o.id === view.orderId) : undefined;
@@ -58,7 +57,18 @@ export default function OrderDetailDrawer({
   };
   const handleCancel = () => runAction('cancel', () => (view.kind === 'mesa' ? onCancelTable(view.tableName) : onCancelOrder(view.orderId)));
   const handleConfirm = () => runAction('confirm', () => (view.kind === 'mesa' ? onConfirmTable(view.tableName) : onConfirmOrder(view.orderId)));
-  const handleMarkDelivered = () => runAction('delivered', () => (view.kind === 'mesa' ? onMarkDeliveredTable(view.tableName) : onMarkDeliveredOrder(view.orderId)));
+
+  /** Marca un solo plato como entregado — los platos de "Impresora en cocina" salen de a uno,
+     no todos juntos, así que cada ítem tiene su propio botón en vez de uno solo para el pedido. */
+  const handleMarkItemDelivered = async (pedidoItemId: string) => {
+    setBusyItemIds(prev => new Set(prev).add(pedidoItemId));
+    try {
+      if (view.kind === 'mesa') await marcarItemMesaEntregado(view.tableName, pedidoItemId);
+      else await marcarItemActiveOrderEntregado(view.orderId, pedidoItemId);
+    } finally {
+      setBusyItemIds(prev => { const next = new Set(prev); next.delete(pedidoItemId); return next; });
+    }
+  };
 
   const items = view.kind === 'mesa' ? (table?.items ?? []) : (order?.items ?? []);
   const total = view.kind === 'mesa' ? (table?.cuenta ?? 0) : (order?.total ?? 0);
@@ -174,6 +184,10 @@ export default function OrderDetailDrawer({
               <div className="space-y-2">
                 {items.map(item => {
                   const kitchen = item.kitchenEstado ? KITCHEN_ESTADO_LABEL[item.kitchenEstado] : undefined;
+                  /* Con "Impresora en cocina" los platos salen de la cocina de a uno, no todos
+                     juntos — cada ítem se marca entregado por separado en vez de todo el pedido. */
+                  const puedeEntregarItem = puedeMarcarEntregado && item.kitchenEstado !== 'entregado';
+                  const itemBusy = busyItemIds.has(item.product.id);
                   return (
                     <div key={item.product.id} className="flex justify-between items-center gap-2 text-xs">
                       <span className="text-slate-700 truncate flex items-center gap-1.5 min-w-0">
@@ -184,7 +198,19 @@ export default function OrderDetailDrawer({
                           </span>
                         )}
                       </span>
-                      <span className="font-mono font-bold text-slate-800 shrink-0">S/. {(item.product.price * item.quantity).toFixed(2)}</span>
+                      <span className="flex items-center gap-2 shrink-0">
+                        <span className="font-mono font-bold text-slate-800">S/. {(item.product.price * item.quantity).toFixed(2)}</span>
+                        {puedeEntregarItem && (
+                          <button
+                            onClick={() => handleMarkItemDelivered(item.product.id)}
+                            disabled={itemBusy}
+                            className="flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            {itemBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                            Entregar
+                          </button>
+                        )}
+                      </span>
                     </div>
                   );
                 })}
@@ -211,19 +237,6 @@ export default function OrderDetailDrawer({
                   <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Confirmando...</>
                 ) : (
                   <><Bell className="w-3.5 h-3.5" /> Confirmar y enviar a cocina</>
-                )}
-              </button>
-            )}
-            {puedeMarcarEntregado && (
-              <button
-                onClick={handleMarkDelivered}
-                disabled={busyAction !== null}
-                className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 py-2.5 rounded-xl transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {busyAction === 'delivered' ? (
-                  <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Marcando...</>
-                ) : (
-                  <><Check className="w-3.5 h-3.5" /> Entregado</>
                 )}
               </button>
             )}

@@ -22,9 +22,9 @@ export default function ComanderoPage() {
   const {
     tables, searchQuery, triggerToast, sucursalCajaAbierta: isCajaOpen,
     sendOrderToKitchen, updateTableItemQty, removeTableItem, cancelTableOrder: cancelTableOrderBackend,
-    confirmarPedidoCliente, marcarMesaEntregada,
+    confirmarPedidoCliente,
     activeOrders, activeOrdersLoading, createOrder, addItemsToActiveOrder, updateActiveOrderItemQty,
-    removeActiveOrderItem, cancelActiveOrder, confirmarActiveOrder, marcarActiveOrderEntregado,
+    removeActiveOrderItem, cancelActiveOrder, confirmarActiveOrder,
     metodosEntrega,
   } = useApp();
   const { currentUser } = useAuth();
@@ -157,8 +157,6 @@ export default function ComanderoPage() {
   const confirmTableOrder = (tableName: string) => confirmarPedidoCliente(tableName);
   const cancelOrderDetail = (orderId: string) => cancelActiveOrder(orderId);
   const confirmOrderDetail = (orderId: string) => confirmarActiveOrder(orderId);
-  const markDeliveredTable = (tableName: string) => marcarMesaEntregada(tableName);
-  const markDeliveredOrder = (orderId: string) => marcarActiveOrderEntregado(orderId);
 
   /** Arranca un pedido nuevo de llevar/delivery desde la vista de listas. */
   const startNewOrder = (type: OrderType) => {
@@ -363,8 +361,6 @@ export default function ComanderoPage() {
       onCancelOrder={cancelOrderDetail}
       onConfirmTable={confirmTableOrder}
       onConfirmOrder={confirmOrderDetail}
-      onMarkDeliveredTable={markDeliveredTable}
-      onMarkDeliveredOrder={markDeliveredOrder}
     />
   );
 }

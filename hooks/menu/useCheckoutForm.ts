@@ -12,7 +12,11 @@ export type OrderTypePublico = 'mesa' | 'llevar' | 'delivery';
  * el pedido (no se le piden al cliente en este paso).
  */
 export function useCheckoutForm(mesaLabel?: string) {
-  const [orderType, setOrderType] = useState<OrderTypePublico>(mesaLabel ? 'mesa' : 'llevar');
+  // Por defecto "Comer aquí": la mayoría de clientes escanean el QR ya sentados en el local,
+  // tengan o no mesaLabel resuelto (ej. QR genérico de sucursal, sin mesa específica en la URL).
+  // Si "mesa" termina deshabilitada en Métodos de entrega, CheckoutModal ya cae al primer tipo
+  // habilitado (ver su useEffect), así que no hace falta replicar esa lógica acá.
+  const [orderType, setOrderType] = useState<OrderTypePublico>('mesa');
   const [custName, setCustName] = useState('');
   const [custPhone, setCustPhone] = useState('');
   const [custEmail, setCustEmail] = useState('');

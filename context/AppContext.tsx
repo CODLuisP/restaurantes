@@ -98,9 +98,9 @@ interface AppContextType {
   cancelTableOrder: (tableName: string) => Promise<void>;
   /** El mozo confirma un pedido que armó el cliente por QR — recién ahí se manda a cocina. */
   confirmarPedidoCliente: (tableName: string) => Promise<void>;
-  /** Marca el pedido de la mesa como entregado de un solo golpe (sin pasar por Cocina) — para
-   *  "Impresora en cocina", donde no hay KDS que lo vaya avanzando de a poco. */
-  marcarMesaEntregada: (tableName: string) => Promise<void>;
+  /** Marca UN solo plato de la mesa como entregado — con "Impresora en cocina" activo, los platos
+   *  no salen todos a la vez, así que el mozo los entrega uno por uno. */
+  marcarItemMesaEntregado: (tableName: string, pedidoItemId: string) => Promise<void>;
   /** Pedidos que no ocupan mesa (para llevar / delivery), pendientes de cobro. Vienen del backend real. */
   activeOrders: ActiveOrder[];
   activeOrdersLoading: boolean;
@@ -120,9 +120,8 @@ interface AppContextType {
   cancelActiveOrder: (orderId: string) => Promise<void>;
   /** El mozo confirma un pedido de llevar/delivery armado por el cliente — recién ahí se manda a cocina. */
   confirmarActiveOrder: (orderId: string) => Promise<void>;
-  /** Marca el pedido de llevar/delivery como entregado de un solo golpe — para "Impresora en
-   *  cocina", donde no hay KDS que lo vaya avanzando de a poco. */
-  marcarActiveOrderEntregado: (orderId: string) => Promise<void>;
+  /** Marca UN solo plato del pedido de llevar/delivery como entregado (ver marcarItemMesaEntregado). */
+  marcarItemActiveOrderEntregado: (orderId: string, pedidoItemId: string) => Promise<void>;
   /** Cobra un pedido para llevar / delivery (o una parte, en cuentas separadas) registrando la venta real en el backend. */
   chargeOrder: (orderId: string, input: ChargeInput) => Promise<SalesHistory | null>;
   /** Cajero: cobra el consumo de una mesa (o una parte, en cuentas separadas) registrando la venta real en el backend. */
@@ -173,7 +172,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     mergeTables: mergeTablesBackend, unmergeTable: unmergeTableBackend,
     sendOrderToKitchen: sendOrderToKitchenBackend,
     updateTableItemQty: updateTableItemQtyBackend, removeTableItem: removeTableItemBackend,
-    cancelTableOrder, confirmarPedidoCliente: confirmarPedidoClienteBackend, marcarMesaEntregada,
+    cancelTableOrder, confirmarPedidoCliente: confirmarPedidoClienteBackend,
+    marcarItemMesaEntregado,
   } = useMesasCatalogo(triggerToast);
 
   /* Con "Impresora en cocina" activo, cada envío de comanda se imprime directo en vez de mostrarse
@@ -285,7 +285,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     activeOrders, activeOrdersLoading, loadActiveOrders, createActiveOrder,
     addItemsToActiveOrder: addItemsToActiveOrderBackend,
     updateActiveOrderItemQty, removeActiveOrderItem, cancelActiveOrder,
-    confirmarActiveOrder: confirmarActiveOrderBackend, marcarActiveOrderEntregado,
+    confirmarActiveOrder: confirmarActiveOrderBackend,
+    marcarItemActiveOrderEntregado,
   } = useActiveOrders(triggerToast);
 
   /* Mismo caso que confirmarPedidoCliente (mesas): con "Impresora en cocina" activo, confirmar un
@@ -749,7 +750,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         removeTableItem,
         cancelTableOrder,
         confirmarPedidoCliente,
-        marcarMesaEntregada,
+        marcarItemMesaEntregado,
         activeOrders,
         activeOrdersLoading,
         createOrder,
@@ -758,7 +759,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         removeActiveOrderItem,
         cancelActiveOrder,
         confirmarActiveOrder,
-        marcarActiveOrderEntregado,
+        marcarItemActiveOrderEntregado,
         chargeOrder,
         chargeTable,
         setTableStatus,

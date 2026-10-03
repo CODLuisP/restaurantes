@@ -10,7 +10,8 @@ import {
 } from '@/lib/api/sesionesMesa';
 import {
   getPedidoById, getPedidoBySesion, crearPedido, agregarItemsPedido,
-  actualizarItemPedido, eliminarItemPedido, cancelarPedido, confirmarPedido, marcarPedidoEntregado, type PedidoDto,
+  actualizarItemPedido, eliminarItemPedido, cancelarPedido, confirmarPedido,
+  marcarItemPedidoEntregado, type PedidoDto,
 } from '@/lib/api/pedidos';
 import { usePedidoEvents } from '@/hooks/realtime/usePedidoEvents';
 import { useSesionCerradaEvents, type SesionCerradaPayload } from '@/hooks/realtime/useSesionCerradaEvents';
@@ -277,22 +278,18 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
     [token, activeOrders, triggerToast, loadActiveOrders]
   );
 
-  /** Marca el pedido llevar/delivery como entregado de un solo golpe — para "Impresora en cocina",
-   *  donde no hay KDS que lo vaya avanzando de a poco. */
-  const marcarActiveOrderEntregado = useCallback(
-    async (orderId: string) => {
+  /** Marca UN solo plato del pedido como entregado — ver comentario en marcarItemPedidoEntregado. */
+  const marcarItemActiveOrderEntregado = useCallback(
+    async (orderId: string, pedidoItemId: string) => {
       if (!token) return;
-      const order = activeOrders.find(o => o.id === orderId);
-      if (!order?.pedidoId) return;
       try {
-        await marcarPedidoEntregado(token, order.pedidoId);
+        await marcarItemPedidoEntregado(token, Number(pedidoItemId));
         await loadActiveOrders();
-        triggerToast(`Pedido ${order.id} marcado como entregado.`, 'success');
       } catch (err) {
-        triggerToast(err instanceof ApiError ? err.message : 'No se pudo marcar el pedido como entregado.', 'error');
+        triggerToast(err instanceof ApiError ? err.message : 'No se pudo marcar el plato como entregado.', 'error');
       }
     },
-    [token, activeOrders, triggerToast, loadActiveOrders]
+    [token, triggerToast, loadActiveOrders]
   );
 
   const cancelActiveOrder = useCallback(
@@ -333,6 +330,6 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
     activeOrders, activeOrdersLoading, loadActiveOrders,
     createActiveOrder, addItemsToActiveOrder, updateActiveOrderItemQty,
     removeActiveOrderItem, cancelActiveOrder, closeActiveOrderAfterCharge, confirmarActiveOrder,
-    marcarActiveOrderEntregado,
+    marcarItemActiveOrderEntregado,
   };
 }

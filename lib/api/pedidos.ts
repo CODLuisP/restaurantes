@@ -80,10 +80,10 @@ export function confirmarPedido(token: string, pedidoId: number) {
   return apiFetch<PedidoDto>(`/api/pedidos/${pedidoId}/confirmar`, { token, method: 'POST' });
 }
 
-/** Marca el pedido completo como entregado de un solo golpe — para "Impresora en cocina", donde
- *  no hay KDS que lo vaya avanzando de a poco. */
-export function marcarPedidoEntregado(token: string, pedidoId: number) {
-  return apiFetch<PedidoDto>(`/api/pedidos/${pedidoId}/marcar-entregado`, { token, method: 'POST' });
+/** Marca UN solo plato como entregado — con "Impresora en cocina" activo, los platos no salen
+ *  todos a la vez, así que el mozo los va entregando uno por uno en vez de todo el pedido junto. */
+export function marcarItemPedidoEntregado(token: string, itemId: number) {
+  return apiFetch<PedidoDto>(`/api/pedidos/items/${itemId}/marcar-entregado`, { token, method: 'POST' });
 }
 
 export function agregarItemsPedido(token: string, pedidoId: number, items: CreatePedidoItemDto[]) {

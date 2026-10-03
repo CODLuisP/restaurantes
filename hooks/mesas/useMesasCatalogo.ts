@@ -10,7 +10,8 @@ import {
 } from '@/lib/api/mesas';
 import {
   getPedidoBySesion, crearPedido, agregarItemsPedido,
-  actualizarItemPedido, eliminarItemPedido, cancelarPedido, confirmarPedido, marcarPedidoEntregado, type PedidoDto,
+  actualizarItemPedido, eliminarItemPedido, cancelarPedido, confirmarPedido,
+  marcarItemPedidoEntregado, type PedidoDto,
 } from '@/lib/api/pedidos';
 import { crearSesionMesa, cerrarSesionMesa } from '@/lib/api/sesionesMesa';
 import { restarFacturado } from '@/lib/api/ventas';
@@ -271,22 +272,18 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
     [token, tables, triggerToast, loadMesas]
   );
 
-  /** Marca el pedido completo de la mesa como entregado de un solo golpe — para "Impresora en
-   *  cocina", donde no hay KDS que lo vaya avanzando de a poco. */
-  const marcarMesaEntregada = useCallback(
-    async (tableName: string) => {
+  /** Marca UN solo plato de la mesa como entregado — ver comentario en marcarItemPedidoEntregado. */
+  const marcarItemMesaEntregado = useCallback(
+    async (tableName: string, pedidoItemId: string) => {
       if (!token) return;
-      const table = tables.find(t => t.name === tableName);
-      if (!table?.pedidoId) return;
       try {
-        await marcarPedidoEntregado(token, table.pedidoId);
+        await marcarItemPedidoEntregado(token, Number(pedidoItemId));
         await loadMesas();
-        triggerToast(`Pedido de Mesa ${tableName} marcado como entregado.`, 'success');
       } catch (err) {
-        triggerToast(err instanceof ApiError ? err.message : 'No se pudo marcar el pedido como entregado.', 'error');
+        triggerToast(err instanceof ApiError ? err.message : 'No se pudo marcar el plato como entregado.', 'error');
       }
     },
-    [token, tables, triggerToast, loadMesas]
+    [token, triggerToast, loadMesas]
   );
 
   /** Cancela toda la comanda de la mesa y libera la mesa (cierra pedido + sesión). */
@@ -377,6 +374,6 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
     tables, setTables, mesasLoading, loadMesas,
     addTable, removeTable, setTableStatus, mergeTables, unmergeTable,
     sendOrderToKitchen, updateTableItemQty, removeTableItem, cancelTableOrder, closeTableAfterCharge,
-    confirmarPedidoCliente, marcarMesaEntregada,
+    confirmarPedidoCliente, marcarItemMesaEntregado,
   };
 }
