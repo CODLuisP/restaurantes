@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { Bell, Bike, Building2, Check, Loader2, Pencil, Receipt, ShoppingBag, Trash2, X } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
-import { useTicketsConfig } from '@/hooks/app/useTicketsConfig';
 import { imprimirPreCuenta } from '@/lib/print/precuenta';
 import type { ActiveOrder, Table } from '@/types';
 
@@ -30,8 +29,8 @@ export default function OrderDetailDrawer({
   onConfirmTable: (tableName: string) => Promise<void>;
   onConfirmOrder: (orderId: string) => Promise<void>;
 }) {
-  const { tables, activeOrders, impresoraCocina, marcarItemMesaEntregado, marcarItemActiveOrderEntregado } = useApp();
-  const { businessName, logoUrl, ruc, direccion, paperSize } = useTicketsConfig();
+  const { tables, activeOrders, impresoraCocina, negocioTicket, ticketPaperSize: paperSize, marcarItemMesaEntregado, marcarItemActiveOrderEntregado } = useApp();
+  const { businessName, logoUrl, ruc, direccion } = negocioTicket;
   const [busyAction, setBusyAction] = useState<BusyAction>(null);
   /** Ítems que se están marcando como entregados en este momento — bloquea su propio botón. */
   const [busyItemIds, setBusyItemIds] = useState<Set<string>>(new Set());

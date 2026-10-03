@@ -11,8 +11,6 @@ import {
   money, round2, onlyDigits, PAYMENTS, TYPE_META, ESTADO_PEDIDO_LABEL, type Chargeable, type SplitMode,
 } from './types';
 import { getSeriesFacturacion, type SeriesSucursal } from '@/lib/api/facturacion';
-import { getSucursalById } from '@/lib/api/sucursales';
-import { getMiEmpresa } from '@/lib/api/empresas';
 import { getClientes } from '@/lib/api/clientes';
 import type { Cliente } from '@/types/clientes';
 export default function ChargePanel({
@@ -24,7 +22,10 @@ export default function ChargePanel({
   onAddItems: () => void;
   onClosed: () => void;
 }) {
-  const { chargeTable, chargeOrder, triggerToast, metodosPago, igvPorcentaje, impresoraCocina } = useApp();
+  const {
+    chargeTable, chargeOrder, triggerToast, metodosPago, igvPorcentaje, impresoraCocina,
+    usarFacturacionElectronica, sucursalSincronizada,
+  } = useApp();
   const { data: session } = useSession();
 
   /* ── Series y correlativos reales desde la API de facturación ── */
@@ -61,32 +62,10 @@ export default function ChargePanel({
      queda "Pendiente" para siempre sin que el cajero se entere. Mientras no esté sincronizada,
      solo se ofrece "Sin comprob." — null mientras carga o si no aplica, para no bloquear de más
      por un hipo de red (se asume sincronizada hasta confirmar lo contrario). */
-  const [sucursalSincronizada, setSucursalSincronizada] = useState<boolean | null>(null);
-  useEffect(() => {
-    const token = session?.accessToken;
-    const sucursalId = session?.user?.sucursalId;
-    if (!token || !sucursalId) return;
-    let cancelado = false;
-    getSucursalById(token, sucursalId)
-      .then(s => { if (!cancelado) setSucursalSincronizada(s.sincronizadoFacturacion); })
-      .catch(() => { if (!cancelado) setSucursalSincronizada(null); });
-    return () => { cancelado = true; };
-  }, [session?.accessToken, session?.user?.sucursalId]);
-
   /* Interruptor general de la empresa (Configuración → Datos del negocio → "usar facturación
      electrónica"). Es el único paso que necesita el negocio para dejar de emitir boletas/facturas
-     sin tocar Ideatec ni resincronizar nada — apagarlo/prenderlo no afecta sucursalSincronizada. */
-  const [usarFacturacionElectronica, setUsarFacturacionElectronica] = useState<boolean | null>(null);
-  useEffect(() => {
-    const token = session?.accessToken;
-    if (!token) return;
-    let cancelado = false;
-    getMiEmpresa(token)
-      .then(e => { if (!cancelado) setUsarFacturacionElectronica(e.usarFacturacionElectronica); })
-      .catch(() => { if (!cancelado) setUsarFacturacionElectronica(null); });
-    return () => { cancelado = true; };
-  }, [session?.accessToken]);
-
+     sin tocar Ideatec ni resincronizar nada — apagarlo/prenderlo no afecta sucursalSincronizada.
+     Ambos se cargan una sola vez en AppContext (useNegocioConfig). */
   const comprobantesElectronicosDisponibles = sucursalSincronizada !== false && usarFacturacionElectronica !== false;
 
   /* Solo se ofrecen los métodos habilitados en /configuracion/metodos-pago. "Yape / Plin" es un
@@ -363,11 +342,15 @@ export default function ChargePanel({
       return 'Cada método de pago debe tener un monto mayor a S/. 0 — quita las líneas en 0.';
     }
     if (Math.abs(pagoPendiente) > 0.009) return 'Los montos de los métodos de pago deben sumar el total a cobrar.';
-    for (let i = 0; i < payments.length; i++) {
-      if (payments[i].method !== 'Efectivo') continue;
-      const rec = payments[i].received === '' ? null : Number(payments[i].received);
-      if (rec == null) return 'Ingresa el monto recibido en efectivo.';
-      if (rec < lineAmount(i)) return 'El efectivo recibido es menor al monto de esa línea.';
+    // Con 1 sola línea, el efectivo puede ser mayor al total (hay vuelto) y se pide cuánto entregó.
+    // Con varias líneas, el monto de la línea YA es lo que pagó en efectivo — no hay vuelto que calcular.
+    if (payments.length === 1) {
+      for (let i = 0; i < payments.length; i++) {
+        if (payments[i].method !== 'Efectivo') continue;
+        const rec = payments[i].received === '' ? null : Number(payments[i].received);
+        if (rec == null) return 'Ingresa el monto recibido en efectivo.';
+        if (rec < lineAmount(i)) return 'El efectivo recibido es menor al monto de esa línea.';
+      }
     }
     if (!selected.sesionMesaId) {
       return 'Esta cuenta no tiene una sesión activa en el sistema; no se puede cobrar.';
@@ -798,39 +781,41 @@ export default function ChargePanel({
               )}
 
               {p.method === 'Efectivo' ? (
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <Wallet className="h-3.5 w-3.5" /> ¿Con cuánto paga?
-                  </label>
-                  <input
-                    value={p.received}
-                    onChange={e => updateLineField(idx, 'received', onlyDigits(e.target.value.replace('.', '')) ? e.target.value.replace(/[^\d.]/g, '') : '')}
-                    inputMode="decimal"
-                    placeholder={money(amount)}
-                    className="input w-full px-3 py-2 text-sm font-mono"
-                  />
-                  <div className="flex flex-wrap gap-1.5">
-                    {quickCashLinea.map((v, i2) => (
-                      <button
-                        key={i2}
-                        type="button"
-                        onClick={() => updateLineField(idx, 'received', String(round2(v)))}
-                        className="text-[10px] font-bold px-2 py-1 rounded-lg bg-white border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition-colors"
-                      >
-                        {i2 === 0 ? 'Exacto' : money(v)}
-                      </button>
-                    ))}
-                  </div>
-                  {receivedNum != null && (
-                    <div className={`flex justify-between items-center text-sm font-bold px-1 ${change != null && change >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                      <span className="text-[11px] uppercase tracking-wide">Vuelto</span>
-                      <span className="font-mono">{change != null ? money(Math.max(0, change)) : money(0)}</span>
+                payments.length === 1 && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <Wallet className="h-3.5 w-3.5" /> ¿Con cuánto paga?
+                    </label>
+                    <input
+                      value={p.received}
+                      onChange={e => updateLineField(idx, 'received', onlyDigits(e.target.value.replace('.', '')) ? e.target.value.replace(/[^\d.]/g, '') : '')}
+                      inputMode="decimal"
+                      placeholder={money(amount)}
+                      className="input w-full px-3 py-2 text-sm font-mono"
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      {quickCashLinea.map((v, i2) => (
+                        <button
+                          key={i2}
+                          type="button"
+                          onClick={() => updateLineField(idx, 'received', String(round2(v)))}
+                          className="text-[10px] font-bold px-2 py-1 rounded-lg bg-white border border-slate-200 text-slate-600 hover:border-brand hover:text-brand transition-colors"
+                        >
+                          {i2 === 0 ? 'Exacto' : money(v)}
+                        </button>
+                      ))}
                     </div>
-                  )}
-                  {receivedNum != null && change != null && change < 0 && (
-                    <p className="text-[10px] text-rose-600">Falta {money(Math.abs(change))} para cubrir esta línea.</p>
-                  )}
-                </div>
+                    {receivedNum != null && (
+                      <div className={`flex justify-between items-center text-sm font-bold px-1 ${change != null && change >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                        <span className="text-[11px] uppercase tracking-wide">Vuelto</span>
+                        <span className="font-mono">{change != null ? money(Math.max(0, change)) : money(0)}</span>
+                      </div>
+                    )}
+                    {receivedNum != null && change != null && change < 0 && (
+                      <p className="text-[10px] text-rose-600">Falta {money(Math.abs(change))} para cubrir esta línea.</p>
+                    )}
+                  </div>
+                )
               ) : (
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">

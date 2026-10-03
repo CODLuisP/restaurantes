@@ -19,7 +19,6 @@ import {
   getComprobantes,
   type NotaVentaResult,
 } from '@/lib/api/comprobantes';
-import { getMiEmpresa, type EmpresaDto } from '@/lib/api/empresas';
 import ComprobantesFilters from '@/components/comprobantes/ComprobantesFilters';
 import ComprobantesTable from '@/components/comprobantes/ComprobantesTable';
 import ComprobanteDetailModal from '@/components/comprobantes/ComprobanteDetailModal';
@@ -193,7 +192,7 @@ async function exportComprobantesExcel(comprobantes: Comprobante[], usuario: str
 
 export default function ComprobantesPage() {
   const { data: session } = useSession();
-  const { triggerToast, searchQuery } = useApp();
+  const { triggerToast, searchQuery, empresa } = useApp();
   const { isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
   const {
@@ -300,18 +299,12 @@ export default function ComprobantesPage() {
   const [notaModalData, setNotaModalData] = useState<{ open: boolean; comp: Comprobante | null; tipoNota: 'credito' | 'debito' }>({
     open: false, comp: null, tipoNota: 'credito',
   });
-  const [empresa, setEmpresa] = useState<EmpresaDto | null>(null);
 
   useEffect(() => {
     const handleCloseMenu = () => setActiveMenuId(null);
     window.addEventListener('click', handleCloseMenu);
     return () => window.removeEventListener('click', handleCloseMenu);
   }, []);
-
-  useEffect(() => {
-    if (!token) return;
-    getMiEmpresa(token).then(setEmpresa).catch(() => setEmpresa(null));
-  }, [token]);
 
   // El buscador global del topbar también filtra esta vista (cliente, serie o correlativo).
   useEffect(() => {

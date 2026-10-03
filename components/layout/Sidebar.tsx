@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -28,7 +28,6 @@ import { useSidebar } from '@/context/SidebarContext';
 import { useAuth } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
 import { useCocinaPedidos } from '@/hooks/cocina/useCocinaPedidos';
-import { getMiEmpresa } from '@/lib/api/empresas';
 import type { Role } from '@/types';
 
 /* Pantallas operativas en tiempo real de una sola sucursal (mesas, pedidos en vivo, turno de
@@ -87,7 +86,7 @@ export default function Sidebar() {
   const { currentUser } = useAuth();
   const { data: session } = useSession();
   const isSuperAdmin = session?.user?.role === 'superadmin';
-  const { triggerToast, tables, activeOrders, impresoraCocina } = useApp();
+  const { triggerToast, tables, activeOrders, impresoraCocina, usarFacturacionElectronica } = useApp();
   const { pedidos } = useCocinaPedidos(triggerToast);
   const isConfigRoute = pathname.startsWith('/configuracion');
   const [isConfigOpen, setIsConfigOpen] = useState(isConfigRoute);
@@ -95,13 +94,6 @@ export default function Sidebar() {
 
   const isCajaRoute = pathname.startsWith('/caja');
   const [isCajaOpen, setIsCajaOpen] = useState(isCajaRoute);
-
-  const [usarFacturacionElectronica, setUsarFacturacionElectronica] = useState(false);
-  useEffect(() => {
-    const token = session?.accessToken;
-    if (!token) return;
-    getMiEmpresa(token).then(e => setUsarFacturacionElectronica(e.usarFacturacionElectronica)).catch(() => {});
-  }, [session?.accessToken]);
 
   /* Comandas listas por despachar — cualquier mozo puede recogerlas y entregarlas, sin importar quién las tomó. */
   const readyCount = pedidos.filter(p => p.estado === 'listo').length;
@@ -123,7 +115,7 @@ export default function Sidebar() {
       {/* Sidebar */}
       <aside
         className={`
-          bg-gradient-to-br from-brand-dark to-brand-medium text-white flex flex-col h-screen
+          bg-linear-to-br from-brand-dark to-brand-medium text-white flex flex-col h-screen
           fixed top-0 left-0 z-20 border-r border-white/5 select-none
           transition-all duration-300 overflow-hidden
           ${isCollapsed ? 'w-16' : 'w-64'}
@@ -140,7 +132,7 @@ export default function Sidebar() {
           <img src="/33.png" alt="" className="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none" />
           <div className="absolute inset-0 bg-brand-dark/60 pointer-events-none" />
           <div className="relative bg-white/10 p-2 rounded-xl border border-white/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-            <Store className="h-5 w-5 text-brand-accent stroke-[2]" />
+            <Store className="h-5 w-5 text-brand-accent stroke-2" />
           </div>
           {!isCollapsed && (
             <div className="relative overflow-hidden">

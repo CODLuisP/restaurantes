@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import type { VentaDto } from '@/lib/api/ventas';
 import type { ProductoVentaDto, KpiVentasDto } from '@/lib/api/reportes';
+import { formatMetodoPago } from '@/lib/config/metodos';
 
 export const METODO_PAGO_LABEL: Record<string, string> = {
   efectivo: 'Efectivo', tarjeta: 'Tarjeta', yape: 'Yape', plin: 'Plin', otro: 'Otro',
@@ -96,7 +97,7 @@ export async function exportVentasDetalladas(ventas: VentaDto[], kpi: KpiVentasD
       numDoc: v.numDoc || '-',
       razon: v.razonSocial || v.nombreCliente || 'Clientes Varios',
       cajero: v.cajeroNombre ?? '-',
-      pago: METODO_PAGO_LABEL[v.metodoPago] ?? v.metodoPago,
+      pago: formatMetodoPago(v.metodoPago),
       base: signo(v.tipoComprobante) * v.subtotal,
       igv: signo(v.tipoComprobante) * v.igvMonto,
       total: signo(v.tipoComprobante) * v.total,

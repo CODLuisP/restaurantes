@@ -6,7 +6,7 @@ import { Store, Plus, Pencil, MapPin, Phone, Loader2, RefreshCw, AlertTriangle, 
 import { Modal, Input, Toggle, Button, Alert } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import {
-  getSucursales, createSucursal, updateSucursal, sincronizarSucursalFacturacion, calcularSeriesPorDefecto,
+  createSucursal, updateSucursal, sincronizarSucursalFacturacion, calcularSeriesPorDefecto,
   type Sucursal, type SeriesFacturacionOverride,
 } from '@/lib/api/sucursales';
 
@@ -33,14 +33,15 @@ const emptyForm = (): FormState => ({ nombre: '', codEstablecimiento: '0000', di
 
 export default function SucursalesPage() {
   const { data: session } = useSession();
-  const { triggerToast } = useApp();
+  const {
+    triggerToast, refreshNegocioConfig, sucursales, setSucursales, negocioConfigLoading, negocioConfigErrores,
+  } = useApp();
   const token = session?.accessToken;
   /* Solo el superadmin administra todas las sucursales de la empresa; un admin regular
      opera fijo sobre la suya y no puede crear otras (el backend ya lo rechaza igual). */
   const isSuperAdmin = session?.user?.role === 'superadmin';
 
-  const [sucursales, setSucursales] = useState<Sucursal[]>([]);
-  const [cargando, setCargando] = useState(true);
+  const cargando = negocioConfigLoading && sucursales.length === 0;
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Sucursal | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
@@ -50,16 +51,11 @@ export default function SucursalesPage() {
   const [syncTarget, setSyncTarget] = useState<Sucursal | null>(null);
   const [syncForm, setSyncForm] = useState<SyncFormState>({});
 
-  const load = () => {
-    if (!token) return;
-    setCargando(true);
-    getSucursales(token)
-      .then(setSucursales)
-      .catch(() => triggerToast('Error al cargar las sucursales.', 'error'))
-      .finally(() => setCargando(false));
-  };
-
-  useEffect(load, [token]);
+  /* La lista vive en AppContext (cargada una vez por sesión); aquí solo se avisa si esa carga falló. */
+  useEffect(() => {
+    if (negocioConfigErrores.sucursales) triggerToast('Error al cargar las sucursales.', 'error');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [negocioConfigErrores.sucursales]);
 
   const openCreate = () => {
     setEditing(null);
@@ -131,6 +127,7 @@ export default function SucursalesPage() {
       if (actualizada.sincronizadoFacturacion) {
         triggerToast('Sucursal sincronizada con facturación.', 'success');
         closeSincronizar();
+        refreshNegocioConfig(); // habilita boleta/factura en Cobrar sin recargar la sesión
       } else {
         triggerToast('No se pudo sincronizar todavía. Verifica la API de facturación e intenta de nuevo.', 'warning');
       }

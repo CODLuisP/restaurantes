@@ -6,7 +6,7 @@ import { Plus, X } from 'lucide-react';
 import { Toggle, Select, Button, Spinner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { getConfiguracion, updateConfiguracion } from '@/lib/api/configuracion';
-import { getSucursales, getSucursalById } from '@/lib/api/sucursales';
+import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 
 type DayKey = 'lun' | 'mar' | 'mie' | 'jue' | 'vie' | 'sab' | 'dom';
 interface DayRange { from: string; to: string }
@@ -29,12 +29,11 @@ function defaultSchedule(): Record<DayKey, DaySchedule> {
 
 export default function HorariosTab() {
   const { data: session } = useSession();
-  const { triggerToast } = useApp();
+  const { triggerToast, sucursales: todasSucursales } = useApp();
   const token = session?.accessToken;
   const isSuperAdmin = session?.user?.role === 'superadmin';
 
-  const [sucursales, setSucursales] = useState<{ id: number; nombre: string }[]>([]);
-  const [sId, setSId] = useState<number | null>(null);
+  const { sucursales, sId, selectSucursal, sucursalesLoading } = useSucursalSelector();
   const [zonaHoraria, setZonaHoraria] = useState('Peru (Lima)');
   const [numeroPedidos, setNumeroPedidos] = useState('');
   const [schedule, setSchedule] = useState<Record<DayKey, DaySchedule>>(defaultSchedule());
@@ -45,15 +44,10 @@ export default function HorariosTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!token) return;
-    getSucursales(token).then(lista => {
-      const activas = lista.filter(s => s.activo);
-      setSucursales(activas.map(s => ({ id: s.id, nombre: s.nombre })));
-      const id = session?.user?.sucursalId ?? activas[0]?.id;
-      if (id) { setSId(id); load(id); }
-      else { setLoading(false); }
-    }).catch(() => setLoading(false));
-  }, [token]);
+    if (sId) load(sId);
+    else if (!sucursalesLoading) setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, sId, sucursalesLoading]);
 
   const load = (id: number) => {
     if (!token) return;
@@ -67,7 +61,8 @@ export default function HorariosTab() {
       if (c.horariosJson) { try { setSchedule({ ...defaultSchedule(), ...JSON.parse(c.horariosJson) }); } catch { setSchedule(defaultSchedule()); } }
       else setSchedule(defaultSchedule());
       if (!c.whatsappPedidos) {
-        getSucursalById(token, id).then(s => { if (s.telefono) setNumeroPedidos(s.telefono); }).catch(() => {});
+        const telefono = todasSucursales.find(s => s.id === id)?.telefono;
+        if (telefono) setNumeroPedidos(telefono);
       }
     }).catch(() => {
       setZonaHoraria('Peru (Lima)'); setNumeroPedidos(''); setSchedule(defaultSchedule());
@@ -117,7 +112,7 @@ export default function HorariosTab() {
     <div className="space-y-6">
       {isSuperAdmin && sucursales.length > 0 && (
         <div className="flex justify-end">
-          <Select value={sId ?? ''} onChange={e => { const id = Number(e.target.value); setSId(id); load(id); }}>
+          <Select value={sId ?? ''} onChange={e => selectSucursal(Number(e.target.value))}>
             {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
           </Select>
         </div>

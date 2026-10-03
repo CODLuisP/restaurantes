@@ -7,31 +7,18 @@ import {
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { useApp } from '@/context/AppContext';
-import { getSucursales } from '@/lib/api/sucursales';
+import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import { Select, Spinner } from '@/components/ui';
 
 export default function QrTab() {
   const { data: session } = useSession();
   const { triggerToast } = useApp();
-  const token = session?.accessToken;
   const isSuperAdmin = session?.user?.role === 'superadmin';
 
-  const [sucursales, setSucursales] = useState<{ id: number; nombre: string }[]>([]);
-  const [sId, setSId] = useState<number | null>(null);
+  const { sucursales, sId, selectSucursal, sucursalesLoading: loading } = useSucursalSelector();
   const [url, setUrl] = useState('');
   const [copied, setCopied] = useState(false);
-  const [loading, setLoading] = useState(true);
   const canvasId = 'qr-canvas-carta-tab';
-
-  useEffect(() => {
-    if (!token) { setLoading(false); return; }
-    getSucursales(token).then(lista => {
-      const activas = lista.filter(s => s.activo);
-      setSucursales(activas.map(s => ({ id: s.id, nombre: s.nombre })));
-      const id = session?.user?.sucursalId ?? activas[0]?.id;
-      if (id) setSId(id);
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, [token]);
 
   useEffect(() => {
     const base = `${window.location.origin}/menu`;
@@ -82,7 +69,7 @@ export default function QrTab() {
     <div className="space-y-5">
       {isSuperAdmin && sucursales.length > 0 && (
         <div className="flex justify-end">
-          <Select value={sId ?? ''} onChange={e => setSId(Number(e.target.value))}>
+          <Select value={sId ?? ''} onChange={e => selectSucursal(Number(e.target.value))}>
             {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
           </Select>
         </div>

@@ -6,7 +6,7 @@ import { CalendarOff, Trash2 } from 'lucide-react';
 import { Button, Modal, Select, Spinner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { getCierres, createCierre, deleteCierre } from '@/lib/api/cierres';
-import { getSucursales } from '@/lib/api/sucursales';
+import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import type { CierreDto } from '@/types/cierres';
 
 export default function CierresProgramadosTab() {
@@ -15,8 +15,7 @@ export default function CierresProgramadosTab() {
   const token = session?.accessToken;
   const isSuperAdmin = session?.user?.role === 'superadmin';
 
-  const [sucursales, setSucursales] = useState<{ id: number; nombre: string }[]>([]);
-  const [sId, setSId] = useState<number | null>(null);
+  const { sucursales, sId, selectSucursal, sucursalesLoading } = useSucursalSelector();
   const [cierres, setCierres] = useState<CierreDto[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [motivo, setMotivo] = useState('');
@@ -26,15 +25,10 @@ export default function CierresProgramadosTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!token) return;
-    getSucursales(token).then(lista => {
-      const activas = lista.filter(s => s.activo);
-      setSucursales(activas.map(s => ({ id: s.id, nombre: s.nombre })));
-      const id = session?.user?.sucursalId ?? activas[0]?.id;
-      if (id) { setSId(id); load(id); }
-      else { setLoading(false); }
-    }).catch(() => setLoading(false));
-  }, [token]);
+    if (sId) load(sId);
+    else if (!sucursalesLoading) setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, sId, sucursalesLoading]);
 
   const load = (id: number) => {
     if (!token) return;
@@ -76,7 +70,7 @@ export default function CierresProgramadosTab() {
     <div className="space-y-6">
       {isSuperAdmin && sucursales.length > 0 && (
         <div className="flex justify-end">
-          <Select value={sId ?? ''} onChange={e => { const id = Number(e.target.value); setSId(id); load(id); }}>
+          <Select value={sId ?? ''} onChange={e => selectSucursal(Number(e.target.value))}>
             {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
           </Select>
         </div>

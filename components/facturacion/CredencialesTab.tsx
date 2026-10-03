@@ -9,7 +9,6 @@ import { getEmpresaFacturacion, updateEmpresaFacturacion, updateLogoFacturacion,
 import type { EmpresaDto } from '@/lib/api/empresas';
 import { ApiError } from '@/lib/api/client';
 import { getConfiguracion, updateConfiguracion } from '@/lib/api/configuracion';
-import { getSucursales } from '@/lib/api/sucursales';
 import LogoCropModal from '@/components/configuracion/negocio/LogoCropModal';
 
 const IGV_OPCIONES = [18, 10.5] as const;
@@ -104,7 +103,7 @@ interface CredencialesTabProps {
 export default function CredencialesTab({ empresa: empresaLocal, isSuperAdmin, onApiKeyGenerada }: CredencialesTabProps) {
   const { data: session } = useSession();
   const token = session?.accessToken;
-  const { triggerToast } = useApp();
+  const { triggerToast, sucursales, refreshNegocioConfig } = useApp();
 
   const [empresa, setEmpresa] = useState<EmpresaFacturacion | null>(null);
   const [loading, setLoading] = useState(true);
@@ -163,16 +162,13 @@ export default function CredencialesTab({ empresa: empresaLocal, isSuperAdmin, o
       .finally(() => setLoading(false));
   }, [token, empresaLocal?.tieneApiKeyFacturacion]);
 
+  /* Sucursales ya cargadas en AppContext: se toma la primera activa, igual que antes. */
+  const primeraSucursalActivaId = sucursales.find(s => s.activo)?.id ?? null;
   useEffect(() => {
-    if (!token) return;
-    getSucursales(token).then(lista => {
-      const activas = lista.filter(s => s.activo);
-      const id = activas[0]?.id;
-      if (!id) return;
-      setSId(id);
-      getConfiguracion(token, id).then(c => setIgvPorcentaje(c.igvPorcentaje)).catch(() => {});
-    }).catch(() => {});
-  }, [token]);
+    if (!token || !primeraSucursalActivaId) return;
+    setSId(primeraSucursalActivaId);
+    getConfiguracion(token, primeraSucursalActivaId).then(c => setIgvPorcentaje(c.igvPorcentaje)).catch(() => {});
+  }, [token, primeraSucursalActivaId]);
 
   const handleSelectIgv = async (valor: number) => {
     if (!token || !sId || valor === igvPorcentaje) return;
@@ -193,6 +189,7 @@ export default function CredencialesTab({ empresa: empresaLocal, isSuperAdmin, o
       });
       setIgvPorcentaje(valor);
       triggerToast(`IGV actualizado a ${valor}%.`, 'success');
+      refreshNegocioConfig(); // Cobrar usa el IGV del contexto
     } catch (err) {
       triggerToast(err instanceof ApiError ? err.message : 'No se pudo actualizar el IGV.', 'error');
     } finally {

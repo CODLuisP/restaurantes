@@ -7,7 +7,7 @@ import {
   ReceiptText, User, ChefHat, SlidersHorizontal,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
-import { getTicketsConfig, updateTicketsConfig } from '@/lib/api/ticketsConfig';
+import { updateTicketsConfig } from '@/lib/api/ticketsConfig';
 import { resizeImageToBlob, subirImagenProducto } from '@/lib/uploadImagen';
 import TicketPreview from './TicketPreview';
 import BlockListPanel from './BlockListPanel';
@@ -20,7 +20,7 @@ import {
 /* ─── Editor ─── */
 export default function TicketEditor() {
   const { data: session } = useSession();
-  const { triggerToast } = useApp();
+  const { triggerToast, ticketsConfig, negocioConfigErrores, refreshNegocioConfig } = useApp();
   const token = session?.accessToken;
   const [config, setConfig] = useState<TicketConfig>(() => defaultConfig());
   const [side, setSide] = useState<Side>('cliente');
@@ -32,19 +32,24 @@ export default function TicketEditor() {
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  /* Hidratar desde el backend */
+  /* Hidratar una sola vez desde el diseño ya cargado en AppContext (los refrescos posteriores
+     no pisan lo que se está editando). */
+  const hidratado = useRef(false);
   useEffect(() => {
-    if (!token) return;
-    getTicketsConfig(token).then(data => {
-      if (!data) return;
-      setConfig(prev => ({
-        cliente: data.clienteJson ? JSON.parse(data.clienteJson) : prev.cliente,
-        cocina: data.cocinaJson ? JSON.parse(data.cocinaJson) : prev.cocina,
-      }));
-      if (data.paperSize === '58mm' || data.paperSize === '80mm') setPaper(data.paperSize);
-    }).catch(() => triggerToast('Error al cargar el diseño de tickets.', 'error'));
+    if (!ticketsConfig || hidratado.current) return;
+    hidratado.current = true;
+    const data = ticketsConfig;
+    setConfig(prev => ({
+      cliente: data.clienteJson ? JSON.parse(data.clienteJson) : prev.cliente,
+      cocina: data.cocinaJson ? JSON.parse(data.cocinaJson) : prev.cocina,
+    }));
+    if (data.paperSize === '58mm' || data.paperSize === '80mm') setPaper(data.paperSize);
+  }, [ticketsConfig]);
+
+  useEffect(() => {
+    if (negocioConfigErrores.ticketsConfig) triggerToast('Error al cargar el diseño de tickets.', 'error');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [negocioConfigErrores.ticketsConfig]);
 
   const blocks = config[side];
   const selected = blocks.find(b => b.id === selectedId) ?? null;
@@ -118,6 +123,7 @@ export default function TicketEditor() {
         paperSize: paper,
       });
       triggerToast('Diseño del ticket guardado.', 'success');
+      refreshNegocioConfig(); // las comandas se imprimen con la plantilla del contexto
     } catch {
       triggerToast('No se pudo guardar el diseño.', 'error');
     } finally {

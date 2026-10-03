@@ -13,6 +13,7 @@ import { getUsuarios, type Usuario } from '@/lib/api/usuarios';
 import { toFechaParam } from '@/lib/api/reportes';
 import { getFechaEnvioSunatVisible, formatFechaHora } from '@/lib/facturacion/fechaEnvioSunat';
 import { ConvertirTicketModal } from '@/components/caja/ConvertirTicketModal';
+import { formatMetodoPago } from '@/lib/config/metodos';
 
 const BRAND_COLOR = 'FF007542';
 
@@ -179,13 +180,6 @@ const TIPO_LABEL: Record<string, string> = {
   nota_debito: 'Nota de Débito',
 };
 
-const METODO_PAGO_LABEL: Record<string, string> = {
-  efectivo: 'Efectivo',
-  tarjeta: 'Tarjeta',
-  yape: 'Yape',
-  plin: 'Plin',
-  otro: 'Otro',
-};
 
 /** Roles que efectivamente pueden cobrar/atender una venta — excluye cocinero, repartidor, etc. */
 const ROLES_VISIBLES = ['admin', 'cajero', 'mozo'];
@@ -205,7 +199,13 @@ function addDias(d: Date, delta: number): Date {
 export default function VentasDelDiaPage() {
   const { data: session } = useSession();
   const { token, isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
-  const { triggerToast } = useApp();
+  const { triggerToast, usarFacturacionElectronica } = useApp();
+  /* Convertir a boleta/factura solo si la empresa usa facturación electrónica y la sucursal que
+     se está viendo ya está sincronizada. Se toma la sucursal del selector (no la de la sesión)
+     porque el superadmin no tiene sucursal fija y puede estar viendo cualquiera. */
+  const puedeConvertir =
+    usarFacturacionElectronica === true &&
+    !!sucursales.find(s => s.id === sId)?.sincronizadoFacturacion;
 
   const [dia, setDia] = useState(() => new Date());
   const [cajeroId, setCajeroId] = useState<number | null>(null);
@@ -424,14 +424,14 @@ export default function VentasDelDiaPage() {
                 {ventas.map(v => {
                   const isAnulacion = v.tipoComprobante === 'nota_credito';
                   const isSelected = v.id === selectedId;
-                  const esTicket = v.tipoComprobante === 'ticket';
+                  const convertible = puedeConvertir && v.tipoComprobante === 'ticket';
                   return (
                     <div key={v.id} className="relative">
                       <button
                         type="button"
                         onClick={() => setSelectedId(v.id)}
                         className={`w-full grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-4 py-3 text-left transition-colors ${
-                          esTicket ? 'pr-10' : ''
+                          convertible ? 'pr-10' : ''
                         } ${isSelected ? 'bg-brand/5' : 'hover:bg-slate-50'}`}
                       >
                         <div className="min-w-0">
@@ -447,7 +447,7 @@ export default function VentasDelDiaPage() {
                         </span>
                       </button>
 
-                      {esTicket && (
+                      {convertible && (
                         <div className="absolute right-1 top-1/2 -translate-y-1/2">
                           <button
                             type="button"
@@ -515,7 +515,7 @@ export default function VentasDelDiaPage() {
 
                 <div className="border-t border-dashed border-slate-200 pt-3 space-y-1">
                   <div className="flex items-center justify-between text-xs text-slate-600">
-                    <span className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5 text-slate-400" /> {METODO_PAGO_LABEL[seleccionada.metodoPago] ?? seleccionada.metodoPago}</span>
+                    <span className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5 text-slate-400" /> {formatMetodoPago(seleccionada.metodoPago)}</span>
                     <span className="font-mono">{money(seleccionada.total)}</span>
                   </div>
                   {pagoDetalle?.id === seleccionada.id && pagoDetalle.numeroOperacion && (

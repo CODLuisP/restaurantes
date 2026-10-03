@@ -6,18 +6,11 @@ import { Modal } from '@/components/ui/Modal';
 import { getClientes } from '@/lib/api/clientes';
 import { convertirTicket } from '@/lib/api/comprobantes';
 import { getVentaById, type VentaDto } from '@/lib/api/ventas';
+import { formatMetodoPago } from '@/lib/config/metodos';
 import type { Cliente } from '@/types/clientes';
 
 const onlyDigits = (s: string) => s.replace(/\D/g, '');
 const money = (n: number) => `S/. ${n.toFixed(2)}`;
-
-const METODO_PAGO_LABEL: Record<string, string> = {
-  efectivo: 'Efectivo',
-  tarjeta: 'Tarjeta',
-  yape: 'Yape',
-  plin: 'Plin',
-  otro: 'Otro',
-};
 
 type TipoComprobante = 'boleta' | 'factura';
 
@@ -41,7 +34,7 @@ function VentaDetalleBox({ detalle }: { detalle: VentaDto }) {
 
       <div className="border-t border-dashed border-slate-200 pt-2">
         <div className="flex items-center justify-between text-slate-600">
-          <span className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5 text-slate-400" /> {METODO_PAGO_LABEL[detalle.metodoPago] ?? detalle.metodoPago}</span>
+          <span className="flex items-center gap-1.5"><Wallet className="h-3.5 w-3.5 text-slate-400" /> {formatMetodoPago(detalle.metodoPago)}</span>
         </div>
         {detalle.numeroOperacion && (
           <p className="text-[11px] text-slate-500 pl-5 mt-0.5">
