@@ -9,7 +9,8 @@ export default function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm">
+    /* Por encima de los modales (z-50) para que los avisos no queden tapados por su fondo oscuro. */
+    <div className="fixed bottom-5 right-5 z-[60] flex flex-col gap-2 max-w-sm">
       {toasts.map(toast => (
         <div
           key={toast.id}

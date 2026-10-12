@@ -86,7 +86,7 @@ export default function Sidebar() {
   const { currentUser } = useAuth();
   const { data: session } = useSession();
   const isSuperAdmin = session?.user?.role === 'superadmin';
-  const { triggerToast, tables, activeOrders, impresoraCocina, usarFacturacionElectronica } = useApp();
+  const { triggerToast, tables, activeOrders, impresoraCocina, usarFacturacionElectronica, negocioTicket } = useApp();
   const { pedidos } = useCocinaPedidos(triggerToast);
   const isConfigRoute = pathname.startsWith('/configuracion');
   const [isConfigOpen, setIsConfigOpen] = useState(isConfigRoute);
@@ -126,13 +126,15 @@ export default function Sidebar() {
         <Link
           href="/dashboard"
           onClick={closeOpen}
-          className="relative h-16 px-4 border-b border-[#306342] flex items-center gap-3 overflow-hidden shrink-0 group cursor-pointer"
+          className={`relative h-16 border-b border-[#306342] flex items-center gap-3 overflow-hidden shrink-0 group cursor-pointer ${isCollapsed ? 'justify-center px-0' : 'px-4'}`}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/33.png" alt="" className="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none" />
           <div className="absolute inset-0 bg-brand-dark/60 pointer-events-none" />
-          <div className="relative bg-white/10 p-2 rounded-xl border border-white/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-            <Store className="h-5 w-5 text-brand-accent stroke-2" />
+          {/* Logo: campana blanca sobre verde muy oscuro, para que resalte sobre el verde del menú. */}
+          <div className={`relative rounded-xl bg-[#052A18] ring-1 ring-white/25 shadow-md shadow-black/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-all ${isCollapsed ? 'w-11 h-11' : 'w-12 h-12'}`}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/campana-blanco-transparente.png" alt="RestoFly" className={isCollapsed ? 'w-8 h-8' : 'w-9 h-9'} />
           </div>
           {!isCollapsed && (
             <div className="relative overflow-hidden">
@@ -364,8 +366,8 @@ export default function Sidebar() {
           */}
         </nav>
 
-        {/* Footer */}
-        {!isCollapsed && (
+        {/* Footer: empresa que usa el sistema (RestoFly es la marca del sistema, arriba). */}
+        {!isCollapsed && negocioTicket.businessName && (
           <div className="px-4 py-3 border-t border-brand-hover bg-brand-deeper/30 shrink-0">
             <div className="flex items-center gap-2">
               <div className="flex flex-col w-1 h-8 rounded-full overflow-hidden shrink-0">
@@ -374,8 +376,8 @@ export default function Sidebar() {
                 <div className="bg-[#D91B5C] h-1/3" />
               </div>
               <div className="text-xs min-w-0">
-                <p className="font-semibold text-white/95 truncate">RestoFly Perú</p>
-                <p className="text-[10px] text-white/50 truncate">RUC: 20123456789</p>
+                <p className="font-semibold text-white/95 truncate" title={negocioTicket.businessName}>{negocioTicket.businessName}</p>
+                {negocioTicket.ruc && <p className="text-[10px] text-white/50 truncate">RUC: {negocioTicket.ruc}</p>}
               </div>
             </div>
           </div>

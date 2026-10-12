@@ -7,6 +7,8 @@ import type { OrderType, Product } from '@/types';
 interface MenuCatalogProps {
   orderType: OrderType;
   selectedTable: string;
+  /** La mesa ya tiene consumo: se está agregando a su comanda, no creando un pedido nuevo. */
+  mesaOcupada?: boolean;
   editingOrderId: string | null;
   search: string;
   setSearch: (v: string) => void;
@@ -108,7 +110,7 @@ function ProductCard({
 
 /** Columna izquierda del editor: buscador, categorías y grilla de platos de la carta. */
 export default function MenuCatalog({
-  orderType, selectedTable, editingOrderId, search, setSearch, isSearching,
+  orderType, selectedTable, mesaOcupada, editingOrderId, search, setSearch, isSearching,
   rawQuery, hasMenuProducts, categories, activeCategory, setSelectedCategory, filteredProducts, onAddToCart, onBack,
 }: MenuCatalogProps) {
   /* Variante elegida por producto (chips) antes de agregarlo a la comanda. */
@@ -142,9 +144,9 @@ export default function MenuCatalog({
     : null;
 
   return (
-        <div className="flex-1 flex flex-col min-w-0 bg-white rounded-2xl border border-slate-100 p-5 shadow-sm h-full overflow-y-auto">
+        <div className="flex-1 flex flex-col min-w-0 px-4 py-5 lg:px-6 lg:h-full lg:overflow-y-auto">
           {/* Header Superior del Pedido: Volver e Info */}
-          <div className="flex items-center gap-3 border-b border-slate-100 pb-4 mb-4 shrink-0">
+          <div className="flex items-center gap-3 border-b border-slate-200 pb-4 mb-4 shrink-0">
             <button
               onClick={onBack}
               className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl flex items-center gap-1 transition-colors"
@@ -154,8 +156,10 @@ export default function MenuCatalog({
             <div>
               <h4 className="text-sm font-extrabold text-slate-800">
                 {editingOrderId
-                  ? `Editando pedido · ${orderType === 'llevar' ? 'Para llevar' : 'Delivery'} · ${editingOrderId}`
-                  : `Nuevo pedido · ${orderType === 'mesa' ? 'Mesa' : orderType === 'llevar' ? 'Para llevar' : 'Delivery'} · ${orderType === 'mesa' ? selectedTable : 'General'}`}
+                  ? `Editando pedido #${editingOrderId} · ${orderType === 'llevar' ? 'Para llevar' : 'Delivery'}`
+                  : orderType === 'mesa'
+                    ? (mesaOcupada ? `Mesa ${selectedTable} · Agregar a la comanda` : `Nuevo pedido · Mesa ${selectedTable}`)
+                    : `Nuevo pedido · ${orderType === 'llevar' ? 'Para llevar' : 'Delivery'}`}
               </h4>
               <p className="text-[10px] text-slate-400">
                 Selecciona los platos del catálogo para agregarlos a la comanda.
@@ -216,7 +220,7 @@ export default function MenuCatalog({
               <div className="space-y-6">
                 {groupedByCategory.map(([cat, products]) => (
                   <div key={cat}>
-                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide mb-3 sticky top-0 bg-white py-1">{cat}</h4>
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide mb-3 sticky top-0 z-10 bg-[#f8fbf9] py-1">{cat}</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
                       {products.map(product => (
                         <ProductCard

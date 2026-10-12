@@ -146,7 +146,7 @@ function BlockView({ block }: { block: TicketBlock }) {
       case 'qr':
         return (
           <div className="flex justify-center">
-            <QRCodeCanvas value={`https://gomenu.cl/pedido/${SAMPLE.orderNumber}`} size={96} bgColor="#ffffff" fgColor="#000000" level="M" />
+            <QRCodeCanvas value={`${typeof window !== 'undefined' ? window.location.origin : ''}/menu`} size={96} bgColor="#ffffff" fgColor="#000000" level="M" />
           </div>
         );
     }

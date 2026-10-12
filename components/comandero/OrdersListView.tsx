@@ -1,16 +1,24 @@
 'use client';
 
+import { useState } from 'react';
 import {
-  Bike, ChefHat, Clock, ClipboardList, Grid, Lock, MapPin, Pencil, Plus, Receipt,
+  ArrowLeft, Bike, ChefHat, ChevronRight, Clock, ClipboardList, Grid, Lock, MapPin, Pencil, Plus, Receipt,
   ShoppingBag, Trash2, Utensils,
 } from 'lucide-react';
-import { Spinner } from '@/components/ui';
+import { Modal, Spinner } from '@/components/ui';
 import type { ActiveOrder, OrderType, Table } from '@/types';
 import MesasPanel from './MesasPanel';
 import OrderDetailDrawer from './OrderDetailDrawer';
-import { googleMapsUrl, type DetailView } from './types';
+import { buildUnits, googleMapsUrl, type DetailView } from './types';
 
 type TabId = 'todas' | 'mesa' | 'llevar' | 'delivery';
+
+/** Texto de ayuda de cada opción en el selector de "Nuevo Pedido". */
+const NEW_ORDER_HINTS: Record<OrderType, string> = {
+  mesa:     'Elige la mesa y toma la comanda.',
+  llevar:   'El cliente recoge su pedido en el local.',
+  delivery: 'Se envía a la dirección del cliente.',
+};
 
 interface OrdersListViewProps {
   tabs: { id: TabId; label: string; icon: React.ReactNode }[];
@@ -44,12 +52,47 @@ export default function OrdersListView({
   isCajaOpen, canEdit, busyTables, inProgressCount, onTableCardClick, onOrderCardClick, onStartNewOrder, mozoName,
   onEditTable, onEditOrder, onCancelTable, onCancelOrder, onConfirmTable, onConfirmOrder,
 }: OrdersListViewProps) {
+  /** Selector del tipo de pedido al crear uno nuevo desde la pestaña "Todas". */
+  const [showNewOrderPicker, setShowNewOrderPicker] = useState(false);
+  /** 1) elegir el tipo de pedido · 2) (solo en mesa) elegir la mesa, en el mismo cuadro. */
+  const [pickerStep, setPickerStep] = useState<'tipo' | 'mesa'>('tipo');
+  const newOrderOptions = tabs.filter((t): t is typeof t & { id: OrderType } => t.id !== 'todas');
+  /** Mesas (las unidas cuentan como una) ordenadas por número, para elegirlas desde el cuadro. */
+  const mesaUnits = buildUnits(tables).sort((a, b) => a.primaryName.localeCompare(b.primaryName, undefined, { numeric: true }));
+
+  const openNewOrderPicker = () => { setPickerStep('tipo'); setShowNewOrderPicker(true); };
+  const closeNewOrderPicker = () => setShowNewOrderPicker(false);
+
+  const handlePickNewOrderType = (type: OrderType) => {
+    if (type === 'mesa') {
+      // Sin mesas creadas no hay nada que elegir: se lleva al plano, donde el admin puede crearlas.
+      if (mesaUnits.length === 0) { closeNewOrderPicker(); setActiveTab('mesa'); return; }
+      setPickerStep('mesa');
+      return;
+    }
+    closeNewOrderPicker();
+    onStartNewOrder(type);
+  };
+
+  /** Entra directo a tomar el pedido de la mesa elegida (si ya tiene consumo, agrega a su comanda). */
+  const handlePickMesa = (mesaName: string) => {
+    closeNewOrderPicker();
+    onEditTable(mesaName);
+  };
+
+  const canalHabilitado = (id: TabId) => tabs.some(t => t.id === id);
+  const resumenCards = [
+    ...(canalHabilitado('mesa') ? [{ label: 'Mesas Ocupadas', value: busyTables.length }] : []),
+    ...(canalHabilitado('llevar') ? [{ label: 'Para Llevar', value: activeOrders.filter(o => o.type === 'llevar').length }] : []),
+    ...(canalHabilitado('delivery') ? [{ label: 'Delivery', value: activeOrders.filter(o => o.type === 'delivery').length }] : []),
+  ];
+
   return (
     <div className="flex flex-col lg:flex-row gap-6 items-start">
       {/* Columna principal: listas y plano (se comprime cuando se abre el detalle) */}
       <div className={`flex-1 min-w-0 space-y-6 animate-section ${detailView ? 'pb-24 lg:pb-2 lg:h-[calc(100vh-8.5rem)] lg:overflow-y-auto lg:pr-1' : 'pb-24'}`}>
-      {/* Header comandero */}
-      <div className="card-lg p-4 space-y-4">
+      {/* Header comandero (sin tarjeta: va directo sobre el fondo de la página) */}
+      <div className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <ChefHat className="h-5 w-5 text-brand" />
@@ -63,7 +106,10 @@ export default function OrdersListView({
         </div>
 
         {/* Pestañas */}
-        <div className="grid grid-cols-4 gap-2 bg-slate-100 p-1 rounded-xl max-w-lg">
+        <div
+          className="grid gap-2 bg-slate-100 p-1 rounded-xl max-w-lg"
+          style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+        >
           {tabs.map(t => (
             <button
               key={t.id}
@@ -95,20 +141,31 @@ export default function OrdersListView({
       {/* ── TAB TODAS ── */}
       {activeTab === 'todas' && (
         <div className="space-y-6 animate-section">
-          {/* Resumen */}
-          <div className="grid grid-cols-3 gap-3 sm:gap-4">
-            <div className="bg-white border border-slate-100 p-3 rounded-2xl text-center shadow-sm">
-              <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wide">Mesas Ocupadas</span>
-              <p className="text-lg sm:text-xl font-bold text-slate-800">{busyTables.length}</p>
+          {newOrderOptions.length > 0 && (
+            <div className="flex justify-between items-center gap-2">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Comandas en curso ({inProgressCount})
+              </h4>
+              <button
+                onClick={openNewOrderPicker}
+                className="btn bg-brand text-white hover:bg-brand-hover py-2.5 px-4 text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md shadow-brand/10 transition-all hover:scale-[1.01] shrink-0"
+              >
+                <Plus className="h-4 w-4" /> Nuevo Pedido
+              </button>
             </div>
-            <div className="bg-white border border-slate-100 p-3 rounded-2xl text-center shadow-sm">
-              <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wide">Para Llevar</span>
-              <p className="text-lg sm:text-xl font-bold text-slate-800">{activeOrders.filter(o => o.type === 'llevar').length}</p>
-            </div>
-            <div className="bg-white border border-slate-100 p-3 rounded-2xl text-center shadow-sm">
-              <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wide">Delivery</span>
-              <p className="text-lg sm:text-xl font-bold text-slate-800">{activeOrders.filter(o => o.type === 'delivery').length}</p>
-            </div>
+          )}
+
+          {/* Resumen (solo de los canales habilitados en Métodos de entrega) */}
+          <div
+            className="grid gap-3 sm:gap-4"
+            style={{ gridTemplateColumns: `repeat(${resumenCards.length}, minmax(0, 1fr))` }}
+          >
+            {resumenCards.map(c => (
+              <div key={c.label} className="bg-white border border-slate-100 p-3 rounded-2xl text-center shadow-sm">
+                <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wide">{c.label}</span>
+                <p className="text-lg sm:text-xl font-bold text-slate-800">{c.value}</p>
+              </div>
+            ))}
           </div>
 
           {/* Listado principal */}
@@ -131,17 +188,27 @@ export default function OrdersListView({
                       <div
                         key={t.id}
                         onClick={() => onTableCardClick(t.name)}
-                        className="card-lg p-4 hover:shadow-md transition-all cursor-pointer border-l-4 border-l-rose-500 hover:-translate-y-0.5"
+                        className={`card-lg p-4 hover:shadow-md transition-all cursor-pointer border-l-4 border-l-rose-500 hover:-translate-y-0.5 relative ${
+                          t.pedidoEstado === 'pendiente_confirmacion' ? 'ring-2 ring-amber-400 animate-pulse' : ''
+                        }`}
                       >
+                        {t.pedidoEstado === 'pendiente_confirmacion' && (
+                          <span className="absolute -top-2 -right-2 bg-amber-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full shadow-sm whitespace-nowrap">
+                            Por Confirmar
+                          </span>
+                        )}
                         <div className="flex justify-between items-start">
                           <div>
                             <h5 className="text-sm font-bold text-slate-800">Mesa {t.name}</h5>
-                            <p className="text-[11px] text-slate-400">Atendido por: {t.waiter || '—'}</p>
+                            {t.nombreCliente && <p className="text-[11px] text-slate-600 truncate">{t.nombreCliente}</p>}
+                            <p className="text-[11px] text-slate-400">
+                              {t.pedidoEstado === 'pendiente_confirmacion' ? 'Pedido del cliente por QR' : `Atendido por: ${t.waiter || '—'}`}
+                            </p>
                           </div>
                           <span className="text-sm font-mono font-bold text-slate-800">S/. {t.cuenta.toFixed(2)}</span>
                         </div>
                         <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                          <span>{t.items?.length ?? 0} platos pedidos</span>
+                          <span>{t.items?.length ?? 0} {(t.items?.length ?? 0) === 1 ? 'plato pedido' : 'platos pedidos'}</span>
                           <span className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full font-bold uppercase text-[9px]">Ocupada</span>
                         </div>
                       </div>
@@ -205,7 +272,7 @@ export default function OrdersListView({
                         )}
 
                         <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                          <span>{o.itemsCount} platos pedidos</span>
+                          <span>{o.itemsCount} {o.itemsCount === 1 ? 'plato pedido' : 'platos pedidos'}</span>
                           <span className={`px-2 py-0.5 rounded-full font-bold uppercase text-[9px] ${
                             o.type === 'llevar' ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700'
                           }`}>
@@ -280,7 +347,7 @@ export default function OrdersListView({
                     </p>
                   )}
                   <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                    <span>{o.itemsCount} platos pedidos</span>
+                    <span>{o.itemsCount} {o.itemsCount === 1 ? 'plato pedido' : 'platos pedidos'}</span>
                     <span className="text-brand font-bold text-xs">Ver / Editar</span>
                   </div>
                 </div>
@@ -358,7 +425,7 @@ export default function OrdersListView({
                     </div>
                   )}
                   <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                    <span>{o.itemsCount} platos pedidos</span>
+                    <span>{o.itemsCount} {o.itemsCount === 1 ? 'plato pedido' : 'platos pedidos'}</span>
                     <span className="text-brand font-bold text-xs">Ver / Editar</span>
                   </div>
                 </div>
@@ -369,6 +436,72 @@ export default function OrdersListView({
       )}
 
       </div>
+
+      {/* Selector del tipo de pedido nuevo (desde la pestaña "Todas") */}
+      <Modal
+        open={showNewOrderPicker}
+        onClose={closeNewOrderPicker}
+        title={pickerStep === 'mesa' ? 'Elige la mesa' : 'Nuevo pedido'}
+        subtitle={pickerStep === 'mesa' ? 'Toca la mesa para empezar a tomar el pedido.' : '¿Qué tipo de pedido vas a tomar?'}
+        size="sm"
+      >
+        {pickerStep === 'tipo' ? (
+          <div className="space-y-2">
+            {newOrderOptions.map(opt => (
+              <button
+                key={opt.id}
+                onClick={() => handlePickNewOrderType(opt.id)}
+                className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-brand hover:bg-brand/5 transition-all text-left group cursor-pointer"
+              >
+                <span className="h-9 w-9 rounded-lg bg-slate-100 group-hover:bg-white text-brand flex items-center justify-center shrink-0 [&>svg]:h-4 [&>svg]:w-4">
+                  {opt.icon}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-bold text-slate-800">{opt.label}</span>
+                  <span className="block text-[11px] text-slate-500">{NEW_ORDER_HINTS[opt.id]}</span>
+                </span>
+                <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-brand shrink-0" />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <button
+              onClick={() => setPickerStep('tipo')}
+              className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-slate-800"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" /> Cambiar tipo de pedido
+            </button>
+            <div className="grid grid-cols-3 gap-2">
+              {mesaUnits.map(u => {
+                const tone =
+                  u.status === 'ocupada'   ? 'border-rose-200 bg-rose-50 hover:border-rose-400' :
+                  u.status === 'reservada' ? 'border-amber-200 bg-amber-50 hover:border-amber-400' :
+                                             'border-emerald-200 bg-emerald-50 hover:border-emerald-500';
+                const label =
+                  u.status === 'ocupada'   ? 'Ocupada' :
+                  u.status === 'reservada' ? 'Reservada' : 'Libre';
+                return (
+                  <button
+                    key={u.key}
+                    onClick={() => handlePickMesa(u.primaryName)}
+                    className={`rounded-xl border-2 p-2.5 text-center transition-all cursor-pointer ${tone}`}
+                  >
+                    <span className="block text-sm font-extrabold text-slate-800 truncate">
+                      {u.members.length > 1 ? `Mesas ${u.label}` : `Mesa ${u.label}`}
+                    </span>
+                    <span className="block text-[10px] text-slate-500">{u.capacidad} pers.</span>
+                    <span className="block text-[9px] font-bold uppercase tracking-wide text-slate-600 mt-0.5">{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-slate-400">
+              En una mesa ocupada, el pedido nuevo se agrega a su comanda.
+            </p>
+          </div>
+        )}
+      </Modal>
 
       {/* Panel de detalle de un pedido ya en curso (mesa ocupada o llevar/delivery) */}
       {detailView && (

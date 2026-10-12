@@ -33,7 +33,9 @@ export default function CartaPage() {
   const router = useRouter();
   const pathname = usePathname();
   const { currentUser } = useAuth();
-  const readOnly = currentUser?.role === 'cocinero';
+  /* Solo el admin gestiona la carta; mozo, cocinero, cajero y repartidor la consultan. */
+  const readOnly = !!currentUser && currentUser.role !== 'admin' && currentUser.role !== 'superadmin';
+  const visibleTabs = readOnly ? TABS.filter(t => t.id === 'carta') : TABS;
   const [tab, setTab] = useState<TabId>('carta');
   const { isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
@@ -56,13 +58,17 @@ export default function CartaPage() {
       {/* Header */}
       <div className="pb-5">
         <h3 className="text-xl font-bold text-slate-900">Menú Digital</h3>
-        <p className="text-xs text-slate-500">Gestiona los platos, importaciones, banners y la bienvenida de tu carta.</p>
+        <p className="text-xs text-slate-500">
+          {readOnly
+            ? 'Consulta de la carta (solo lectura). Los cambios los hace el administrador.'
+            : 'Gestiona los platos, importaciones, banners y la bienvenida de tu carta.'}
+        </p>
       </div>
 
 
       {/* Tabs */}
       <div className="flex items-center gap-6 border-b border-slate-200 overflow-x-auto">
-        {TABS.map(t => {
+        {visibleTabs.map(t => {
           const Icon = t.icon;
           const isActive = tab === t.id;
           return (
@@ -89,8 +95,9 @@ export default function CartaPage() {
       </div>
 
       {/* Content */}
-      <div className={`mt-4 ${readOnly ? 'pointer-events-none select-none' : ''}`} aria-disabled={readOnly}>
-        {tab === 'carta' && (
+      {/* `inert` (no solo pointer-events) para que tampoco se pueda editar con teclado (Tab + Enter). */}
+      <div className={`mt-4 ${readOnly ? 'select-none' : ''}`} inert={readOnly}>
+        {(tab === 'carta' || readOnly) && (
           <ProductosTab
             onGoToImportar={() => changeTab('importar')}
             onGoToBanners={() => changeTab('banners')}
@@ -98,13 +105,14 @@ export default function CartaPage() {
             sucursales={sucursales}
             resolvedSucursalId={sId}
             selectSucursal={selectSucursal}
+            readOnly={readOnly}
           />
         )}
-        {tab === 'importar' && <ImportarTab />}
-        {tab === 'banners' && <BannersTab />}
-        {tab === 'qr' && <QrTab />}
+        {!readOnly && tab === 'importar' && <ImportarTab />}
+        {!readOnly && tab === 'banners' && <BannersTab />}
+        {!readOnly && tab === 'qr' && <QrTab />}
 
-        {(tab === 'redes' || tab === 'horarios' || tab === 'cierres') && (
+        {!readOnly && (tab === 'redes' || tab === 'horarios' || tab === 'cierres') && (
           <div className="card-lg p-4">
             {tab === 'redes' && <RedesSocialesTab />}
             {tab === 'horarios' && <HorariosTab />}

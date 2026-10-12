@@ -7,6 +7,7 @@ import { Modal, Button } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { createCliente } from '@/lib/api/clientes';
 import type { Cliente, CreateClienteDto, CreateClienteDireccionDto, NivelCliente, TipoDocumento } from '@/types/clientes';
+import { EMAIL_RE } from '@/lib/validacion';
 
 interface NuevoClienteModalProps {
   open: boolean;
@@ -137,6 +138,10 @@ export default function NuevoClienteModal({ open, onClose, onCreated }: NuevoCli
     const maxLen = DOC_LENGTH[form.tipoDocumento];
     if (form.numeroDocumento && maxLen && form.numeroDocumento.length !== maxLen) {
       triggerToast(`El ${form.tipoDocumento} debe tener ${maxLen} dígitos.`, 'warning');
+      return;
+    }
+    if (form.email.trim() && !EMAIL_RE.test(form.email.trim())) {
+      triggerToast('El correo electrónico no es válido.', 'warning');
       return;
     }
 

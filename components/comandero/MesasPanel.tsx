@@ -33,7 +33,10 @@ export default function MesasPanel({ onTakeOrder }: { onTakeOrder: (name: string
 
   const canTakeOrder = currentUser?.role === 'admin' || currentUser?.role === 'mozo';
   const canCharge    = currentUser?.role === 'admin' || currentUser?.role === 'cajero';
+  /** Unir/separar mesas es operación del día a día (un grupo grande): también el mozo. */
   const canManage    = currentUser?.role === 'admin' || currentUser?.role === 'mozo';
+  /** Crear o eliminar mesas cambia el salón: solo el admin. */
+  const canEditLayout = currentUser?.role === 'admin';
 
   const salones = Array.from(new Set(tables.map(t => t.ubicacion || SIN_SALON))).sort();
 
@@ -56,7 +59,11 @@ export default function MesasPanel({ onTakeOrder }: { onTakeOrder: (name: string
   };
 
   /* ── Eliminar mesa ── */
+  /** Primer clic arma la confirmación; el segundo (sobre la misma mesa) elimina. */
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const handleRemoveTable = async (tableId: string) => {
+    if (confirmDeleteId !== tableId) { setConfirmDeleteId(tableId); return; }
+    setConfirmDeleteId(null);
     setSaving(true);
     await removeTable(tableId);
     setSaving(false);
@@ -127,7 +134,7 @@ export default function MesasPanel({ onTakeOrder }: { onTakeOrder: (name: string
               </Button>
             )
           )}
-          {canManage && (
+          {canEditLayout && (
             <Button size="sm" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => openTableModal()}>
               Nueva Mesa
             </Button>
@@ -164,7 +171,7 @@ export default function MesasPanel({ onTakeOrder }: { onTakeOrder: (name: string
             Agrega una mesa identificándola por número. Opcionalmente, indica un salón o zona
             (por ejemplo &quot;Salón Principal&quot; o &quot;Terraza&quot;) para agruparlas.
           </p>
-          {canManage ? (
+          {canEditLayout ? (
             <Button className="mt-2" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => openTableModal()}>
               Agregar mesa
             </Button>
@@ -187,7 +194,7 @@ export default function MesasPanel({ onTakeOrder }: { onTakeOrder: (name: string
                       {salonTables.length} {salonTables.length === 1 ? 'mesa' : 'mesas'}
                     </span>
                   </div>
-                  {canManage && (
+                  {canEditLayout && (
                     <button onClick={() => openTableModal(salon)}
                       className="flex items-center gap-1 text-[11px] font-bold text-brand hover:underline">
                       <Plus className="h-3.5 w-3.5" /> Agregar mesa
@@ -195,7 +202,7 @@ export default function MesasPanel({ onTakeOrder }: { onTakeOrder: (name: string
                   )}
                 </div>
 
-                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                   {units.map(unit => {
                     const isOcupada = unit.status === 'ocupada';
                     const isReservada = unit.status === 'reservada';
@@ -307,12 +314,13 @@ export default function MesasPanel({ onTakeOrder }: { onTakeOrder: (name: string
                                 <Unlink className="w-3 h-3" /> Separar mesas
                               </button>
                             )}
-                            {canManage && !merged && isDisponible && (
+                            {canEditLayout && !merged && isDisponible && (
                               <button
                                 onClick={e => { e.stopPropagation(); handleRemoveTable(unit.members[0].id); }}
                                 disabled={saving}
                                 className="w-full flex items-center justify-center gap-1 text-[10px] font-medium text-rose-600 hover:bg-rose-50 py-1 rounded-lg transition-colors text-center leading-tight disabled:opacity-50">
-                                <Trash2 className="w-3 h-3" /> Eliminar mesa
+                                <Trash2 className="w-3 h-3" />
+                                {confirmDeleteId === unit.members[0].id ? '¿Seguro? Clic para eliminar' : 'Eliminar mesa'}
                               </button>
                             )}
                           </div>

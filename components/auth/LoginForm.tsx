@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   User, Lock, Eye, EyeOff, Loader2, AlertCircle,
-  Utensils, Layers, ChefHat, Smartphone,
-  Clock, MapPin, CreditCard, TrendingUp, Delete,
+  Layers, ChefHat, Smartphone,
+  Tag, MapPin, CreditCard, TrendingUp, Delete,
 } from 'lucide-react';
 
 export default function LoginForm() {
@@ -17,15 +17,6 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading]     = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [time, setTime]               = useState('');
-
-  useEffect(() => {
-    const update = () =>
-      setTime(new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }));
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
-  }, []);
 
   const handlePinKeyPress = (digit: string) => {
     if (pin.length < 6) setPin(prev => prev + digit);
@@ -90,7 +81,7 @@ export default function LoginForm() {
         {/* ── Panel izquierdo — oculto en mobile ──────── */}
         <div className="hidden md:flex md:col-span-6 bg-brand-deeper text-white flex-col justify-between relative overflow-hidden md:min-h-screen">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/fondologin.jpg" alt="" className="absolute inset-0 w-full h-full object-cover opacity-20 mix-blend-overlay pointer-events-none" />
+          <img src="/fondologin.jpg" alt="" className="absolute inset-0 w-full h-full object-cover opacity-10 mix-blend-overlay pointer-events-none" />
           {/* Semicírculos en esquinas */}
           <div className="absolute inset-0 opacity-10 pointer-events-none">
             <div className="absolute top-0 right-0 w-86 h-86 bg-white/35 rounded-full -translate-y-1/2 translate-x-1/2" />
@@ -101,38 +92,28 @@ export default function LoginForm() {
           <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-brand opacity-40 blur-3xl pointer-events-none" />
           <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-brand-subtle opacity-30 blur-2xl pointer-events-none" />
 
-          <div className="relative z-10 px-10 lg:px-16 flex flex-col justify-center h-full gap-6 lg:gap-8 py-12">
+          {/* Cabecera (marca) arriba · contenido al centro · pie (sede y hora) abajo */}
+          <div className="relative z-10 px-10 lg:px-16 flex flex-col justify-between h-full gap-8 py-10">
 
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center backdrop-blur-md border border-white/20">
-                <Utensils className="w-5 h-5 text-brand-accent" />
+            {/* Cabecera */}
+            <div className="flex items-center gap-3">
+              {/* Campana verde oscuro sobre verde menta (#3DDC84): contrasta con el verde oscuro del panel. */}
+              <div className="w-14 h-14 rounded-2xl bg-[#3DDC84] ring-1 ring-white/30 shadow-lg shadow-black/25 flex items-center justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/campana-verde-transparente.png" alt="RestoFly" className="w-10 h-10" />
               </div>
               <span className="font-semibold tracking-wider text-sm uppercase text-emerald-100">RestoFly Perú</span>
             </div>
 
-            <div>
-              <h1 className="text-2xl lg:text-3xl font-bold tracking-tight leading-none mb-3">
-                Gestión gastronómica inteligente.
-              </h1>
-              <p className="text-sm font-light text-gray-100 leading-relaxed">
-                Optimice mesas, comandas, facturación electrónica SUNAT y existencias de cocina en tiempo real.
-              </p>
-            </div>
-
-            <div className="pt-6 pb-4 border-t border-white/15">
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div>
-                  <span className="text-[10px] uppercase tracking-widest block mb-0.5 opacity-70">Sede Operacional</span>
-                  <span className="text-xs font-medium flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-brand-accent" /> Lima, Perú
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase tracking-widest block mb-0.5 opacity-70">Hora Local (PET)</span>
-                  <span className="text-xs font-mono font-medium flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-brand-accent" /> {time || '08:15 AM'}
-                  </span>
-                </div>
+            {/* Contenido */}
+            <div className="space-y-6 lg:space-y-8">
+              <div>
+                <h1 className="text-2xl lg:text-3xl font-bold tracking-tight leading-none mb-3">
+                  Gestión gastronómica inteligente.
+                </h1>
+                <p className="text-sm font-light text-gray-100 leading-relaxed">
+                  Optimice mesas, comandas, facturación electrónica SUNAT y existencias de cocina en tiempo real.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -142,7 +123,7 @@ export default function LoginForm() {
                   { Icon: ChefHat,    title: 'Control de Insumos & Recetas', desc: 'Sustracción automatizada de insumos según comanda enviada para evitar quiebres de cocina.' },
                   { Icon: TrendingUp, title: 'Métricas & Reportes de Venta', desc: 'Análisis pormenorizado de platos más rentables, mermas registradas e ingresos por turno de mozos.' },
                 ].map(({ Icon, title, desc }) => (
-                  <div key={title} className="p-2.5 bg-[#386641]/65 rounded-lg border border-white/10 flex flex-col gap-1.5">
+                  <div key={title} className="p-2.5 bg-[#386641]/45 rounded-lg border border-white/10 flex flex-col gap-1.5">
                     <div className="flex items-center gap-1.5">
                       <Icon className="w-3.5 h-3.5 text-brand-accent shrink-0" />
                       <span className="text-[12px] font-semibold text-gray-100 leading-tight">{title}</span>
@@ -153,9 +134,20 @@ export default function LoginForm() {
               </div>
             </div>
 
-            <div className="text-[10px] text-emerald-100/60 font-mono flex justify-between items-center">
-              <span>PLATAFORMA V4.2.1</span>
-              <span>EFICIENCIA OPERATIVA</span>
+            {/* Pie */}
+            <div className="pt-5 border-t border-white/15 flex items-center justify-between gap-4">
+              <div>
+                <span className="text-[10px] uppercase tracking-widest block mb-0.5 opacity-70">Sede Operacional</span>
+                <span className="text-xs font-medium flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-brand-accent" /> Lima, Perú
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] uppercase tracking-widest block mb-0.5 opacity-70">Versión</span>
+                <span className="text-xs font-mono font-medium flex items-center justify-end gap-1">
+                  <Tag className="w-3.5 h-3.5 text-brand-accent" /> v{process.env.NEXT_PUBLIC_APP_VERSION}
+                </span>
+              </div>
             </div>
 
           </div>
@@ -167,8 +159,9 @@ export default function LoginForm() {
 
             {/* Brand header — solo mobile */}
             <div className="flex md:hidden items-center gap-2.5 mb-8 justify-center">
-              <div className="w-9 h-9 rounded-lg bg-brand flex items-center justify-center">
-                <Utensils className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 rounded-xl bg-[#3DDC84] flex items-center justify-center shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/campana-verde-transparente.png" alt="RestoFly" className="w-7 h-7" />
               </div>
               <div>
                 <h1 className="font-bold text-base tracking-tight leading-none text-gray-900">RestoFly Perú</h1>

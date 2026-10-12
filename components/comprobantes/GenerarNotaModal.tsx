@@ -8,6 +8,7 @@ import {
   type NotaVentaResult, type ComprobanteDetailItem,
 } from '@/lib/api/comprobantes';
 import type { Comprobante } from './types';
+import { nombreItemPedido } from '@/lib/pedidos/nombreItem';
 
 interface GenerarNotaModalProps {
   open: boolean;
@@ -204,9 +205,7 @@ export default function GenerarNotaModal({
             {!cargandoItems && itemsDetalle.length > 0 && (
               <div className="border border-slate-200 rounded-lg divide-y divide-slate-100 max-h-56 overflow-y-auto">
                 {itemsDetalle.map(it => {
-                  const nombre = it.productoNombre
-                    ? (it.varianteNombre ? `${it.productoNombre} (${it.varianteNombre})` : it.productoNombre)
-                    : it.comboNombre || 'Producto';
+                  const nombre = nombreItemPedido(it);
                   const cantidadSel = cantidadesSeleccionadas[it.id] ?? 0;
                   const checked = cantidadSel > 0;
                   const descuentoUnit = descuentosUnitarios[it.id] ?? it.precioUnitario;

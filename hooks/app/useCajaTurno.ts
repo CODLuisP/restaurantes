@@ -43,7 +43,8 @@ function mapTurnoToCashSession(
     closedBy: status === 'cerrada' ? (turno.cajeroNombre ?? undefined) : undefined,
     closedAt: turno.cerradoAt ?? undefined,
     countedAmount: turno.montoCierre ?? undefined,
-    expectedAmount: resumen?.efectivoEsperado,
+    // Sin resumen (p. ej. recién aperturada) el efectivo esperado es el propio fondo inicial.
+    expectedAmount: resumen?.efectivoEsperado ?? (status === 'abierta' ? turno.montoApertura : undefined),
     difference: turno.montoCierre != null && resumen ? turno.montoCierre - resumen.efectivoEsperado : undefined,
   };
 }
@@ -96,21 +97,45 @@ export function useCajaTurno(triggerToast: (message: string, type?: Toast['type'
   /* ¿Hay caja abierta en el local (de cualquier cajero)? Distinto de "mi turno personal":
      lo usa AuthGuard para habilitar a los mozos aunque ellos mismos no operen la caja. */
 
-  const loadSucursalCajaAbierta = useCallback(async () => {
-    if (!token) return;
+  /** Devuelve el estado real del backend (o null si no se pudo consultar, p. ej. sin red). */
+  const loadSucursalCajaAbierta = useCallback(async (): Promise<boolean | null> => {
+    if (!token) return null;
     try {
       const turno = await getTurnoActivoSucursal(token, sucursalId);
       setSucursalCajaAbierta(true);
       setSucursalTurnoActivo(turno);
+      return true;
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         setSucursalCajaAbierta(false);
         setSucursalTurnoActivo(null);
+        return false;
       }
+      return null;
     }
   }, [token, sucursalId]);
 
-  useEffect(() => { loadSucursalCajaAbierta(); }, [loadSucursalCajaAbierta]);
+  /* La caja la abre/cierra otro usuario (cajero/admin) en otro dispositivo: sin este refresco,
+     un mozo con la pantalla abierta seguía "viendo" la caja abierta tras el cierre. */
+  useEffect(() => {
+    loadSucursalCajaAbierta();
+    const id = setInterval(loadSucursalCajaAbierta, 30_000);
+    const onFocus = () => { if (document.visibilityState === 'visible') loadSucursalCajaAbierta(); };
+    document.addEventListener('visibilitychange', onFocus);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onFocus);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [loadSucursalCajaAbierta]);
+
+  /** Confirma contra el backend que la caja del local sigue abierta justo antes de tomar un pedido.
+   *  Si no se pudo consultar, se usa el último estado conocido para no bloquear por un fallo de red. */
+  const verificarCajaAbierta = useCallback(async () => {
+    const estado = await loadSucursalCajaAbierta();
+    return estado ?? sucursalCajaAbierta;
+  }, [loadSucursalCajaAbierta, sucursalCajaAbierta]);
 
   const loadCajaHistory = useCallback(async (desde: string, hasta: string) => {
     if (!token) return;
@@ -277,5 +302,6 @@ export function useCajaTurno(triggerToast: (message: string, type?: Toast['type'
     sucursalTurnoActivo, sucursalTurnoStale,
     isCajaOpen, cajaExpectedCash,
     openCaja, closeCaja, addCashMovement, loadCajaHistory, cerrarTurnoAjeno, refreshResumen,
+    verificarCajaAbierta,
   };
 }

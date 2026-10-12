@@ -20,7 +20,7 @@ type TabId = 'todas' | 'mesa' | 'llevar' | 'delivery';
 
 export default function ComanderoPage() {
   const {
-    tables, searchQuery, triggerToast, sucursalCajaAbierta: isCajaOpen,
+    tables, triggerToast, sucursalCajaAbierta: isCajaOpen,
     sendOrderToKitchen, updateTableItemQty, removeTableItem, cancelTableOrder: cancelTableOrderBackend,
     confirmarPedidoCliente,
     activeOrders, activeOrdersLoading, createOrder, addItemsToActiveOrder, updateActiveOrderItemQty,
@@ -56,6 +56,8 @@ export default function ComanderoPage() {
   const [custPhone, setCustPhone]     = useState('');
   const [custAddress, setCustAddress] = useState('');
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  /** Pestaña a la que volver al terminar/cancelar: si el pedido se empezó desde "Todas", se regresa a "Todas". */
+  const [returnTab, setReturnTab] = useState<TabId | null>(null);
 
   const geo = useDeliveryGeocoding({
     custAddress,
@@ -95,6 +97,8 @@ export default function ComanderoPage() {
 
   /** Limpia el borrador del pedido (ítems y datos del cliente). */
   const resetDraft = () => {
+    setSearch('');
+    setSelectedCategory('');
     setCart([]);
     setCustName('');
     setCustPhone('');
@@ -103,6 +107,7 @@ export default function ComanderoPage() {
   };
 
   const changeTab = (tab: TabId) => {
+    setReturnTab(null);
     setActiveTab(tab);
     setDetailView(null);
     setIsCreatingNew(false);
@@ -115,10 +120,13 @@ export default function ComanderoPage() {
   /** Abre la pantalla dividida para tomar o editar la comanda de una mesa. */
   const editTableOrder = (tableName: string) => {
     const t = tables.find(tb => tb.name === tableName);
+    setReturnTab(activeTab === 'todas' ? 'todas' : null);
     setDetailView(null);
     setSelectedTable(tableName);
     setOrderType('mesa');
     setEditingOrderId(null);
+    setSearch('');
+    setSelectedCategory('');
     setCart([]);
     setCustName(t?.nombreCliente ?? '');
     setActiveTab('mesa');
@@ -129,7 +137,10 @@ export default function ComanderoPage() {
   const editActiveOrder = (orderId: string) => {
     const order = activeOrders.find(o => o.id === orderId);
     if (!order) return;
+    setReturnTab(activeTab === 'todas' ? 'todas' : null);
     setDetailView(null);
+    setSearch('');
+    setSelectedCategory('');
     setOrderType(order.type);
     setEditingOrderId(order.id);
     setCustName(order.customer);
@@ -158,13 +169,22 @@ export default function ComanderoPage() {
   const cancelOrderDetail = (orderId: string) => cancelActiveOrder(orderId);
   const confirmOrderDetail = (orderId: string) => confirmarActiveOrder(orderId);
 
-  /** Arranca un pedido nuevo de llevar/delivery desde la vista de listas. */
+  /** Arranca un pedido nuevo de llevar/delivery desde la vista de listas (también desde "Todas"). */
   const startNewOrder = (type: OrderType) => {
+    setReturnTab(activeTab === 'todas' ? 'todas' : null);
     setDetailView(null);
+    setActiveTab(type);
     setIsCreatingNew(true);
     setOrderType(type);
     setEditingOrderId(null);
     resetDraft();
+  };
+
+  /** Si el pedido se empezó desde "Todas", al terminar se vuelve a "Todas" (no al plano de mesas). */
+  const volverAlOrigen = () => {
+    if (!returnTab) return;
+    setActiveTab(returnTab);
+    setReturnTab(null);
   };
 
   const handleAddToCart = (product: Product, varianteId?: number | null, extraIds?: number[]) => {
@@ -213,6 +233,7 @@ export default function ComanderoPage() {
     if (!isCajaOpen) { triggerToast('La caja está cerrada. No se pueden tomar pedidos.', 'error'); return; }
     if (cart.length === 0) { triggerToast('Agrega platos antes de enviar.', 'warning'); return; }
     if (orderType === 'delivery' && !custAddress.trim()) { triggerToast('Ingresa la dirección de entrega.', 'warning'); return; }
+    if (custPhone.trim() && custPhone.replace(/\D/g, '').length < 6) { triggerToast('El teléfono parece incompleto.', 'warning'); return; }
 
     setSending(true);
     try {
@@ -231,6 +252,7 @@ export default function ComanderoPage() {
       setIsCreatingNew(false);
       setEditingOrderId(null);
       if (orderType === 'mesa') setSelectedTable(''); // vuelve al plano de mesas
+      volverAlOrigen();
     } finally {
       setSending(false);
     }
@@ -244,6 +266,9 @@ export default function ComanderoPage() {
       setEditingOrderId(null);
     }
     setCart([]);
+    setSearch('');
+    setSelectedCategory('');
+    volverAlOrigen();
   };
 
   const existingTotal = existingItems.reduce((acc, i) => acc + i.product.price * i.quantity, 0);
@@ -255,7 +280,7 @@ export default function ComanderoPage() {
   const tabCategories = ['Todos', ...categories];
   const activeCategory = tabCategories.includes(selectedCategory) ? selectedCategory : 'Todos';
 
-  const rawQuery = (search || searchQuery).trim();
+  const rawQuery = search.trim();
   const query = rawQuery.toLowerCase();
   const isSearching = query.length > 0;
   const filteredProducts = menuProducts.filter(p =>
@@ -287,10 +312,13 @@ export default function ComanderoPage() {
       );
     }
     return (
-      <div className="flex flex-col lg:flex-row gap-6 animate-section pb-20 lg:h-[calc(100vh-8.5rem)] overflow-y-auto lg:overflow-hidden">
+      /* En escritorio ocupa todo el alto bajo la barra y se pega a los bordes (anula el padding de <main>):
+         el panel del pedido queda blanco y pegado arriba/derecha; el catálogo va sobre el fondo de la página. */
+      <div className="flex flex-col lg:flex-row animate-section pb-20 lg:pb-0 lg:-m-4 lg:h-[calc(100vh-4rem)] lg:overflow-hidden">
         <MenuCatalog
           orderType={orderType}
           selectedTable={selectedTable}
+          mesaOcupada={table?.status === 'ocupada'}
           editingOrderId={editingOrderId}
           search={search}
           setSearch={setSearch}

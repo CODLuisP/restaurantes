@@ -27,6 +27,8 @@ import NewReceiptModal from '@/components/comprobantes/NewReceiptModal';
 import MassUploadModal from '@/components/comprobantes/MassUploadModal';
 import EmailModal from '@/components/comprobantes/EmailModal';
 import WhatsAppModal from '@/components/comprobantes/WhatsAppModal';
+import { SearchBox } from '@/components/ui';
+import { nombreItemPedido } from '@/lib/pedidos/nombreItem';
 import {
   type Comprobante, type TipoComprobante, type FormatoImpresion,
   mapApiToComprobante, normalizeEstadoSunat,
@@ -192,7 +194,7 @@ async function exportComprobantesExcel(comprobantes: Comprobante[], usuario: str
 
 export default function ComprobantesPage() {
   const { data: session } = useSession();
-  const { triggerToast, searchQuery, empresa } = useApp();
+  const { triggerToast, empresa } = useApp();
   const { isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
   const {
@@ -205,7 +207,7 @@ export default function ComprobantesPage() {
     loading,
     error,
     refetch,
-    setSearch,
+    search, setSearch,
     filterTipo, setFilterTipo,
     filterEstado, setFilterEstado,
     fechaDesde, setFechaDesde,
@@ -248,7 +250,7 @@ export default function ComprobantesPage() {
         estadoSunat: filterEstado || undefined,
         fechaInicio: fechaDesde || undefined,
         fechaFin: fechaHasta || undefined,
-        search: searchQuery || undefined,
+        search: search || undefined,
         ordenarPorCorrelativo,
         page: 1,
         pageSize: Math.max(totalCount, 1),
@@ -305,11 +307,6 @@ export default function ComprobantesPage() {
     window.addEventListener('click', handleCloseMenu);
     return () => window.removeEventListener('click', handleCloseMenu);
   }, []);
-
-  // El buscador global del topbar también filtra esta vista (cliente, serie o correlativo).
-  useEffect(() => {
-    setSearch(searchQuery);
-  }, [searchQuery, setSearch]);
 
   // ── Handlers ──────────────────────────────────────────────────────────
 
@@ -407,9 +404,7 @@ export default function ComprobantesPage() {
         puedeTenerNotas ? getNotasDeVenta(token, parseInt(comp.id)) : Promise.resolve([]),
       ]);
       const itemsMapped = detalle.items.map(i => ({
-        name: i.productoNombre
-          ? (i.varianteNombre ? `${i.productoNombre} (${i.varianteNombre})` : i.productoNombre)
-          : i.comboNombre || 'Producto',
+        name: nombreItemPedido(i),
         quantity: i.cantidad,
         price: i.precioUnitario,
       }));
@@ -449,6 +444,13 @@ export default function ComprobantesPage() {
 
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sId} onChange={selectSucursal} />
+
+          <SearchBox
+            value={search}
+            onChange={setSearch}
+            placeholder="Buscar por número o cliente..."
+            className="w-56"
+          />
 
           <select
             value={filterTipo || 'Todos'}

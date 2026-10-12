@@ -1,5 +1,6 @@
 import type { TicketBlock, FontSize, Align, PaperSize } from '@/components/configuracion/tickets/ticketData';
 import { SEP_CHAR } from '@/components/configuracion/tickets/ticketData';
+import { thermalCss } from './thermal';
 
 /** Datos reales de un pedido para imprimir la comanda con la plantilla configurada en
  *  /configuracion/tickets — análogo al SAMPLE que usa el editor, pero con la info real. */
@@ -56,7 +57,7 @@ function renderBlock(block: TicketBlock, data: TicketOrderData): string {
       break;
 
     case 'separador':
-      inner = `<div style="text-align:center;overflow:hidden;white-space:nowrap;opacity:.8">${SEP_CHAR[block.sepStyle ?? 'guiones'].repeat(48)}</div>`;
+      inner = `<div style="text-align:center;overflow:hidden;white-space:nowrap">${SEP_CHAR[block.sepStyle ?? 'guiones'].repeat(48)}</div>`;
       break;
 
     case 'datos-pedido': {
@@ -84,12 +85,12 @@ function renderBlock(block: TicketBlock, data: TicketOrderData): string {
 
     case 'productos': {
       const rows = data.items.map(it => `
-        <div style="display:flex;justify-content:space-between;font-weight:600;padding:2px 0">
-          <span>${it.cantidad}&nbsp;&nbsp;${esc(it.nombre)}</span>
-          ${block.showPrices && it.precio != null ? `<span>S/. ${it.precio.toFixed(2)}</span>` : ''}
+        <div style="display:flex;justify-content:space-between;gap:6px;font-weight:bold;padding:2px 0">
+          <span style="flex:1;min-width:0;word-break:break-word">${it.cantidad}&nbsp;&nbsp;${esc(it.nombre)}</span>
+          ${block.showPrices && it.precio != null ? `<span style="white-space:nowrap">S/. ${it.precio.toFixed(2)}</span>` : ''}
         </div>`).join('');
       inner = `<div style="font-size:${SIZE_PX[block.size ?? 'normal']}">
-        <div style="display:flex;justify-content:space-between;font-weight:bold;border-bottom:1px solid rgba(0,0,0,.3);padding-bottom:2px;margin-bottom:4px">
+        <div style="display:flex;justify-content:space-between;font-weight:bold;border-bottom:1px solid #000;padding-bottom:2px;margin-bottom:4px">
           <span>Cant. Producto</span>${block.showPrices ? '<span>Total</span>' : ''}
         </div>${rows}</div>`;
       break;
@@ -112,8 +113,6 @@ function renderBlock(block: TicketBlock, data: TicketOrderData): string {
  *  cada plato se puede repartir/pegar por separado en cocina. Se arma como una sola página HTML con
  *  un salto de página entre cada ticket, para que salgan todos de un solo trabajo de impresión. */
 export function renderComandaHtml(blocks: TicketBlock[], paper: PaperSize, data: TicketOrderData): string {
-  const widthMm = paper === '58mm' ? 58 : 80;
-
   const tickets = data.items.length > 0 ? data.items : [null];
   const pages = tickets.map((item, i) => {
     const ticketData: TicketOrderData = item ? { ...data, items: [item] } : data;
@@ -123,8 +122,7 @@ export function renderComandaHtml(blocks: TicketBlock[], paper: PaperSize, data:
   }).join('');
 
   return `<!DOCTYPE html><html><head><title>Comanda</title><style>
-    @page { size: ${widthMm}mm auto; margin: 0; }
-    body { font-family: 'Courier New', monospace; width: ${widthMm}mm; margin: 0; padding: 8px 10px; color: #000; }
+    ${thermalCss(paper)}
   </style></head><body>
     ${pages}
     <script>window.onload=function(){window.print();window.close()}<\/script>

@@ -3,8 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Search, ChevronDown, Command, Menu, LogOut } from 'lucide-react';
-import { useApp } from '@/context/AppContext';
+import { ChevronDown, Menu, LogOut } from 'lucide-react';
 import { useSidebar } from '@/context/SidebarContext';
 import { useAuth, ROLE_LABELS } from '@/context/AuthContext';
 
@@ -25,7 +24,7 @@ const SECTION_NAMES: Record<string, string> = {
   '/reportes':      'Reportes',
   '/configuracion': 'Configuración',
   '/ui-components': 'Componentes de Marca UI/UX',
-  '/carta':         'Carta del Día',
+  '/carta':         'Menú Digital',
 };
 
 function initials(name: string) {
@@ -34,7 +33,6 @@ function initials(name: string) {
 
 export default function TopBar() {
   const pathname = usePathname();
-  const { searchQuery, setSearchQuery } = useApp();
   const { currentUser, logout } = useAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const { toggleOpen, isCollapsed, toggleCollapsed } = useSidebar();
@@ -71,24 +69,6 @@ export default function TopBar() {
         <h2 className="text-md font-semibold text-slate-800 capitalize tracking-tight font-sans">
           {sectionName}
         </h2>
-      </div>
-
-      {/* Global Search */}
-      <div className="w-1/3 max-w-md relative hidden md:block">
-        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
-          <Search className="h-4 w-4" />
-        </div>
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          placeholder={`Buscar en ${sectionName}...`}
-          className="w-full pl-9 pr-8 py-1.5 rounded-full text-xs bg-white text-slate-700 border border-slate-300 focus:outline-none focus:ring-1 focus:ring-brand focus:border-brand transition-all font-sans"
-        />
-        <div className="absolute right-3.5 top-2.5 hidden lg:flex items-center gap-0.5 text-[9px] font-mono text-slate-400 border border-slate-200 bg-white px-1 rounded shadow-xs leading-none">
-          <Command className="h-2 w-2" />
-          <span>F</span>
-        </div>
       </div>
 
       {/* Right Controls */}

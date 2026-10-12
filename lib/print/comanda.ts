@@ -4,6 +4,7 @@
 
 import type { TicketBlock, PaperSize } from '@/components/configuracion/tickets/ticketData';
 import { renderComandaHtml, type TicketOrderData } from './renderTicket';
+import { thermalCss } from './thermal';
 
 export function imprimirComanda(blocks: TicketBlock[], paper: PaperSize, data: TicketOrderData) {
   if (typeof window === 'undefined' || data.items.length === 0) return;
@@ -32,12 +33,11 @@ export function imprimirCancelacion({ mesa, mozo, nombre, cantidad }: Cancelacio
   if (!win) return;
 
   win.document.write(`<!DOCTYPE html><html><head><title>Cancelación</title><style>
-    @page { size: 80mm auto; margin: 0; }
-    body { font-family: 'Courier New', monospace; width: 80mm; margin: 0; padding: 8px 10px; color: #000; }
-    h2 { text-align: center; margin: 0 0 10px; font-size: 22px; letter-spacing: 1px; color: #000;
+    ${thermalCss('80mm')}
+    h2 { text-align: center; margin: 0 0 10px; font-size: 22px; letter-spacing: 1px;
          border: 3px solid #000; padding: 4px; }
-    .item { font-size: 17px; font-weight: bold; text-align: center; padding: 6px 0 10px; }
-    .meta { font-size: 12px; border-top: 1px dashed #000; padding-top: 6px; }
+    .item { font-size: 18px; text-align: center; padding: 6px 0 10px; word-break: break-word; }
+    .meta { font-size: 13px; border-top: 2px dashed #000; padding-top: 6px; }
     .meta p { margin: 2px 0; }
   </style></head><body>
     <h2>CANCELADO</h2>

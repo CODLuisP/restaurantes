@@ -61,7 +61,7 @@ export default function PublicCategory({
         <span
           className={`text-[11px] font-semibold px-2.5 py-1 rounded-full shrink-0 ${highlight ? "bg-amber-100 text-amber-700 animate-pulse-slow" : "bg-slate-100 text-slate-600"}`}
         >
-          {items.length} {highlight ? "destacados" : "platos"}
+          {items.length} {highlight ? "destacados" : items.length === 1 ? "plato" : "platos"}
         </span>
         <ChevronDown
           className={`h-4 w-4 text-slate-400 shrink-0 transition-transform ${collapsed ? "" : "rotate-180"}`}

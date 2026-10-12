@@ -5,6 +5,7 @@ import { useApp } from '@/context/AppContext';
 import { useCocinaPedidos } from '@/hooks/cocina/useCocinaPedidos';
 import { pedidoLabel } from '@/components/cocina/types';
 import { Spinner } from '@/components/ui';
+import { nombreItemPedido } from '@/lib/pedidos/nombreItem';
 
 export default function DespacharPage() {
   const { triggerToast } = useApp();
@@ -67,7 +68,7 @@ export default function DespacharPage() {
               <div className="space-y-1 border-t border-slate-100 pt-2">
                 {order.items.filter(it => it.estado !== 'cancelado').map(it => (
                   <div key={it.id} className="flex justify-between text-xs font-medium text-slate-700">
-                    <span>{it.productoNombre ? (it.varianteNombre ? `${it.productoNombre} (${it.varianteNombre})` : it.productoNombre) : it.comboNombre ?? it.varianteNombre ?? 'Producto'}</span>
+                    <span>{nombreItemPedido(it)}</span>
                     <span className="font-mono">x{it.cantidad}</span>
                   </div>
                 ))}

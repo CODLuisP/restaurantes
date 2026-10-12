@@ -11,6 +11,7 @@ import {
   money, round2, onlyDigits, PAYMENTS, TYPE_META, ESTADO_PEDIDO_LABEL, type Chargeable, type SplitMode,
 } from './types';
 import { getSeriesFacturacion, type SeriesSucursal } from '@/lib/api/facturacion';
+import { ApiError } from '@/lib/api/client';
 import { getClientes } from '@/lib/api/clientes';
 import type { Cliente } from '@/types/clientes';
 export default function ChargePanel({
@@ -44,7 +45,10 @@ export default function ChargePanel({
           if (cancelado) return;
           if (data.length > 0) setSeries(data[0]);
           return;
-        } catch {
+        } catch (err) {
+          // 4xx = problema de configuración (ej. empresa sin API key de facturación): reintentar no
+          // lo arregla, solo repite el mismo error.
+          if (err instanceof ApiError && err.status >= 400 && err.status < 500) return;
           if (cancelado || intento === MAX_INTENTOS) return;
           // Reintento silencioso: un hipo transitorio del proveedor de facturación
           // no debe dejar el cobro sin serie-correlativo visible.
@@ -247,7 +251,12 @@ export default function ChargePanel({
     const siguienteMetodo = visiblePayments.find(p => !usados.has(p.id))?.id;
     if (!siguienteMetodo) return;
     setPayments(prev => {
-      const base = prev.length === 1 ? [{ ...prev[0], amount: String(amountDue) }] : prev;
+      /* Con una sola línea en efectivo, lo escrito en "¿Con cuánto paga?" es lo que el cliente da
+         en efectivo: si no alcanza el total, esa es la parte en efectivo y el resto va al nuevo método
+         (antes se pisaba con el total y el segundo método quedaba en 0). */
+      const recibido = Number(prev[0]?.received) || 0;
+      const primeraParte = prev[0]?.method === 'Efectivo' && recibido > 0 && recibido < amountDue ? recibido : amountDue;
+      const base = prev.length === 1 ? [{ ...prev[0], amount: String(primeraParte), received: '' }] : prev;
       const sumaActual = base.reduce((s, p) => s + (Number(p.amount) || 0), 0);
       const restante = Math.max(0, round2(amountDue - sumaActual));
       return [...base, { ...blankLine(siguienteMetodo), amount: String(restante) }];
@@ -455,7 +464,7 @@ export default function ChargePanel({
           <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase inline-flex items-center gap-1 ${TYPE_META[selected.kind].badge}`}>
             {TYPE_META[selected.kind].icon} {TYPE_META[selected.kind].label}
           </span>
-          <h4 className="text-sm font-bold text-slate-800">{selected.kind === 'mesa' ? selected.label : selected.ref}</h4>
+          <h4 className="text-sm font-bold text-slate-800">{selected.kind === 'mesa' ? `Mesa ${selected.label}` : `Pedido #${selected.ref}`}</h4>
         </div>
         {selected.kind === 'mesa' && !started && (
           <button onClick={onAddItems} className="text-[11px] font-medium text-brand hover:underline inline-flex items-center gap-1">
@@ -887,4 +896,4 @@ export default function ChargePanel({
       </p>
     </div>
   );
-}
+}

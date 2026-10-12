@@ -16,6 +16,7 @@ import {
 import { crearSesionMesa, cerrarSesionMesa } from '@/lib/api/sesionesMesa';
 import { restarFacturado } from '@/lib/api/ventas';
 import { parseCartLineId } from '@/lib/cart/cartLineId';
+import { nombreItemPedido } from '@/lib/pedidos/nombreItem';
 import { usePedidoEvents } from '@/hooks/realtime/usePedidoEvents';
 import { useSesionCerradaEvents, type SesionCerradaPayload } from '@/hooks/realtime/useSesionCerradaEvents';
 import { useMesaEvents } from '@/hooks/realtime/useMesaEvents';
@@ -34,9 +35,7 @@ function mapPedidoItems(pedido: PedidoDto | null): OrderItem[] {
     .map(i => ({
       product: {
         id: String(i.id),
-        name: i.productoNombre
-          ? (i.varianteNombre ? `${i.productoNombre} (${i.varianteNombre})` : i.productoNombre)
-          : i.comboNombre ?? i.varianteNombre ?? 'Producto',
+        name: nombreItemPedido(i),
         price: i.precioUnitario,
         category: '',
         image: '',

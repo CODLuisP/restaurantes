@@ -20,6 +20,11 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: 'RestoFly — SaaS POS Perú',
   description: 'Sistema de gestión de restaurantes para Perú. Punto de venta, cocina, inventario y más.',
+  icons: {
+    icon: '/logorestofly.ico',
+    shortcut: '/logorestofly.ico',
+    apple: '/campana-icono-app.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

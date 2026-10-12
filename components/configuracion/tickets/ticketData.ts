@@ -127,34 +127,33 @@ export interface SampleItem {
 }
 
 export const SAMPLE = {
-  businessName: 'Restuflu',
-  businessAddress: 'GPGX+8G Carbonería, Perú',
-  businessPhone: '+51 999 888 777',
+  businessName: 'Mi Restaurante',
+  businessAddress: 'Av. Larco 123, Miraflores, Lima',
+  businessPhone: '+51 987 654 321',
   greeting: 'Juan',
   orderNumber: 42,
   date: '10/06/2026',
   time: '08:00',
   customerName: 'Juan Pérez',
-  customerPhone: '+51 999 888 777',
-  customerAddress: 'Av. Providencia 456, Depto 12',
+  customerPhone: '+51 987 654 321',
+  customerAddress: 'Jr. Las Begonias 456, San Isidro',
   deliveryTime: '2:00 p.m.',
-  mozo: 'Jorgito Muñoz',
+  mozo: 'Carlos Ramos',
   items: [
     {
-      qty: 2, name: 'Hamburguesa Clásica', price: 9990,
+      qty: 2, name: 'Lomo Saltado', price: 64,
       modifiers: [
-        { label: 'Doble' },
-        { label: 'Queso cheddar' },
-        { label: 'Bacon', extra: 500 },
+        { label: 'Porción grande' },
+        { label: 'Huevo frito', extra: 4 },
         { label: 'Sin cebolla por favor', removed: true },
       ],
     },
-    { qty: 1, name: 'Papas Fritas L', price: 3490 },
+    { qty: 1, name: 'Chicha Morada 1L', price: 12 },
   ] as SampleItem[],
-  subtotal: 13480,
-  envio: 2000,
-  total: 18460,
-  paymentMethod: 'Transferencia',
+  subtotal: 80,
+  envio: 5,
+  total: 85,
+  paymentMethod: 'Yape',
   currency: 'S/',
 };
 
@@ -182,7 +181,7 @@ function defaultCliente(): TicketBlock[] {
     { ...makeBlock('texto'), text: '¡Vuelve pronto!', bold: true },
     makeBlock('qr'),
     makeBlock('separador'),
-    { ...makeBlock('texto'), text: 'Generado con GoMenu', size: 'small', bold: false },
+    { ...makeBlock('texto'), text: 'Generado con RestoFly', size: 'small', bold: false },
   ];
 }
 

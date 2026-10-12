@@ -8,6 +8,8 @@ export interface VentaItemDto {
   comboNombre?: string | null;
   cantidad: number;
   precioUnitario: number;
+  /** Aún no lo devuelve el backend; cuando lo haga, las vistas de venta ya muestran los extras. */
+  extras?: { nombre: string }[] | null;
 }
 
 export interface VentaDto {

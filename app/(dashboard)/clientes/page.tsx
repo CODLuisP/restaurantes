@@ -9,6 +9,7 @@ import { getSegment, SEGMENT_COLORS, SEGMENTS } from '@/components/clientes/segm
 import { useClientes } from '@/hooks/clientes/useClientes';
 import { deleteCliente } from '@/lib/api/clientes';
 import ClienteDetailModal from '@/components/clientes/ClienteDetailModal';
+import { SearchBox } from '@/components/ui';
 import NuevoClienteModal from '@/components/clientes/NuevoClienteModal';
 import EditarClienteModal from '@/components/clientes/EditarClienteModal';
 import type { Cliente, NivelCliente } from '@/types/clientes';
@@ -135,9 +136,10 @@ async function exportClientesExcel(clientes: Cliente[], usuario: string, filtroS
 
 export default function ClientesPage() {
   const { data: session } = useSession();
-  const { triggerToast, searchQuery } = useApp();
+  const { triggerToast } = useApp();
   const { clientes, setClientes, loading } = useClientes();
 
+  const [search, setSearch] = useState('');
   const [filterSegment, setFilterSegment] = useState<Segment | 'Todos'>('Todos');
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [editandoCliente, setEditandoCliente] = useState<Cliente | null>(null);
@@ -154,9 +156,10 @@ export default function ClientesPage() {
   }, [clientes]);
 
   const filtered = clientes.filter(c => {
-    const query = searchQuery.trim().toLowerCase();
+    const query = search.trim().toLowerCase();
     const matchesSearch = !query ||
       c.nombre.toLowerCase().includes(query) ||
+      (c.numeroDocumento ?? '').toLowerCase().includes(query) ||
       (c.telefono ?? '').toLowerCase().includes(query) ||
       (c.email ?? '').toLowerCase().includes(query);
     const matchesSegment = filterSegment === 'Todos' || NIVEL_SEGMENT[c.nivel] === filterSegment;
@@ -214,6 +217,12 @@ export default function ClientesPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-1 min-w-65 justify-end">
+          <SearchBox
+            value={search}
+            onChange={setSearch}
+            placeholder="Buscar por nombre, documento, teléfono o correo..."
+            className="flex-1 max-w-md"
+          />
           <select
             value={filterSegment}
             onChange={e => setFilterSegment(e.target.value as Segment | 'Todos')}

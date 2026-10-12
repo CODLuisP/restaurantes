@@ -39,9 +39,12 @@ export default function TicketEditor() {
     if (!ticketsConfig || hidratado.current) return;
     hidratado.current = true;
     const data = ticketsConfig;
+    /* Plantillas guardadas antes del cambio de marca traían "Generado con GoMenu". */
+    const migrar = (blocks: TicketBlock[]) =>
+      blocks.map(b => (b.type === 'texto' && /gomenu/i.test(b.text ?? '') ? { ...b, text: 'Generado con RestoFly' } : b));
     setConfig(prev => ({
-      cliente: data.clienteJson ? JSON.parse(data.clienteJson) : prev.cliente,
-      cocina: data.cocinaJson ? JSON.parse(data.cocinaJson) : prev.cocina,
+      cliente: data.clienteJson ? migrar(JSON.parse(data.clienteJson)) : prev.cliente,
+      cocina: data.cocinaJson ? migrar(JSON.parse(data.cocinaJson)) : prev.cocina,
     }));
     if (data.paperSize === '58mm' || data.paperSize === '80mm') setPaper(data.paperSize);
   }, [ticketsConfig]);

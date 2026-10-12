@@ -28,6 +28,8 @@ interface ProductosTabProps {
   sucursales: SucursalOption[];
   resolvedSucursalId: number | null;
   selectSucursal: (id: number) => void;
+  /** Roles que solo consultan la carta: se ocultan las acciones de edición del encabezado. */
+  readOnly?: boolean;
 }
 
 export default function ProductosTab({
@@ -37,6 +39,7 @@ export default function ProductosTab({
   sucursales,
   resolvedSucursalId,
   selectSucursal,
+  readOnly = false,
 }: ProductosTabProps) {
   const {
     productos,
@@ -114,11 +117,16 @@ export default function ProductosTab({
     [categorias],
   );
 
+  /* Todas las categorías (en su orden), también las que aún no tienen platos — si no, una
+     categoría vacía quedaba invisible y sin forma de agregarle productos o eliminarla. */
   const allCategoryNames = useMemo(() => {
     return Array.from(
-      new Set(productos.map((p) => p.categoriaNombre).filter(Boolean)),
+      new Set([
+        ...categoriasOrdenadas.map((c) => c.nombre),
+        ...productos.map((p) => p.categoriaNombre).filter(Boolean),
+      ]),
     );
-  }, [productos]);
+  }, [categoriasOrdenadas, productos]);
 
   const getCategoriaIdByName = (nombre: string): number | undefined =>
     categorias.find((c) => c.nombre === nombre)?.id;
@@ -149,17 +157,23 @@ export default function ProductosTab({
     setDeleteTargetName("");
   };
 
-  const handleCreateCategory = async () => {
-    const name = newCategoryName.trim();
-    if (!name) return;
+  /** Crea una categoría validando que el nombre no se repita. Se usa también desde el formulario de producto. */
+  const crearCategoriaPorNombre = async (nombre: string) => {
+    const name = nombre.trim();
+    if (!name) return null;
     if (categorias.some((c) => c.nombre.toLowerCase() === name.toLowerCase())) {
       triggerToast("Ya existe una categoría con ese nombre.", "warning");
-      return;
+      return null;
     }
-    await crearCategoria({
+    return crearCategoria({
       nombre: name,
       orden: categorias.length + 1,
     });
+  };
+
+  const handleCreateCategory = async () => {
+    const creada = await crearCategoriaPorNombre(newCategoryName);
+    if (!creada) return;
     setNewCategoryName("");
     setShowNewCategory(false);
   };
@@ -206,13 +220,11 @@ export default function ProductosTab({
     total: productos.length,
     available: productos.filter((i) => i.disponible).length,
     featured: featuredItems.length,
-    categories: allCategoryNames.filter((c) =>
-      productos.some((i) => i.categoriaNombre === c),
-    ).length,
+    categories: allCategoryNames.length,
   };
 
   const isLoading = loadingProductos || loadingCategorias;
-  const noProducts = !isLoading && productos.length === 0;
+  const noProducts = !isLoading && productos.length === 0 && categorias.length === 0;
 
   const catTabs: ProfileTab[] = [
     { id: "todos", label: "Todos", count: filteredItems.length },
@@ -285,6 +297,7 @@ export default function ProductosTab({
             <Eye className="h-3.5 w-3.5" />{" "}
             <span className="hidden sm:inline">Vista Previa</span>
           </button>
+          {!readOnly && (<>
           <button
             onClick={() => setShowNewCategory(true)}
             className="btn-secondary"
@@ -305,6 +318,7 @@ export default function ProductosTab({
           <button onClick={() => openAdd()} className="btn-primary">
             <Plus className="h-3.5 w-3.5" /> Agregar Producto
           </button>
+          </>)}
         </div>
       </div>
 
@@ -456,6 +470,7 @@ export default function ProductosTab({
         isCollapsed={isCollapsed}
         crearProducto={crearProducto}
         editarProducto={editarProducto}
+        crearCategoria={crearCategoriaPorNombre}
         onClose={closeForm}
       />
 

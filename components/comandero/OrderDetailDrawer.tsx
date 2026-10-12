@@ -34,6 +34,8 @@ export default function OrderDetailDrawer({
   const [busyAction, setBusyAction] = useState<BusyAction>(null);
   /** Ítems que se están marcando como entregados en este momento — bloquea su propio botón. */
   const [busyItemIds, setBusyItemIds] = useState<Set<string>>(new Set());
+  /** Cancelar es irreversible (los platos salen de cocina): se pide una segunda confirmación. */
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
 
   const table: Table | undefined = view.kind === 'mesa' ? tables.find(t => t.name === view.tableName) : undefined;
   const order: ActiveOrder | undefined = view.kind === 'order' ? activeOrders.find(o => o.id === view.orderId) : undefined;
@@ -41,6 +43,9 @@ export default function OrderDetailDrawer({
   useEffect(() => {
     if ((view.kind === 'mesa' && !table) || (view.kind === 'order' && !order)) onClose();
   }, [view, table, order, onClose]);
+
+  // Al pasar a otro pedido, la confirmación pendiente del anterior no debe quedar abierta.
+  useEffect(() => { setConfirmingCancel(false); }, [view]);
 
   if ((view.kind === 'mesa' && !table) || (view.kind === 'order' && !order)) return null;
 
@@ -131,6 +136,9 @@ export default function OrderDetailDrawer({
             <span className="flex items-center gap-1.5 font-bold text-slate-700">
               <TypeIcon className="h-3.5 w-3.5 text-brand" /> {typeLabel}
             </span>
+            {view.kind === 'mesa' && table?.nombreCliente && (
+              <p className="text-slate-500">Comensal: <span className="text-slate-700 font-medium">{table.nombreCliente}</span></p>
+            )}
             {view.kind === 'mesa' && table?.waiter && (
               <p className="text-slate-500">Atendido por: <span className="text-slate-700 font-medium">{table.waiter}</span></p>
             )}
@@ -253,17 +261,37 @@ export default function OrderDetailDrawer({
             >
               <Receipt className="w-3.5 h-3.5" /> Imprimir pre-cuenta
             </button>
-            <button
-              onClick={handleCancel}
-              disabled={busyAction !== null}
-              className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-rose-600 border border-rose-200 hover:bg-rose-50 py-2 rounded-xl transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {busyAction === 'cancel' ? (
-                <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Cancelando...</>
-              ) : (
-                <><Trash2 className="w-3.5 h-3.5" /> Cancelar pedido</>
-              )}
-            </button>
+            {confirmingCancel || busyAction === 'cancel' ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 space-y-2">
+                <p className="text-xs text-rose-700 font-semibold">
+                  ¿Cancelar este pedido? Se quitarán todos sus platos de cocina y no se puede deshacer.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setConfirmingCancel(false)}
+                    disabled={busyAction !== null}
+                    className="text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 py-2 rounded-lg disabled:opacity-60"
+                  >
+                    No, volver
+                  </button>
+                  <button
+                    onClick={handleCancel}
+                    disabled={busyAction !== null}
+                    className="flex items-center justify-center gap-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 py-2 rounded-lg disabled:opacity-60"
+                  >
+                    {busyAction === 'cancel' ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Cancelando...</> : 'Sí, cancelar'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmingCancel(true)}
+                disabled={busyAction !== null}
+                className="w-full flex items-center justify-center gap-1.5 text-xs font-bold text-rose-600 border border-rose-200 hover:bg-rose-50 py-2 rounded-xl transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Cancelar pedido
+              </button>
+            )}
           </div>
         )}
       </div>

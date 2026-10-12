@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
+import { rolPuedeAcceder, rutaPorDefectoDeRol } from '@/lib/auth/routeAccess';
 
 // Rutas accesibles sin sesión: login ('/'), el menú público que escanea el cliente por QR,
 // y el alta pública de una empresa nueva.
@@ -7,19 +8,6 @@ function esRutaPublica(pathname: string) {
   return pathname === '/' || pathname.startsWith('/menu') || pathname.startsWith('/api') || pathname === '/registro';
 }
 
-// El cocinero solo opera Cocina y ve el Menú Digital (sin editar nada, ver carta/page.tsx).
-const RUTAS_COCINERO = ['/cocina', '/carta'];
-
-// El Dashboard ejecutivo es solo para admin; cada otro rol aterriza en su propia pantalla operativa.
-function rutaPorDefectoDeRol(role: string | undefined) {
-  switch (role) {
-    case 'cocinero': return '/carta';
-    case 'mozo': return '/comandero';
-    case 'cajero': return '/cobrar';
-    case 'repartidor': return '/carta';
-    default: return '/dashboard';
-  }
-}
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
@@ -37,22 +25,8 @@ export default auth((req) => {
       return NextResponse.redirect(new URL(rutaPorDefecto, req.nextUrl.origin));
     }
 
-    if (role === 'cocinero' && !RUTAS_COCINERO.includes(pathname)) {
-      return NextResponse.redirect(new URL(rutaPorDefecto, req.nextUrl.origin));
-    }
-
-    // "Componentes UI" es un playground interno, solo para admin.
-    if (pathname === '/ui-components' && role !== 'admin') {
-      return NextResponse.redirect(new URL(rutaPorDefecto, req.nextUrl.origin));
-    }
-
-    // Cocina (KDS) es solo para quien prepara los platos y el admin.
-    if (pathname === '/cocina' && role !== 'admin' && role !== 'cocinero') {
-      return NextResponse.redirect(new URL(rutaPorDefecto, req.nextUrl.origin));
-    }
-
-    // Dashboard ejecutivo (KPIs, ventas) es para admin y superadmin.
-    if (pathname === '/dashboard' && role !== 'admin' && role !== 'superadmin') {
+    // Cada rol solo navega por sus pantallas (ver lib/auth/routeAccess.ts); el resto redirige a la suya.
+    if (!esRutaPublica(pathname) && !rolPuedeAcceder(role, pathname)) {
       return NextResponse.redirect(new URL(rutaPorDefecto, req.nextUrl.origin));
     }
   }

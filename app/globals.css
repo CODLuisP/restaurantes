@@ -6,6 +6,13 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+/* La app es solo tema claro: sin fondo explícito, navegadores/tablets en modo oscuro
+   pintaban el lienzo negro detrás del contenido (textos oscuros sobre fondo oscuro). */
+html, body {
+  background-color: #ffffff;
+  color-scheme: light;
+}
+
 /* Impresión del comprobante (modal "Ver"): oculta todo excepto el área marcada. */
 @media print {
   body * {

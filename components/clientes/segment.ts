@@ -1,7 +1,7 @@
 export type Segment = 'Nuevo' | 'Ocasional' | 'Frecuente' | 'Fiel' | 'VIP';
 
 export const SEGMENTS: { key: Segment; label: string; range: string; min: number; max: number }[] = [
-  { key: 'Nuevo',     label: 'Nuevo',     range: '1 pedidos',  min: 0,  max: 0 },
+  { key: 'Nuevo',     label: 'Nuevo',     range: '1 pedido',  min: 0,  max: 0 },
   { key: 'Ocasional', label: 'Ocasional', range: '2-3 pedidos', min: 1,  max: 2 },
   { key: 'Frecuente', label: 'Frecuente', range: '4-6 pedidos', min: 3,  max: 5 },
   { key: 'Fiel',      label: 'Fiel',      range: '7-10 pedidos', min: 6,  max: 9 },

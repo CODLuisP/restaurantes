@@ -107,8 +107,6 @@ interface AppContextType {
   toasts: Toast[];
   triggerToast: (message: string, type?: Toast['type']) => void;
   dismissToast: (id: string) => void;
-  searchQuery: string;
-  setSearchQuery: (q: string) => void;
   kpiStats: KpiStats;
   /** Mozo: toma (o completa) la comanda de una mesa y la envía a cocina en tiempo real. */
   sendOrderToKitchen: (tableName: string, nombreComensal: string | undefined, items: OrderItem[]) => Promise<boolean>;
@@ -171,6 +169,8 @@ interface AppContextType {
   addManualSale: (sale: SalesHistory) => void;
 }
 
+const CAJA_CERRADA_MSG = 'La caja está cerrada. No se pueden tomar pedidos hasta que el cajero o el administrador la aperture.';
+
 const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -183,7 +183,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [products] = useState<Product[]>(MOCK_PRODUCTS);
   const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
   const [salesHistory, setSalesHistory] = useState<SalesHistory[]>(INITIAL_SALES_HISTORY);
-  const [searchQuery, setSearchQuery] = useState('');
 
   const { toasts, triggerToast, dismissToast } = useToasts();
   const caja = useCajaTurno(triggerToast);
@@ -212,6 +211,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
      que el mozo acaba de agregar; si no, los platos del cliente nunca salían impresos. */
   const sendOrderToKitchen = useCallback(
     async (tableName: string, nombreComensal: string | undefined, items: OrderItem[]) => {
+      if (!(await caja.verificarCajaAbierta())) {
+        triggerToast(CAJA_CERRADA_MSG, 'error');
+        return false;
+      }
       const { ok, pedido, eraPendienteConfirmacion } = await sendOrderToKitchenBackend(tableName, nombreComensal, items);
       if (ok && impresoraCocina) {
         const ahora = new Date();
@@ -240,7 +243,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       return ok;
     },
-    [sendOrderToKitchenBackend, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
+    [caja.verificarCajaAbierta, triggerToast, sendOrderToKitchenBackend, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
   );
 
   /* El pedido que arma el cliente por QR (/menu) recién se manda a cocina cuando el mozo lo
@@ -248,6 +251,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
      los platos que el mozo agregaba DESPUÉS, nunca los que trajo el pedido original del cliente. */
   const confirmarPedidoCliente = useCallback(
     async (tableName: string) => {
+      if (!(await caja.verificarCajaAbierta())) {
+        triggerToast(CAJA_CERRADA_MSG, 'error');
+        return;
+      }
       const pedido = await confirmarPedidoClienteBackend(tableName);
       if (pedido && impresoraCocina && pedido.items.length > 0) {
         const ahora = new Date();
@@ -271,7 +278,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
       }
     },
-    [confirmarPedidoClienteBackend, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
+    [caja.verificarCajaAbierta, triggerToast, confirmarPedidoClienteBackend, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
   );
 
   /* Con "Impresora en cocina" activo, reducir o quitar un plato ya enviado imprime un ticket de
@@ -585,8 +592,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Ojo: se valida contra la caja del LOCAL (cualquier cajero), no la personal del usuario
       // logueado — un mozo nunca abre su propia caja, pero sí puede tomar pedidos mientras
       // el cajero/admin la tenga abierta. Ver caja.sucursalCajaAbierta.
-      if (!caja.sucursalCajaAbierta) {
-        triggerToast('La caja está cerrada. No se pueden tomar pedidos hasta aperturarla.', 'error');
+      if (!(await caja.verificarCajaAbierta())) {
+        triggerToast(CAJA_CERRADA_MSG, 'error');
         return null;
       }
       const order = await createActiveOrder(type, info, items);
@@ -605,7 +612,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       return order;
     },
-    [caja.sucursalCajaAbierta, triggerToast, createActiveOrder, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
+    [caja.verificarCajaAbierta, triggerToast, createActiveOrder, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
   );
 
   /* Igual que sendOrderToKitchen para mesas: agregar platos a un pedido de llevar/delivery YA
@@ -613,6 +620,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
      imprime completo (platos originales del cliente + el nuevo) en vez de solo lo agregado. */
   const addItemsToActiveOrder = useCallback(
     async (orderId: string, items: OrderItem[]) => {
+      if (!(await caja.verificarCajaAbierta())) {
+        triggerToast(CAJA_CERRADA_MSG, 'error');
+        return false;
+      }
       const { ok, pedido, eraPendienteConfirmacion } = await addItemsToActiveOrderBackend(orderId, items);
       if (ok && impresoraCocina) {
         const order = activeOrders.find(o => o.id === orderId);
@@ -642,7 +653,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       return ok;
     },
-    [addItemsToActiveOrderBackend, activeOrders, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
+    [caja.verificarCajaAbierta, triggerToast, addItemsToActiveOrderBackend, activeOrders, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
   );
 
   /** Igual que chargeTable pero para pedidos llevar/delivery — misma venta real de backend,
@@ -779,8 +790,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         toasts,
         triggerToast,
         dismissToast,
-        searchQuery,
-        setSearchQuery,
         kpiStats,
         sendOrderToKitchen,
         updateTableItemQty,

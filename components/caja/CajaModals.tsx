@@ -33,6 +33,8 @@ interface CajaModalsProps {
   closeDiff: number;
   cajaExpectedCash: number;
   cashSession: CashSession | null;
+  /** Mesas ocupadas + pedidos llevar/delivery aún sin cobrar al momento del cierre. */
+  pendientesCobro: { count: number; total: number };
   onClose: () => void;
   /* Común */
   saving: boolean;
@@ -43,7 +45,7 @@ interface CajaModalsProps {
 export default function CajaModals({
   openModal, setOpenModal, openingInput, setOpeningInput, previousClosingAmount, openingDiff, onOpen,
   moveModal, setMoveModal, moveType, setMoveType, moveAmount, setMoveAmount, moveReason, setMoveReason, onMovement,
-  closeModal, setCloseModal, countedInput, setCountedInput, closeDiff, cajaExpectedCash, cashSession, onClose,
+  closeModal, setCloseModal, countedInput, setCountedInput, closeDiff, cajaExpectedCash, cashSession, pendientesCobro, onClose,
   saving, byName,
 }: CajaModalsProps) {
   return (
@@ -137,11 +139,23 @@ export default function CajaModals({
         footer={
           <>
             <Button variant="secondary" onClick={() => setCloseModal(false)} disabled={saving}>Cancelar</Button>
-            <Button variant="danger" onClick={onClose} disabled={saving}>{saving ? 'Cerrando...' : 'Confirmar Cierre'}</Button>
+            <Button variant="danger" onClick={onClose} disabled={saving}>
+              {saving ? 'Cerrando...' : pendientesCobro.count > 0 ? 'Cerrar de todas formas' : 'Confirmar Cierre'}
+            </Button>
           </>
         }
       >
         <div className="space-y-4">
+          {pendientesCobro.count > 0 && (
+            <div className="flex items-start gap-2 rounded-xl px-4 py-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>
+                Hay <strong>{pendientesCobro.count} {pendientesCobro.count === 1 ? 'comanda' : 'comandas'} sin cobrar</strong> por{' '}
+                <strong>{money(pendientesCobro.total)}</strong>. Lo ideal es cobrarlas antes de cerrar; si cierras ahora,
+                se cobrarán en el siguiente turno.
+              </span>
+            </div>
+          )}
           <div className="bg-slate-50 rounded-xl p-4 space-y-2">
             <Row label="Efectivo esperado (sistema)" value={money(cajaExpectedCash)} />
             <Row label="Ventas con tarjeta" value={money(cashSession?.cardSales ?? 0)} />

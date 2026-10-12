@@ -17,6 +17,7 @@ import { usePedidoEvents } from '@/hooks/realtime/usePedidoEvents';
 import { useSesionCerradaEvents, type SesionCerradaPayload } from '@/hooks/realtime/useSesionCerradaEvents';
 import { restarFacturado } from '@/lib/api/ventas';
 import { parseCartLineId } from '@/lib/cart/cartLineId';
+import { nombreItemPedido } from '@/lib/pedidos/nombreItem';
 
 /** Ítems del pedido → OrderItem, usando el id de la FILA (pedido_item) como product.id
  *  para que actualizar/quitar un ítem ya enviado apunte al recurso correcto del backend. */
@@ -26,9 +27,7 @@ function mapPedidoItems(pedido: PedidoDto | null): OrderItem[] {
     .map(i => ({
       product: {
         id: String(i.id),
-        name: i.productoNombre
-          ? (i.varianteNombre ? `${i.productoNombre} (${i.varianteNombre})` : i.productoNombre)
-          : i.comboNombre ?? i.varianteNombre ?? 'Producto',
+        name: nombreItemPedido(i),
         price: i.precioUnitario,
         category: '',
         image: '',
@@ -154,12 +153,20 @@ export function useActiveOrders(triggerToast: (message: string, type?: Toast['ty
       if (items.length === 0) { triggerToast('El pedido está vacío. Agregue platos antes de enviar.', 'warning'); return null; }
       if (type === 'delivery' && !info.address?.trim()) { triggerToast('Ingresa la dirección de entrega.', 'warning'); return null; }
 
+      /* El backend solo guarda teléfono en los datos de delivery (para "para_llevar" los ignora):
+         en llevar se conserva junto al nombre para que el local pueda llamar al cliente. */
+      const telefono = info.phone?.trim() ?? '';
+      const nombre = info.customer.trim();
+      const nombreCliente = type === 'llevar' && telefono
+        ? `${nombre || 'Cliente'} · Tel. ${telefono}`
+        : nombre || undefined;
+
       try {
         const sesion = await crearSesionMesa(token, {
           tipo: type === 'llevar' ? 'para_llevar' : 'delivery',
           mozoId,
           sucursalId,
-          nombreCliente: info.customer.trim() || undefined,
+          nombreCliente,
           numComensales: 1,
           delivery: type === 'delivery' ? { telefono: info.phone?.trim() || '', direccion: info.address!.trim() } : undefined,
         });

@@ -4,6 +4,7 @@ import type { DashboardResumenDto, VentasResumenDto, VentaPorHoraDto } from '@/l
 import type { VentaDto } from '@/lib/api/ventas';
 import { formatMetodoPago } from '@/lib/config/metodos';
 import { toFechaParam } from '@/lib/api/reportes';
+import { codigoVenta } from '@/lib/ventas/codigoVenta';
 import { PDF_COLORS, PDF_FONT, PDF_LAYOUT, METODO_COLOR } from './pdfTheme';
 import {
   PANEL_BAR_H, drawFooters, drawKpiTile, drawPanelBar, drawPanelFrame, fitText, panelTable,
@@ -436,7 +437,7 @@ function drawVentasPanel(doc: jsPDF, y: number, data: DashboardPdfData, periodo:
   const visibles = recortar ? data.ventas.slice(0, filas - 1) : data.ventas;
 
   const body: RowInput[] = visibles.map(v => [
-    `S-${v.id}`,
+    codigoVenta(v),
     new Date(v.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
     v.mesaNumero ? `Mesa ${v.mesaNumero}` : '—',
     v.numeroComprobante ?? '—',

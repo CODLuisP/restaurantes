@@ -54,8 +54,9 @@ interface GastosContextType {
   categorias: Categoria[];
   proveedores: Proveedor[];
   loading: boolean;
-  addGasto: (g: Omit<Gasto, 'id'>) => Promise<void>;
-  updateGasto: (id: string, changes: Partial<Gasto>) => Promise<void>;
+  /** Devuelve el gasto creado (o null si falló) — Gastos lo usa para enlazar el egreso de caja. */
+  addGasto: (g: Omit<Gasto, 'id'>) => Promise<Gasto | null>;
+  updateGasto: (id: string, changes: Partial<Gasto>) => Promise<Gasto | null>;
   anularGasto: (id: string) => Promise<void>;
   addCategoria: (name: string) => Promise<void>;
   removeCategoria: (id: string) => Promise<void>;
@@ -107,8 +108,8 @@ export function GastosProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; };
   }, [token, sucursalId, triggerToast]);
 
-  const addGasto = useCallback(async (g: Omit<Gasto, 'id'>) => {
-    if (!token) { triggerToast('Sesión expirada.', 'error'); return; }
+  const addGasto = useCallback(async (g: Omit<Gasto, 'id'>): Promise<Gasto | null> => {
+    if (!token) { triggerToast('Sesión expirada.', 'error'); return null; }
     try {
       const creado = await crearGasto(token, {
         fecha: g.date,
@@ -118,17 +119,20 @@ export function GastosProvider({ children }: { children: React.ReactNode }) {
         estado: g.status,
         monto: g.amount,
       }, sucursalId);
-      setGastos(prev => [mapGasto(creado), ...prev]);
+      const gasto = mapGasto(creado);
+      setGastos(prev => [gasto, ...prev]);
       triggerToast('Gasto registrado.', 'success');
+      return gasto;
     } catch (err) {
       triggerToast(err instanceof ApiError ? err.message : 'No se pudo registrar el gasto.', 'error');
+      return null;
     }
   }, [token, sucursalId, triggerToast]);
 
-  const updateGasto = useCallback(async (id: string, changes: Partial<Gasto>) => {
-    if (!token) { triggerToast('Sesión expirada.', 'error'); return; }
+  const updateGasto = useCallback(async (id: string, changes: Partial<Gasto>): Promise<Gasto | null> => {
+    if (!token) { triggerToast('Sesión expirada.', 'error'); return null; }
     const actual = gastos.find(g => g.id === id);
-    if (!actual) return;
+    if (!actual) return null;
     const merged = { ...actual, ...changes };
     try {
       const actualizado = await actualizarGasto(token, Number(id), {
@@ -139,10 +143,13 @@ export function GastosProvider({ children }: { children: React.ReactNode }) {
         estado: merged.status,
         monto: merged.amount,
       });
-      setGastos(prev => prev.map(x => (x.id === id ? mapGasto(actualizado) : x)));
+      const gasto = mapGasto(actualizado);
+      setGastos(prev => prev.map(x => (x.id === id ? gasto : x)));
       triggerToast('Gasto actualizado.', 'success');
+      return gasto;
     } catch (err) {
       triggerToast(err instanceof ApiError ? err.message : 'No se pudo actualizar el gasto.', 'error');
+      return null;
     }
   }, [token, gastos, triggerToast]);
 

@@ -7,6 +7,7 @@ import { Modal, Button } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { updateCliente } from '@/lib/api/clientes';
 import DireccionesModal from './DireccionesModal';
+import { EMAIL_RE } from '@/lib/validacion';
 import type { Cliente, UpdateClienteDto, NivelCliente, TipoDocumento } from '@/types/clientes';
 
 interface EditarClienteModalProps {
@@ -52,6 +53,10 @@ export default function EditarClienteModal({ cliente, open, onClose, onUpdated }
 
   const handleSubmit = async () => {
     if (!form.nombre.trim() || !token) return;
+    if (form.email?.trim() && !EMAIL_RE.test(form.email.trim())) {
+      triggerToast('El correo electrónico no es válido.', 'warning');
+      return;
+    }
     setSaving(true);
     try {
       const actualizado = await updateCliente(token, cliente.id, { ...form, nombre: form.nombre.trim() });

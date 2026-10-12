@@ -71,7 +71,7 @@ export default function HistorialView({
                     <td className="px-5 py-3 text-brand font-semibold whitespace-nowrap">Caja principal</td>
                     <td className="px-5 py-3 text-slate-700 whitespace-nowrap">{s.openedBy}</td>
                     <td className="px-5 py-3 text-right font-mono text-slate-700 whitespace-nowrap">
-                      {money(s.status === 'abierta' ? s.openingAmount + s.cashSales : s.expectedAmount ?? 0)}
+                      {money(s.expectedAmount ?? s.openingAmount + s.cashSales)}
                     </td>
                     <td className="px-5 py-3 text-right font-mono text-slate-700 whitespace-nowrap">
                       {s.countedAmount !== undefined ? money(s.countedAmount) : '—'}
@@ -95,7 +95,9 @@ export default function HistorialView({
           </tbody>
         </table>
       </div>
-      <p className="text-[11px] text-slate-400">Tocá un cierre para ver el arqueo completo e imprimirlo.</p>
+      <p className="text-[11px] text-slate-400">
+        Sistema = fondo inicial + ventas en efectivo + ingresos − egresos manuales del turno.
+      </p>
     </div>
   );
 }

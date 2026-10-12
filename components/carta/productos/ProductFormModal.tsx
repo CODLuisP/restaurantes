@@ -54,8 +54,13 @@ interface ProductFormModalProps {
     dto: UpdateProductoDto,
     precioSucursal?: { precio?: number; disponible?: boolean },
   ) => Promise<ProductoDto | null>;
+  /** Crea una categoría sin salir del formulario (valida duplicados). */
+  crearCategoria: (nombre: string) => Promise<CategoriaDto | null>;
   onClose: () => void;
 }
+
+/** Valor del <option> que, al elegirse, abre la creación de categoría en línea. */
+const NUEVA_CATEGORIA_OPTION = -1;
 
 /** Panel deslizante (crear/editar producto): imagen, datos básicos y variantes. */
 export default function ProductFormModal({
@@ -66,6 +71,7 @@ export default function ProductFormModal({
   isCollapsed,
   crearProducto,
   editarProducto,
+  crearCategoria,
   onClose,
 }: ProductFormModalProps) {
   const { data: session } = useSession();
@@ -96,6 +102,26 @@ export default function ProductFormModal({
   const [showExtraInput, setShowExtraInput] = useState(false);
 
   const allExtras = isCreatingVariants ? pendingExtras : extras;
+
+  // Creación de categoría en línea: evita tener que cerrar el formulario para crearla.
+  const [showNewCategoria, setShowNewCategoria] = useState(false);
+  const [newCategoriaNombre, setNewCategoriaNombre] = useState("");
+  const [creandoCategoria, setCreandoCategoria] = useState(false);
+
+  const cancelarNuevaCategoria = () => {
+    setShowNewCategoria(false);
+    setNewCategoriaNombre("");
+  };
+
+  const handleCrearCategoria = async () => {
+    if (!newCategoriaNombre.trim() || creandoCategoria) return;
+    setCreandoCategoria(true);
+    const creada = await crearCategoria(newCategoriaNombre);
+    setCreandoCategoria(false);
+    if (!creada) return;
+    setForm((f) => ({ ...f, categoriaId: creada.id }));
+    cancelarNuevaCategoria();
+  };
 
   const loadVariantes = async (productoId: number) => {
     const token = session?.accessToken;
@@ -146,6 +172,8 @@ export default function ProductFormModal({
     setPendingExtras([]);
     setShowExtraInput(false);
     setExtraForm({ nombre: "", precio: "" });
+    setShowNewCategoria(false);
+    setNewCategoriaNombre("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editingItem, defaultCategoriaId]);
 
@@ -175,6 +203,18 @@ export default function ProductFormModal({
     setPendingImageBlob(null);
     onClose();
   };
+
+  /* Escape cierra el formulario (salvo mientras guarda, o si está creando una categoría en línea:
+     ahí Escape solo cancela esa creación). */
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !guardando && !showNewCategoria) handleClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, guardando, showNewCategoria, form.imagenUrl]);
 
   const handleCreateVariante = async () => {
     const nombre = variantForm.nombre.trim();
@@ -294,6 +334,11 @@ export default function ProductFormModal({
     }
     if (!form.categoriaId) {
       triggerToast("Selecciona una categoría para el producto.", "warning");
+      return;
+    }
+    // Precio 0 solo tiene sentido si el precio real lo dan las variantes (ej. Personal / Familiar).
+    if (!(form.precio > 0) && allVariantes.length === 0) {
+      triggerToast("Ingresa un precio mayor a S/ 0.00 (o agrega variantes con su precio).", "warning");
       return;
     }
 
@@ -534,28 +579,74 @@ export default function ProductFormModal({
                 }))
               }
             />
-            <Select
-              label="Categoría"
-              error={
-                !form.categoriaId ? "Selecciona una categoría" : undefined
-              }
-              value={form.categoriaId}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  categoriaId: Number(e.target.value),
-                }))
-              }
-            >
-              <option value={0} disabled>
-                Seleccionar categoría
-              </option>
-              {categoriasOrdenadas.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
+            {showNewCategoria ? (
+              <div className="w-full space-y-1">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Nueva categoría
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    value={newCategoriaNombre}
+                    onChange={(e) => setNewCategoriaNombre(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); handleCrearCategoria(); }
+                      if (e.key === "Escape") { e.preventDefault(); cancelarNuevaCategoria(); }
+                    }}
+                    placeholder="Ej: Ceviches"
+                    className="input flex-1 min-w-0 py-2 px-3"
+                    disabled={creandoCategoria}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCrearCategoria}
+                    disabled={!newCategoriaNombre.trim() || creandoCategoria}
+                    className="px-2.5 py-2 bg-brand text-white rounded-xl hover:bg-brand-hover disabled:opacity-50 shrink-0"
+                    title="Crear categoría"
+                  >
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelarNuevaCategoria}
+                    disabled={creandoCategoria}
+                    className="px-1.5 py-2 text-slate-400 hover:text-slate-600 shrink-0"
+                    title="Cancelar"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  {creandoCategoria ? "Creando categoría..." : "Se seleccionará automáticamente al crearla."}
+                </p>
+              </div>
+            ) : (
+              <Select
+                label="Categoría"
+                error={
+                  !form.categoriaId ? "Selecciona o crea una categoría" : undefined
+                }
+                value={form.categoriaId}
+                onChange={(e) => {
+                  const value = Number(e.target.value);
+                  if (value === NUEVA_CATEGORIA_OPTION) {
+                    setShowNewCategoria(true);
+                    return;
+                  }
+                  setForm((f) => ({ ...f, categoriaId: value }));
+                }}
+              >
+                <option value={0} disabled>
+                  {categoriasOrdenadas.length === 0 ? "Sin categorías aún" : "Seleccionar categoría"}
                 </option>
-              ))}
-            </Select>
+                {categoriasOrdenadas.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nombre}
+                  </option>
+                ))}
+                <option value={NUEVA_CATEGORIA_OPTION}>+ Crear nueva categoría</option>
+              </Select>
+            )}
           </div>
           <div className="space-y-1">
             <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">

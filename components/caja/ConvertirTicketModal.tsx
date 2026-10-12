@@ -8,6 +8,7 @@ import { convertirTicket } from '@/lib/api/comprobantes';
 import { getVentaById, type VentaDto } from '@/lib/api/ventas';
 import { formatMetodoPago } from '@/lib/config/metodos';
 import type { Cliente } from '@/types/clientes';
+import { nombreItemPedido } from '@/lib/pedidos/nombreItem';
 
 const onlyDigits = (s: string) => s.replace(/\D/g, '');
 const money = (n: number) => `S/. ${n.toFixed(2)}`;
@@ -24,7 +25,7 @@ function VentaDetalleBox({ detalle }: { detalle: VentaDto }) {
         {detalle.items.map(item => (
           <div key={item.id} className="flex justify-between items-center gap-2">
             <span className="text-slate-700 truncate">
-              {item.productoNombre ? (item.varianteNombre ? `${item.productoNombre} (${item.varianteNombre})` : item.productoNombre) : item.comboNombre ?? 'Producto'}
+              {nombreItemPedido(item)}
               {' '}<span className="text-slate-400">x{item.cantidad}</span>
             </span>
             <span className="font-mono font-semibold text-slate-800 shrink-0">{money(item.precioUnitario * item.cantidad)}</span>

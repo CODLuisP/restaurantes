@@ -16,7 +16,7 @@ import { getVentas } from '@/lib/api/ventas';
 import { toFechaParam } from '@/lib/api/reportes';
 
 export default function CobrarPage() {
-  const { tables, activeOrders, sucursalCajaAbierta: isCajaOpen } = useApp();
+  const { tables, activeOrders, sucursalCajaAbierta: isCajaOpen, metodosEntrega } = useApp();
   const { currentUser } = useAuth();
   const { data: authSession } = useSession();
   const router = useRouter();
@@ -156,7 +156,10 @@ export default function CobrarPage() {
           { id: 'mesa' as const,     label: `En mesa (${counts.mesa})` },
           { id: 'llevar' as const,   label: `Para llevar (${counts.llevar})` },
           { id: 'delivery' as const, label: `Delivery (${counts.delivery})` },
-        ]).map(f => (
+        ])
+          // Canales desactivados en Métodos de entrega no se muestran (salvo que aún tengan algo por cobrar).
+          .filter(f => f.id === 'todos' || metodosEntrega[f.id].enabled || counts[f.id] > 0)
+          .map(f => (
           <button
             key={f.id}
             onClick={() => setFilter(f.id)}
@@ -194,15 +197,15 @@ export default function CobrarPage() {
                       </span>
                       {c.time && <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1"><Clock className="h-3 w-3" /> {c.time}</span>}
                     </div>
-                    <p className="text-sm font-bold text-slate-800 mt-2">{c.kind === 'mesa' ? c.label : c.customer}</p>
-                    <p className="text-[10px] text-slate-400 font-mono">{c.kind === 'mesa' ? `Mozo: ${c.waiter ?? '—'}` : c.ref}</p>
+                    <p className="text-sm font-bold text-slate-800 mt-2">{c.kind === 'mesa' ? `Mesa ${c.label}` : c.customer}</p>
+                    <p className="text-[10px] text-slate-400 font-mono">{c.kind === 'mesa' ? `Mozo: ${c.waiter ?? '—'}` : `Pedido #${c.ref}`}</p>
                     {c.kind === 'mesa' && c.pedidoEstado && c.pedidoEstado !== 'entregado' && (
                       <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full uppercase">
                         Esperando entrega
                       </span>
                     )}
                     <div className="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center">
-                      <span className="text-[10px] text-slate-500">{c.itemsCount} items</span>
+                      <span className="text-[10px] text-slate-500">{c.itemsCount} {c.itemsCount === 1 ? 'ítem' : 'ítems'}</span>
                       <span className="font-mono font-bold text-slate-800">{money(c.total)}</span>
                     </div>
                   </button>
@@ -241,4 +244,4 @@ export default function CobrarPage() {
    Panel de cobro: comprobante, vuelto y cuentas separadas
    ══════════════════════════════════════════════════════════════ */
 
-type SplitMode = 'full' | 'items';
+type SplitMode = 'full' | 'items';

@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { ShieldCheck, UserPlus, ShieldAlert, Crown, CreditCard, Utensils, Bike, Pencil } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
-import { Modal, Button, Input, Select, Badge, LoadingRow } from '@/components/ui';
+import { Modal, Button, Input, Select, Badge, LoadingRow, SearchBox } from '@/components/ui';
 import { ApiError } from '@/lib/api/client';
 import { getUsuarios, createUsuario, updateUsuario, type Usuario } from '@/lib/api/usuarios';
 import { getRoles, type Rol } from '@/lib/api/roles';
@@ -56,7 +56,7 @@ const FORM_VACIO: FormState = { nombre: '', username: '', email: '', rolId: '', 
 export default function UsuariosPage() {
   const { data: session } = useSession();
   const { currentUser } = useAuth();
-  const { triggerToast, searchQuery, sucursales: todasSucursales } = useApp();
+  const { triggerToast, sucursales: todasSucursales } = useApp();
   const token = session?.accessToken;
   const esSuperAdmin = session?.user.role === 'superadmin';
   /* Solo el superadmin ve/elige sucursal (filtro, columna y formulario); la lista viene de AppContext. */
@@ -72,6 +72,7 @@ export default function UsuariosPage() {
   const [form, setForm]       = useState<FormState>(FORM_VACIO);
 
   const [filtroSucursalId, setFiltroSucursalId] = useState('');
+  const [busqueda, setBusqueda] = useState('');
   const [filtroRolId, setFiltroRolId] = useState('');
 
   const cargarDatos = useCallback(async () => {
@@ -106,7 +107,9 @@ export default function UsuariosPage() {
 
   const abrirCrear = () => {
     setEditando(null);
-    setForm({ ...FORM_VACIO, rolId: rolesVisibles[0] ? String(rolesVisibles[0].id) : '' });
+    // Por defecto "Mozo" (el rol más común y de menor privilegio), nunca Administrador.
+    const rolPorDefecto = rolesVisibles.find(r => r.nombre.toLowerCase() === 'mozo') ?? rolesVisibles[0];
+    setForm({ ...FORM_VACIO, rolId: rolPorDefecto ? String(rolPorDefecto.id) : '' });
     setModal(true);
   };
 
@@ -193,7 +196,7 @@ export default function UsuariosPage() {
 
   // "superadmin" solo es visible (en la lista y en el selector de rol) para quien tiene ese rol.
   const rolesVisibles = roles.filter(r => esSuperAdmin || r.nombre.toLowerCase() !== 'superadmin');
-  const query = searchQuery.trim().toLowerCase();
+  const query = busqueda.trim().toLowerCase();
   const usuariosVisibles = usuarios.filter(u => {
     if (!esSuperAdmin && u.rolNombre.toLowerCase() === 'superadmin') return false;
     if (filtroSucursalId && String(u.sucursalId ?? '') !== filtroSucursalId) return false;
@@ -214,7 +217,13 @@ export default function UsuariosPage() {
             {usuariosVisibles.length} colaborador{usuariosVisibles.length === 1 ? '' : 'es'} registrado{usuariosVisibles.length === 1 ? '' : 's'}.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <SearchBox
+            value={busqueda}
+            onChange={setBusqueda}
+            placeholder="Buscar por nombre o usuario..."
+            className="w-56 shrink-0"
+          />
           {esSuperAdmin && (
             <div className="w-44 shrink-0">
               <Select value={filtroSucursalId} onChange={e => setFiltroSucursalId(e.target.value)}>
@@ -362,7 +371,7 @@ export default function UsuariosPage() {
           <Input label={editando ? 'Nueva contraseña (opcional)' : 'Contraseña'} type="password"
             placeholder={editando ? 'Dejar vacío para no cambiar' : '••••••••'} value={form.password}
             onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
-          <Input label={editando ? 'Nuevo PIN (opcional)' : 'PIN'} inputMode="numeric" maxLength={6}
+          <Input label={editando ? 'Nuevo PIN (opcional)' : 'PIN'} type="password" inputMode="numeric" maxLength={6} autoComplete="new-password"
             placeholder={editando ? 'Dejar vacío para no cambiar' : '0000'} value={form.pin}
             onChange={e => setForm(f => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))} />
         </div>

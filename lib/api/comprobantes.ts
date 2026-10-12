@@ -47,6 +47,8 @@ export interface ComprobanteDetailItem {
   comboNombre: string | null;
   cantidad: number;
   precioUnitario: number;
+  /** Aún no lo devuelve el backend (ver VentaItemDto.extras). */
+  extras?: { nombre: string }[] | null;
 }
 
 export interface PaginatedResult<T> {

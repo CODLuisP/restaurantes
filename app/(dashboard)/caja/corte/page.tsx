@@ -21,7 +21,15 @@ export default function CajaPage() {
     cashSession, cajaHistory, cajaLoading, isCajaOpen, cajaExpectedCash,
     sucursalTurnoActivo, sucursalTurnoStale, cerrarTurnoAjeno,
     openCaja, closeCaja, addCashMovement, loadCajaHistory, triggerToast,
+    tables, activeOrders,
   } = useApp();
+
+  /* Consumos sin cobrar: cerrar la caja con estos abiertos deja ventas colgadas para el turno siguiente. */
+  const mesasPendientes = tables.filter(t => t.status === 'ocupada' && (t.items?.length ?? 0) > 0);
+  const pendientesCobro = {
+    count: mesasPendientes.length + activeOrders.length,
+    total: mesasPendientes.reduce((a, t) => a + t.cuenta, 0) + activeOrders.reduce((a, o) => a + o.total, 0),
+  };
   const { currentUser } = useAuth();
 
   const [view, setView] = useState<View>('cajas');
@@ -119,6 +127,10 @@ export default function CajaPage() {
     const amount = parseFloat(moveAmount);
     if (isNaN(amount) || amount <= 0) { triggerToast('Ingrese un monto válido.', 'warning'); return; }
     if (!moveReason.trim())           { triggerToast('Indique el motivo del movimiento.', 'warning'); return; }
+    if (moveType === 'egreso' && amount > cajaExpectedCash + 0.001) {
+      triggerToast(`No hay suficiente efectivo en caja: el máximo que puede salir es ${money(cajaExpectedCash)}.`, 'error');
+      return;
+    }
     setSaving(true);
     await addCashMovement(moveType, amount, moveReason.trim(), byName);
     setSaving(false);
@@ -228,8 +240,8 @@ export default function CajaPage() {
               )}
 
               {/* Info de sesión */}
-              <div className="card-lg p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 flex-1">
+              <div className="card-lg p-5 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 flex-1">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wide block">Sesión</span>
                     <span className="text-sm font-mono font-bold text-slate-800">{cashSession.id}</span>
@@ -239,9 +251,13 @@ export default function CajaPage() {
                     <span className="text-sm font-semibold text-slate-800">{cashSession.openedBy}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wide block">Hora apertura</span>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wide block">Apertura</span>
                     <span className="text-sm font-semibold text-slate-800 flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5 text-slate-400" /> {fmtTime(cashSession.openedAt)}
+                      <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                      {/* Con fecha si no es de hoy: una caja abierta varios días debe notarse a simple vista. */}
+                      {new Date(cashSession.openedAt).toDateString() === new Date().toDateString()
+                        ? fmtTime(cashSession.openedAt)
+                        : `${fmtDate(cashSession.openedAt)} · ${fmtTime(cashSession.openedAt)}`}
                     </span>
                   </div>
                   <div>
@@ -286,7 +302,7 @@ export default function CajaPage() {
               </div>
               <p className="flex items-center gap-1.5 text-[11px] text-slate-400">
                 <Info className="h-3.5 w-3.5 shrink-0" />
-                Estas cifras reflejan las ventas registradas contra el sistema de cobro; si aún no está conectado, mostrarán S/. 0.00.
+                Ventas cobradas durante este turno, separadas por método de pago.
               </p>
 
               {/* Efectivo esperado + movimientos */}
@@ -425,6 +441,7 @@ export default function CajaPage() {
         closeDiff={closeDiff}
         cajaExpectedCash={cajaExpectedCash}
         cashSession={cashSession}
+        pendientesCobro={pendientesCobro}
         onClose={handleClose}
         saving={saving}
         byName={byName}

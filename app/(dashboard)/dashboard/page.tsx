@@ -19,6 +19,9 @@ import { getVentas, type VentaDto } from '@/lib/api/ventas';
 import { getClientes } from '@/lib/api/clientes';
 import { toFechaParam } from '@/lib/api/reportes';
 import { formatMetodoPago } from '@/lib/config/metodos';
+import { codigoVenta } from '@/lib/ventas/codigoVenta';
+import { useCocinaPedidos } from '@/hooks/cocina/useCocinaPedidos';
+import { pedidoLabel } from '@/components/cocina/types';
 
 /* Recharts es pesado y solo corre en cliente — se carga aparte del bundle inicial. */
 const RevenueChart = dynamic(() => import('@/components/dashboard/RevenueChart'), {
@@ -62,7 +65,7 @@ async function exportVentasExcel(ventas: VentaDto[], fecha: Date, usuario: strin
 
   const columnas = ['Código', 'Hora', 'Mesa', 'Comprobante', 'Nº Items', 'Método de Pago', 'Monto Total'];
   sheet.columns = [
-    { key: 'codigo', width: 10 },
+    { key: 'codigo', width: 16 },
     { key: 'hora', width: 12 },
     { key: 'mesa', width: 14 },
     { key: 'comprobante', width: 18 },
@@ -103,7 +106,7 @@ async function exportVentasExcel(ventas: VentaDto[], fecha: Date, usuario: strin
   // ── Filas de datos ──
   ventas.forEach((v, idx) => {
     const row = sheet.addRow({
-      codigo: `S-${v.id}`,
+      codigo: codigoVenta(v),
       hora: new Date(v.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
       mesa: v.mesaNumero ? `Mesa ${v.mesaNumero}` : '—',
       comprobante: v.numeroComprobante ?? '—',
@@ -142,6 +145,15 @@ export default function DashboardPage() {
   const { currentUser } = useAuth();
   const { triggerToast, empresa } = useApp();
   const { token, isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
+  /* Pedidos de cocina en vivo (mismo origen que el KDS): incluye mesas Y para llevar/delivery,
+     y se actualiza por tiempo real — el resumen del backend solo listaba mesas. */
+  const { pedidos: pedidosCocina } = useCocinaPedidos(triggerToast);
+  const enCocinaAhora = useMemo(
+    () => pedidosCocina
+      .filter(p => p.estado === 'pendiente' || p.estado === 'en_preparacion')
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    [pedidosCocina]
+  );
 
   const [resumen, setResumen] = useState<DashboardResumenDto | null>(null);
   const [resumenSnapshotAt, setResumenSnapshotAt] = useState<number>(Date.now());
@@ -223,6 +235,15 @@ export default function DashboardPage() {
     return `${formatMetodoPago(top.key)} lidera los cobros con ${top.pct}% del total.`;
   }, [metodosPago]);
 
+  /* El backend agrupa por sesiones abiertas ese día y omite las sin mozo (pedidos QR): para que el
+     panel cuadre con las ventas del día, la diferencia se muestra como "Sin mozo asignado". */
+  const mozosBase = resumen?.rendimientoPorMozo ?? [];
+  const diferenciaMozos = (ventasHoy?.totalVentas ?? 0) - mozosBase.reduce((a, m) => a + m.totalVentas, 0);
+  const mozosConCuadre: { nombre: string; cantidadSesiones: number; totalVentas: number; sinAsignar?: boolean }[] = [
+    ...mozosBase,
+    ...(diferenciaMozos > 0.009 ? [{ nombre: 'Sin mozo asignado', cantidadSesiones: 0, totalVentas: diferenciaMozos, sinAsignar: true }] : []),
+  ];
+
   if (!puedeVer) {
     return (
       <div className="card-lg max-w-md mx-auto my-16 p-8 text-center space-y-3 animate-section">
@@ -259,7 +280,7 @@ export default function DashboardPage() {
     },
     {
       label: 'Pedidos en Cocina Ahora', icon: ShoppingCart, color: '#3AA346',
-      value: `${resumen?.pedidosEnCocinaAhora ?? 0}`,
+      value: `${esHoy ? enCocinaAhora.length : resumen?.pedidosEnCocinaAhora ?? 0}`,
       sub: `${resumen?.pedidosHoy ?? 0} pedidos hoy`,
     },
     {
@@ -270,7 +291,7 @@ export default function DashboardPage() {
     {
       label: 'Clientes CRM', icon: Users, color: '#1E8C45',
       value: `${clientesStats?.total ?? 0}`,
-      sub: `+${clientesStats?.nuevos ?? 0} nuevos esa semana`,
+      sub: `+${clientesStats?.nuevos ?? 0} nuevos ${esHoy ? 'esta' : 'esa'} semana`,
     },
     {
       label: 'Pedidos Cancelados', icon: XCircle, color: '#e11d48',
@@ -291,7 +312,7 @@ export default function DashboardPage() {
         <div>
           <h3 className="text-lg font-bold text-slate-800 tracking-tight">Resumen Ejecutivo de Ventas</h3>
           <p className="text-[11px] text-slate-500 mt-0.5">
-            Monitoreo de operaciones gastronómicas — RestoFly Perú.
+            Monitoreo de operaciones gastronómicas{empresa ? ` — ${empresa.nombreComercial || empresa.razonSocial || empresa.nombre}` : ''}.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -382,15 +403,17 @@ export default function DashboardPage() {
             <h4 className="text-xs font-semibold text-slate-800">Rendimiento por Mozo</h4>
             <p className="text-[10px] text-slate-500 mt-0.5">Sesiones y ventas generadas {esHoy ? 'hoy' : 'ese día'}</p>
           </div>
-          {(resumen?.rendimientoPorMozo ?? []).length === 0 ? (
+          {mozosConCuadre.length === 0 ? (
             <p className="text-[11px] text-slate-400">Sin datos de mozos para {esHoy ? 'hoy' : 'ese día'}.</p>
           ) : (
             <div className="divide-y divide-slate-100">
-              {(resumen?.rendimientoPorMozo ?? []).map((m, i) => (
+              {mozosConCuadre.map((m, i) => (
                 <div key={i} className="flex items-center justify-between py-2">
                   <div>
-                    <p className="text-xs font-semibold text-slate-800">{m.nombre}</p>
-                    <p className="text-[10px] text-slate-400">{m.cantidadSesiones} {m.cantidadSesiones === 1 ? 'mesa' : 'mesas'}</p>
+                    <p className={`text-xs font-semibold ${m.sinAsignar ? 'text-slate-500 italic' : 'text-slate-800'}`}>{m.nombre}</p>
+                    <p className="text-[10px] text-slate-400">
+                      {m.sinAsignar ? 'Pedidos por QR o mesas abiertas otro día' : `${m.cantidadSesiones} ${m.cantidadSesiones === 1 ? 'mesa' : 'mesas'}`}
+                    </p>
                   </div>
                   <span className="font-mono text-xs font-bold text-slate-700">{money(m.totalVentas)}</span>
                 </div>
@@ -488,18 +511,22 @@ export default function DashboardPage() {
         <div className="card p-4 space-y-3">
           <div className="pb-2 border-b border-slate-200">
             <h4 className="text-xs font-semibold text-slate-800">Demora en Cocina</h4>
-            <p className="text-[10px] text-slate-500 mt-0.5">Mesas con pedidos activos ahora</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Pedidos por preparar ahora (mesas, llevar y delivery)</p>
           </div>
           {!esHoy ? (
             <p className="text-[11px] text-slate-400">Solo disponible en tiempo real (hoy).</p>
-          ) : (resumen?.pedidosDemoradosEnCocina ?? []).length === 0 ? (
-            <p className="text-[11px] text-slate-400">Sin pedidos activos en cocina.</p>
+          ) : enCocinaAhora.length === 0 ? (
+            <p className="text-[11px] text-slate-400">Sin pedidos pendientes en cocina.</p>
           ) : (
             <div className="divide-y divide-slate-100">
-              {(resumen?.pedidosDemoradosEnCocina ?? []).map((p, i) => (
-                <div key={i} className="flex items-center justify-between py-2">
-                  <p className="text-xs font-semibold text-slate-800">{p.mesa}</p>
-                  <CocinaTimer segundosIniciales={p.segundosEspera} snapshotAt={resumenSnapshotAt} isLive={true} />
+              {enCocinaAhora.map(p => (
+                <div key={p.id} className="flex items-center justify-between gap-2 py-2">
+                  <p className="text-xs font-semibold text-slate-800 truncate">{pedidoLabel(p)}</p>
+                  <CocinaTimer
+                    segundosIniciales={Math.max(0, Math.floor((resumenSnapshotAt - new Date(p.createdAt).getTime()) / 1000))}
+                    snapshotAt={resumenSnapshotAt}
+                    isLive={true}
+                  />
                 </div>
               ))}
             </div>
@@ -545,13 +572,13 @@ export default function DashboardPage() {
               )}
               {ventasRecientes.map(v => (
                 <tr key={v.id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="p-3 font-mono font-semibold text-gray-800">S-{v.id}</td>
+                  <td className="p-3 font-mono font-semibold text-gray-800 whitespace-nowrap">{codigoVenta(v)}</td>
                   <td className="p-3 text-gray-500">
                     {new Date(v.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}
                   </td>
                   <td className="p-3">
                     <span className="bg-gray-100 px-2 py-0.5 rounded font-medium">
-                      {v.mesaNumero ? `Mesa ${v.mesaNumero}` : '—'}
+                      {v.mesaNumero ? `Mesa ${v.mesaNumero}` : 'Para llevar'}
                     </span>
                   </td>
                   <td className="p-3">

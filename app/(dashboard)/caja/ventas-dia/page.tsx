@@ -14,6 +14,8 @@ import { toFechaParam } from '@/lib/api/reportes';
 import { getFechaEnvioSunatVisible, formatFechaHora } from '@/lib/facturacion/fechaEnvioSunat';
 import { ConvertirTicketModal } from '@/components/caja/ConvertirTicketModal';
 import { formatMetodoPago } from '@/lib/config/metodos';
+import { nombreItemPedido } from '@/lib/pedidos/nombreItem';
+import { codigoVenta } from '@/lib/ventas/codigoVenta';
 
 const BRAND_COLOR = 'FF007542';
 
@@ -187,7 +189,7 @@ const ROLES_VISIBLES = ['admin', 'cajero', 'mozo'];
 const money = (n: number) => `S/. ${n.toFixed(2)}`;
 const itemsCount = (v: VentaDto) => v.items.reduce((a, i) => a + i.cantidad, 0);
 const horaVenta = (v: VentaDto) => new Date(v.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
-const numeroVenta = (v: VentaDto) => v.numeroComprobante || `N.Venta #${v.correlativoTicket ?? v.id}`;
+const numeroVenta = (v: VentaDto) => v.numeroComprobante || codigoVenta(v);
 const fechaLarga = (d: Date) => d.toLocaleDateString('es-PE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 
 function addDias(d: Date, delta: number): Date {
@@ -504,7 +506,7 @@ export default function VentasDelDiaPage() {
                     {seleccionada.items.map(item => (
                       <div key={item.id} className="flex justify-between items-center gap-2 text-xs">
                         <span className="text-slate-700 truncate">
-                          {item.productoNombre ? (item.varianteNombre ? `${item.productoNombre} (${item.varianteNombre})` : item.productoNombre) : item.comboNombre ?? 'Producto'}
+                          {nombreItemPedido(item)}
                           {' '}<span className="text-slate-400">x{item.cantidad}</span>
                         </span>
                         <span className="font-mono font-bold text-slate-800 shrink-0">{money(item.precioUnitario * item.cantidad)}</span>

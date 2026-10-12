@@ -6,6 +6,9 @@ import { Spinner } from '@/components/ui';
 import type { OrderItem, OrderType } from '@/types';
 import DeliveryLocationPicker from './DeliveryLocationPicker';
 
+/** Solo dígitos, espacios y "+" (ej. +51 987 654 321). */
+const soloTelefono = (v: string) => v.replace(/[^\d+\s]/g, '');
+
 interface OrderPanelProps {
   orderType: OrderType;
   custName: string;
@@ -50,6 +53,8 @@ export default function OrderPanel({
   /* Ítems "ya en servicio" que están descontándose/quitándose en este momento — bloquea sus
      propios controles y muestra un loading en vez de dejar el clic sin ningún efecto visible. */
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+  /** Plato ya enviado a cocina que se va a restar (1 unidad) o quitar (todo): requiere confirmar. */
+  const [confirmQuitar, setConfirmQuitar] = useState<{ id: string; todo: boolean } | null>(null);
 
   /* Congela "ya en la mesa"/"ya en el pedido" en su valor previo al envío — ver comentario junto
      a su uso en el bloque de totales. */
@@ -71,7 +76,7 @@ export default function OrderPanel({
   };
 
   return (
-        <div className="w-full lg:w-96 shrink-0 bg-white rounded-2xl border border-slate-100 p-5 shadow-sm h-full flex flex-col justify-between overflow-y-auto">
+        <div className="w-full lg:w-96 shrink-0 bg-white border-t border-slate-200 lg:border-t-0 lg:border-l p-5 lg:h-full flex flex-col justify-between lg:overflow-y-auto">
           <div className="flex-1 flex flex-col min-h-0">
             {/* Título Pedido */}
             <div className="border-b border-slate-100 pb-3 mb-4 shrink-0 flex items-center justify-between">
@@ -111,8 +116,11 @@ export default function OrderPanel({
                   />
                   <input
                     value={custPhone}
-                    onChange={e => setCustPhone(e.target.value)}
+                    onChange={e => setCustPhone(soloTelefono(e.target.value))}
                     disabled={!!editingOrderId}
+                    type="tel"
+                    inputMode="tel"
+                    maxLength={15}
                     placeholder="Teléfono"
                     className="input w-full px-3 py-1.5 text-xs bg-white border-slate-200 disabled:bg-slate-100 disabled:cursor-not-allowed"
                   />
@@ -130,8 +138,11 @@ export default function OrderPanel({
                   />
                   <input
                     value={custPhone}
-                    onChange={e => setCustPhone(e.target.value)}
+                    onChange={e => setCustPhone(soloTelefono(e.target.value))}
                     disabled={!!editingOrderId}
+                    type="tel"
+                    inputMode="tel"
+                    maxLength={15}
                     placeholder="Teléfono"
                     className="input w-full px-3 py-1.5 text-xs bg-white border-slate-200 disabled:bg-slate-100 disabled:cursor-not-allowed"
                   />
@@ -177,12 +188,34 @@ export default function OrderPanel({
                           <div className="flex items-center justify-center h-6 w-[84px] shrink-0">
                             <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
                           </div>
+                        ) : confirmQuitar?.id === item.product.id ? (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] font-semibold text-rose-600">
+                              {confirmQuitar.todo || item.quantity === 1 ? '¿Quitar de cocina?' : '¿Quitar 1?'}
+                            </span>
+                            <button
+                              onClick={() => {
+                                const { todo } = confirmQuitar;
+                                setConfirmQuitar(null);
+                                runBusy(item.product.id, () => (todo ? onRemoveExisting(item.product.id) : onExistingQty(item.product.id, -1)));
+                              }}
+                              className="px-1.5 py-0.5 rounded bg-rose-600 text-white text-[10px] font-bold hover:bg-rose-700"
+                            >
+                              Sí
+                            </button>
+                            <button
+                              onClick={() => setConfirmQuitar(null)}
+                              className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 text-[10px] font-bold hover:bg-slate-300"
+                            >
+                              No
+                            </button>
+                          </div>
                         ) : (
                           <div className="flex items-center gap-1.5 shrink-0">
-                            <button onClick={() => runBusy(item.product.id, () => onExistingQty(item.product.id, -1))} className="p-1 rounded bg-slate-200 text-slate-600 hover:bg-slate-300"><Minus className="h-3 w-3" /></button>
+                            <button onClick={() => setConfirmQuitar({ id: item.product.id, todo: false })} className="p-1 rounded bg-slate-200 text-slate-600 hover:bg-slate-300" title="Restar uno"><Minus className="h-3 w-3" /></button>
                             <span className="text-[11px] font-bold font-mono text-slate-700 w-4 text-center">{item.quantity}</span>
                             <button onClick={() => runBusy(item.product.id, () => onExistingQty(item.product.id, 1))} className="p-1 rounded bg-slate-200 text-slate-600 hover:bg-slate-300"><Plus className="h-3 w-3" /></button>
-                            <button onClick={() => runBusy(item.product.id, () => onRemoveExisting(item.product.id))} className="p-1 rounded text-slate-400 hover:text-rose-500 hover:bg-rose-50" title="Quitar"><Trash2 className="h-3 w-3" /></button>
+                            <button onClick={() => setConfirmQuitar({ id: item.product.id, todo: true })} className="p-1 rounded text-slate-400 hover:text-rose-500 hover:bg-rose-50" title="Quitar"><Trash2 className="h-3 w-3" /></button>
                           </div>
                         )}
                       </div>

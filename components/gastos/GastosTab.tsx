@@ -5,9 +5,15 @@ import {
   Plus, Pencil, Ban, Wallet, CalendarClock, AlertTriangle, Search,
 } from 'lucide-react';
 import { useGastos, type Gasto, type GastoStatus } from '@/context/GastosContext';
+import { useApp } from '@/context/AppContext';
+import { useAuth } from '@/context/AuthContext';
 import { Modal, Input, Select, Button } from '@/components/ui';
 
 const money = (n: number) => `S/. ${n.toFixed(2)}`;
+
+/* Motivo del egreso de caja enlazado a un gasto: permite encontrarlo luego para devolverlo al anular. */
+const motivoEgresoGasto = (id: string, desc: string) => `Gasto #${id} — ${desc}`;
+const motivoAnulacionGasto = (id: string, desc: string) => `Anulación gasto #${id} — ${desc}`;
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const daysAgoStr = (n: number) => {
@@ -34,6 +40,9 @@ const emptyForm = () => ({
 
 export default function GastosTab() {
   const { gastos, categorias, proveedores, addGasto, updateGasto, anularGasto } = useGastos();
+  const { isCajaOpen, cajaExpectedCash, cashSession, addCashMovement, triggerToast } = useApp();
+  const { currentUser } = useAuth();
+  const byName = currentUser?.name ?? 'Sistema';
 
   const [rangeMode, setRangeMode] = useState<RangeMode>('30dias');
   const [dateFrom, setDateFrom] = useState(daysAgoStr(29));
@@ -45,6 +54,9 @@ export default function GastosTab() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm());
+  /** "Pagar con efectivo de caja": descuenta el gasto de la caja abierta como egreso. */
+  const [pagarConCaja, setPagarConCaja] = useState(true);
+  const [guardando, setGuardando] = useState(false);
 
   const applyRange = (mode: RangeMode) => {
     setRangeMode(mode);
@@ -81,6 +93,7 @@ export default function GastosTab() {
   const openCreate = () => {
     setEditingId(null);
     setForm(emptyForm());
+    setPagarConCaja(true);
     setShowForm(true);
   };
 
@@ -94,6 +107,7 @@ export default function GastosTab() {
       status: g.status,
       amount: String(g.amount),
     });
+    setPagarConCaja(true);
     setShowForm(true);
   };
 
@@ -102,10 +116,20 @@ export default function GastosTab() {
     setEditingId(null);
   };
 
-  const handleSubmit = () => {
+  /* Solo aplica al pasar a "pagado": un gasto nuevo pagado, o uno pendiente que ahora se paga. */
+  const editando = editingId ? gastos.find(g => g.id === editingId) : undefined;
+  const ofrecerPagoConCaja = isCajaOpen && form.status === 'pagado' && (!editando || editando.status === 'pendiente');
+
+  const handleSubmit = async () => {
     const description = form.description.trim();
     const amount = Number(form.amount);
     if (!description || !amount || amount <= 0) return;
+
+    const descontarDeCaja = ofrecerPagoConCaja && pagarConCaja;
+    if (descontarDeCaja && amount > cajaExpectedCash + 0.001) {
+      triggerToast(`No hay suficiente efectivo en caja (${money(cajaExpectedCash)}). Desmarca "Pagar con efectivo de caja" si lo pagaste por otro medio.`, 'error');
+      return;
+    }
 
     const payload = {
       date: form.date,
@@ -116,16 +140,24 @@ export default function GastosTab() {
       amount,
     };
 
-    if (editingId) {
-      updateGasto(editingId, payload);
-    } else {
-      addGasto(payload);
+    setGuardando(true);
+    const guardado = editingId ? await updateGasto(editingId, payload) : await addGasto(payload);
+    if (guardado && descontarDeCaja) {
+      await addCashMovement('egreso', amount, motivoEgresoGasto(guardado.id, description), byName);
     }
-    closeForm();
+    setGuardando(false);
+    if (guardado) closeForm();
   };
 
-  const handleAnular = (g: Gasto) => {
-    anularGasto(g.id);
+  /* Si el gasto se pagó con efectivo de la caja actual, al anularlo el dinero vuelve a la caja. */
+  const handleAnular = async (g: Gasto) => {
+    await anularGasto(g.id);
+    const movs = cashSession?.status === 'abierta' ? cashSession.movements : [];
+    const pagadoConCaja = movs.some(m => m.type === 'egreso' && m.reason.startsWith(`Gasto #${g.id} —`));
+    const yaDevuelto = movs.some(m => m.type === 'ingreso' && m.reason.startsWith(`Anulación gasto #${g.id} —`));
+    if (pagadoConCaja && !yaDevuelto) {
+      await addCashMovement('ingreso', g.amount, motivoAnulacionGasto(g.id, g.description), byName);
+    }
   };
 
   const statusBadge = (status: GastoStatus, isVencido: boolean) => {
@@ -275,8 +307,8 @@ export default function GastosTab() {
         footer={
           <>
             <Button variant="secondary" onClick={closeForm}>Cancelar</Button>
-            <Button onClick={handleSubmit} disabled={!form.description.trim() || !Number(form.amount)}>
-              {editingId ? 'Guardar cambios' : 'Registrar gasto'}
+            <Button onClick={handleSubmit} disabled={guardando || !form.description.trim() || !Number(form.amount)}>
+              {guardando ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Registrar gasto'}
             </Button>
           </>
         }
@@ -347,6 +379,24 @@ export default function GastosTab() {
               </button>
             </div>
           </div>
+
+          {ofrecerPagoConCaja && (
+            <label className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={pagarConCaja}
+                onChange={e => setPagarConCaja(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-brand"
+              />
+              <span className="text-xs text-slate-600">
+                <span className="font-semibold text-slate-800">Pagar con efectivo de caja</span>
+                <span className="block text-[11px] text-slate-500">
+                  Se registra como egreso en la caja abierta (disponible: {money(cajaExpectedCash)}).
+                  Desmárcalo si lo pagaste por transferencia u otro medio.
+                </span>
+              </span>
+            </label>
+          )}
         </div>
       </Modal>
     </div>

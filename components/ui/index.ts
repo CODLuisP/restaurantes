@@ -11,6 +11,8 @@ export { Input, Select }                       from './Input';
 
 export { Toggle }                              from './Toggle';
 
+export { SearchBox }                           from './SearchBox';
+
 export { SucursalSelector }                    from './SucursalSelector';
 
 export { StatCard }                            from './StatCard';
