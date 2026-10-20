@@ -12,6 +12,8 @@ export interface EmpresaDto {
   apiKeyFacturacionVenceEn?: string | null;
   /** Solo viene con valor si quien consulta es superadmin; para el resto de roles llega null. */
   apiKeyFacturacion?: string | null;
+  /** Dirección propia de la carta: "paikos" → paikos.restofly.com.pe/menu. */
+  subdominio?: string | null;
 }
 
 export interface UpdateEmpresaDto {
@@ -23,6 +25,23 @@ export interface UpdateEmpresaDto {
   usarFacturacionElectronica?: boolean | null;
   /** Solo superadmin puede enviarlo; el backend lo ignora si no lo es. */
   apiKeyFacturacion?: string | null;
+  /** Único entre empresas: el backend responde 409 si ya lo usa otra. */
+  subdominio?: string | null;
+}
+
+/** El PUT reemplaza la empresa completa: parte de los datos actuales para cambiar solo lo indicado. */
+export function empresaParaActualizar(e: EmpresaDto, cambios: Partial<UpdateEmpresaDto> = {}): UpdateEmpresaDto {
+  return {
+    nombre: e.nombre, ruc: e.ruc, direccion: e.direccion ?? null, logoUrl: e.logoUrl ?? null, activo: e.activo,
+    razonSocial: e.razonSocial || null, nombreComercial: e.nombreComercial || null,
+    departamento: e.departamento || null, provincia: e.provincia || null, distrito: e.distrito || null,
+    direccionCompleta: e.direccionCompleta ?? null, condicion: e.condicion ?? null,
+    estadoContribuyente: e.estadoContribuyente ?? null,
+    paperSize: e.paperSize, autoAceptarPedidos: e.autoAceptarPedidos,
+    usarFacturacionElectronica: e.usarFacturacionElectronica,
+    subdominio: e.subdominio ?? null,
+    ...cambios,
+  };
 }
 
 export function getMiEmpresa(token: string) {

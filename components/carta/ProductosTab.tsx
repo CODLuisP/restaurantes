@@ -105,6 +105,7 @@ export default function ProductosTab({
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [deleteTargetName, setDeleteTargetName] = useState("");
 
+  const [categoriaPorEliminar, setCategoriaPorEliminar] = useState<string | null>(null);
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
 
@@ -184,13 +185,16 @@ export default function ProductosTab({
       setOpenMenuFor(null);
       return;
     }
-    const cat = categorias.find((c) => c.nombre === categoryName);
-    if (!cat) {
-      setOpenMenuFor(null);
-      return;
-    }
-    await eliminarCategoria(cat.id);
     setOpenMenuFor(null);
+    setCategoriaPorEliminar(categoryName); // pide confirmación antes de eliminar
+  };
+
+  const confirmDeleteCategory = async () => {
+    const nombre = categoriaPorEliminar;
+    setCategoriaPorEliminar(null);
+    if (!nombre) return;
+    const cat = categorias.find((c) => c.nombre === nombre);
+    if (cat) await eliminarCategoria(cat.id);
   };
 
   const isSearching = search.trim().length > 0;
@@ -290,7 +294,10 @@ export default function ProductosTab({
 
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={() => window.open(`/menu?sucursalId=${resolvedSucursalId ?? 1}`, "_blank")}
+            onClick={() => {
+              if (!resolvedSucursalId) { triggerToast("Elige una sucursal para ver su vista previa.", "warning"); return; }
+              window.open(`/menu?sucursalId=${resolvedSucursalId}`, "_blank");
+            }}
             className="btn-secondary"
             title="Ver la carta como la ve el cliente"
           >
@@ -461,6 +468,21 @@ export default function ProductosTab({
           autoFocus
         />
       </Modal>
+
+      <Modal
+        open={categoriaPorEliminar !== null}
+        onClose={() => setCategoriaPorEliminar(null)}
+        title="Eliminar categoría"
+        subtitle={`¿Eliminar la categoría "${categoriaPorEliminar ?? ""}"? Esta acción no se puede deshacer.`}
+        size="sm"
+        fullHeight={false}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setCategoriaPorEliminar(null)}>Cancelar</Button>
+            <Button variant="danger" onClick={confirmDeleteCategory}>Eliminar</Button>
+          </>
+        }
+      />
 
       <ProductFormModal
         open={showForm}

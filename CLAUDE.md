@@ -19,7 +19,7 @@ Copy `.env.example` to `.env.local` before running. Key variables:
 
 - `API_URL` / `NEXT_PUBLIC_API_URL` — base URL of the external **RestaurantesAPI** (.NET) backend. `API_URL` is used server-side only (NextAuth); `NEXT_PUBLIC_API_URL` is used by client components that call the backend directly.
 - `AUTH_SECRET` — NextAuth JWT signing secret.
-- `GEMINI_API_KEY` — server-side only, used by `/api/analizar-plato`.
+- `CLOUDFLARE_ACCOUNT_ID_AI` / `CLOUDFLARE_AI_TOKEN` — server-side only, Cloudflare Workers AI (REST, no SDK) used by `/api/leer-carta` via `lib/ia/cloudflareAI.ts`.
 - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` — client-exposed, used for delivery address maps in Comandero.
 - `SUNAT_API_URL` / `SUNAT_API_TOKEN` — optional OSE/SUNAT invoicing provider for `/api/emitir-comprobante`. If unset, that endpoint runs in demo mode and simulates acceptance.
 
@@ -41,7 +41,7 @@ When adding a new domain feature, decide up front which pattern it belongs to in
 ## Route structure
 
 - `app/(dashboard)/*` — authenticated app shell (`Sidebar` + `TopBar`, wrapped in all the client Context providers plus `AuthGuard`). Route folders map 1:1 to sidebar items in `components/layout/Sidebar.tsx`; `menuItems[].roles` gates visibility per `Role` (`admin | cajero | mozo | cocinero | repartidor`). `configSubItems` lists the `/configuracion/*` sub-pages separately since they render under one collapsible nav section.
-- `app/api/*` — Next.js Route Handlers: `auth/[...nextauth]` (NextAuth), `analizar-plato` (Gemini image analysis), `emitir-comprobante` (SUNAT invoicing, demo-mode fallback).
+- `app/api/*` — Next.js Route Handlers: `auth/[...nextauth]` (NextAuth), `leer-carta` (menu photo/PDF → categories, dishes and prices via Cloudflare Workers AI; returns data for the Importar review screen, never writes to the backend), `emitir-comprobante` (SUNAT invoicing, demo-mode fallback).
 - `app/menu/[mesaId]/` and `app/menu/` — public menu pages (no auth), reachable via the QR code customers scan at their table. `middleware.ts` explicitly whitelists `/`, `/menu*`, and `/api*` as public; every other path redirects to `/` when there's no session, and `/` redirects to `/dashboard` when already authenticated.
 - `app/page.tsx` — login screen (`components/auth/LoginForm.tsx`), supports both credentials and quick-PIN.
 

@@ -5,7 +5,8 @@ import { useSession } from 'next-auth/react';
 import { Globe, Star, Check, ChevronRight } from 'lucide-react';
 import { Button, Select, Spinner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
-import { getConfiguracion, updateConfiguracion } from '@/lib/api/configuracion';
+import { getConfiguracion, guardarConfiguracion } from '@/lib/api/configuracion';
+import { usuarioSocial, enlaceWeb } from '@/components/menu/SocialLinksRow';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 
 type SocialKey = 'instagram' | 'facebook' | 'tiktok' | 'sitioWeb';
@@ -28,6 +29,8 @@ export default function RedesSocialesTab() {
   const [showHelp, setShowHelp] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  /** Si falla la carga no se muestra el formulario vacío (guardarlo borraría las redes ya conectadas). */
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     if (sId) load(sId);
@@ -38,10 +41,11 @@ export default function RedesSocialesTab() {
   const load = (id: number) => {
     if (!token) return;
     setLoading(true);
+    setLoadError(false);
     getConfiguracion(token, id).then(c => setForm({
       instagram: c.instagram ?? '', facebook: c.facebook ?? '', tiktok: c.tiktok ?? '',
       sitioWeb: c.sitioWeb ?? '', reviewsLink: c.reviewsLink ?? '',
-    })).catch(() => setForm({ instagram: '', facebook: '', tiktok: '', sitioWeb: '', reviewsLink: '' }))
+    })).catch(() => setLoadError(true))
     .finally(() => setLoading(false));
   };
 
@@ -49,13 +53,13 @@ export default function RedesSocialesTab() {
     if (!token || !sId) return;
     setSaving(true);
     try {
-      let igv = 18, moneda = 'S/.'; let logo: string | null = null;
-      try { const c = await getConfiguracion(token, sId); igv = c.igvPorcentaje; moneda = c.monedaSimbolo; logo = c.logoUrl ?? null; } catch {}
-      await updateConfiguracion(token, sId, {
-        igvPorcentaje: igv, monedaSimbolo: moneda, logoUrl: logo,
-        instagram: form.instagram, facebook: form.facebook, tiktok: form.tiktok,
-        sitioWeb: form.sitioWeb, reviewsLink: form.reviewsLink,
-      });
+      // Se guardan normalizados (usuario sin "@"/URL, enlaces con https://) para que el menú arme enlaces válidos.
+      const limpio = {
+        instagram: usuarioSocial(form.instagram), tiktok: usuarioSocial(form.tiktok),
+        facebook: enlaceWeb(form.facebook), sitioWeb: enlaceWeb(form.sitioWeb), reviewsLink: enlaceWeb(form.reviewsLink),
+      };
+      await guardarConfiguracion(token, sId, limpio);
+      setForm(limpio);
       triggerToast('Redes sociales guardadas.', 'success');
     } catch { triggerToast('Error al guardar', 'error'); }
     finally { setSaving(false); }
@@ -69,6 +73,16 @@ export default function RedesSocialesTab() {
       <div className="py-16 flex flex-col items-center justify-center gap-3">
         <Spinner size="lg" />
         <p className="text-xs font-semibold text-slate-600">Cargando enlaces y redes sociales...</p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="py-16 flex flex-col items-center justify-center gap-3 text-center">
+        <p className="text-sm font-semibold text-slate-700">No se pudieron cargar tus redes sociales.</p>
+        <p className="text-xs text-slate-500">Para no pisar lo que ya tenías guardado, no se muestra el formulario vacío.</p>
+        <Button onClick={() => sId && load(sId)}>Reintentar</Button>
       </div>
     );
   }

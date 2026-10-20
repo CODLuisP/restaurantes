@@ -18,6 +18,7 @@ export default function VariantRow({
   const [disponible, setDisponible] = useState(variante.disponible ?? true);
 
   const handleSave = () => {
+    if (!nombre.trim()) return; // un nombre vacío no se guarda
     onUpdate({
       nombre: nombre.trim(),
       precio: parseFloat(precio) || 0,
@@ -41,8 +42,9 @@ export default function VariantRow({
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") handleSave();
-              if (e.key === "Escape") handleCancel();
+              // preventDefault: dentro del <form> del producto, Enter enviaba también todo el formulario.
+              if (e.key === "Enter") { e.preventDefault(); handleSave(); }
+              if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); handleCancel(); }
             }}
             className="input flex-1 py-1.5 px-1.5"
             autoFocus
@@ -54,6 +56,10 @@ export default function VariantRow({
             value={precio}
             onChange={(e) => setPrecio(e.target.value)}
             onFocus={(e) => e.target.select()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); handleSave(); }
+              if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); handleCancel(); }
+            }}
             className="input w-24 py-1.5 px-1.5"
           />
           <Toggle checked={disponible} onChange={setDisponible} />
@@ -83,9 +89,9 @@ export default function VariantRow({
             S/. {variante.precio.toFixed(2)}
           </span>
           <span
-            className={`text-[10px] font-semibold shrink-0 ${variante.disponible ? "text-emerald-600" : "text-slate-400"}`}
+            className={`text-[10px] font-semibold shrink-0 ${(variante.disponible ?? true) ? "text-emerald-600" : "text-slate-400"}`}
           >
-            {variante.disponible ? "Activo" : "Inactivo"}
+            {(variante.disponible ?? true) ? "Activo" : "Inactivo"}
           </span>
           <button
             type="button"

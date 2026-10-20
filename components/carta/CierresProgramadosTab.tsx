@@ -38,6 +38,14 @@ export default function CierresProgramadosTab() {
 
   const handleGuardar = async () => {
     if (!motivo.trim() || !desde || !hasta || !token || !sId) return;
+    if (new Date(hasta) <= new Date(desde)) {
+      triggerToast('La fecha y hora de fin debe ser posterior a la de inicio.', 'warning');
+      return;
+    }
+    if (new Date(hasta) <= new Date()) {
+      triggerToast('Ese cierre ya terminó: elige un rango que llegue al futuro.', 'warning');
+      return;
+    }
     setSaving(true);
     try {
       const c = await createCierre(token, sId, { motivo: motivo.trim(), desde, hasta });
@@ -88,10 +96,21 @@ export default function CierresProgramadosTab() {
         </div>
       ) : (
         <div className="space-y-2">
-          {cierres.map(c => (
-            <div key={c.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3">
+          {cierres.map(c => {
+            const ahora = Date.now();
+            const estado = new Date(c.hasta).getTime() <= ahora ? 'vencido'
+              : new Date(c.desde).getTime() <= ahora ? 'activo' : 'programado';
+            return (
+            <div key={c.id} className={`flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 ${estado === 'vencido' ? 'opacity-60' : ''}`}>
               <div>
-                <p className="text-sm font-medium text-slate-800">{c.motivo}</p>
+                <p className="text-sm font-medium text-slate-800 flex items-center gap-2">
+                  {c.motivo}
+                  <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${
+                    estado === 'activo' ? 'bg-rose-100 text-rose-700' : estado === 'programado' ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-500'
+                  }`}>
+                    {estado === 'activo' ? 'Cerrado ahora' : estado === 'programado' ? 'Programado' : 'Finalizado'}
+                  </span>
+                </p>
                 <p className="text-[11px] text-slate-500">
                   {new Date(c.desde).toLocaleString('es-PE')} — {new Date(c.hasta).toLocaleString('es-PE')}
                 </p>
@@ -100,7 +119,8 @@ export default function CierresProgramadosTab() {
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

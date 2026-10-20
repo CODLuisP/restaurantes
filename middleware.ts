@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { rolPuedeAcceder, rutaPorDefectoDeRol } from '@/lib/auth/routeAccess';
+import { subdominioDeHost } from '@/lib/menu/subdominio';
 
 // Rutas accesibles sin sesión: login ('/'), el menú público que escanea el cliente por QR,
 // y el alta pública de una empresa nueva.
@@ -12,6 +13,21 @@ function esRutaPublica(pathname: string) {
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const autenticado = !!req.auth;
+
+  // paikos.restofly.com.pe solo sirve la carta pública de esa empresa: "/" y "/menu" muestran
+  // su carta (el subdominio viaja como parámetro y gana sobre cualquiera escrito a mano) y
+  // cualquier otra pantalla del sistema vuelve a la carta.
+  const host = req.headers.get('host');
+  const subdominio = subdominioDeHost(host);
+  if (subdominio) {
+    if (pathname === '/' || pathname === '/menu' || pathname.startsWith('/menu/')) {
+      const destino = req.nextUrl.clone();
+      if (pathname === '/') destino.pathname = '/menu';
+      destino.searchParams.set('subdominio', subdominio);
+      return NextResponse.rewrite(destino);
+    }
+    return NextResponse.redirect(new URL('/menu', `${req.nextUrl.protocol}//${host}`));
+  }
 
   if (!autenticado && !esRutaPublica(pathname)) {
     return NextResponse.redirect(new URL('/', req.nextUrl.origin));

@@ -5,7 +5,7 @@ import { Wallet, Banknote, CreditCard, Smartphone, Landmark, QrCode, CheckCircle
 import { Toggle, Input, Button, SucursalSelector, Spinner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
-import { getConfiguracion, updateConfiguracion } from '@/lib/api/configuracion';
+import { getConfiguracion, guardarConfiguracion } from '@/lib/api/configuracion';
 import { DEFAULT_METODOS_PAGO, parseMetodosPago, type MetodosPago } from '@/lib/config/metodos';
 import QrPosterModal from '@/components/configuracion/metodos-pago/QrPosterModal';
 
@@ -36,12 +36,8 @@ export default function MetodosPagoPage() {
     if (!token || !sId) return;
     setSaving(true);
     try {
-      const actual = await getConfiguracion(token, sId);
-      await updateConfiguracion(token, sId, {
-        igvPorcentaje: actual.igvPorcentaje, monedaSimbolo: actual.monedaSimbolo, logoUrl: actual.logoUrl,
+      await guardarConfiguracion(token, sId, {
         metodosPagoJson: JSON.stringify(updated),
-        instagram: actual.instagram, facebook: actual.facebook, tiktok: actual.tiktok,
-        sitioWeb: actual.sitioWeb, reviewsLink: actual.reviewsLink,
       });
       triggerToast('Métodos de pago guardados.', 'success');
       refreshNegocioConfig();

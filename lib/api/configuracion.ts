@@ -60,6 +60,32 @@ export function updateConfiguracion(token: string, sucursalId: number, dto: Upda
   return apiFetch<ConfiguracionDto>(`/api/configuracion/${sucursalId}`, { token, method: 'PUT', body: dto });
 }
 
+/**
+ * Guarda solo los campos indicados SIN pisar el resto de la configuración.
+ * El PUT del backend recibe la configuración completa: si se envía solo una parte, lo demás
+ * (métodos de pago/entrega, horarios, ubicación, redes…) puede quedar en blanco. Por eso se parte
+ * siempre de la configuración actual y solo se sobreescribe lo que cambió.
+ */
+export async function guardarConfiguracion(
+  token: string,
+  sucursalId: number,
+  cambios: Partial<UpdateConfiguracionDto>,
+) {
+  const a = await getConfiguracion(token, sucursalId);
+  return updateConfiguracion(token, sucursalId, {
+    igvPorcentaje: a.igvPorcentaje, monedaSimbolo: a.monedaSimbolo, logoUrl: a.logoUrl ?? null,
+    instagram: a.instagram, facebook: a.facebook, tiktok: a.tiktok, sitioWeb: a.sitioWeb, reviewsLink: a.reviewsLink ?? null,
+    zonaHoraria: a.zonaHoraria, tipoNegocio: a.tipoNegocio,
+    descripcionCorta: a.descripcionCorta ?? null, descripcionCompleta: a.descripcionCompleta ?? null,
+    whatsappPedidos: a.whatsappPedidos ?? null, horariosJson: a.horariosJson ?? null,
+    metodosPagoJson: a.metodosPagoJson ?? null, metodosEntregaJson: a.metodosEntregaJson ?? null,
+    ubicacionLat: a.ubicacionLat ?? null, ubicacionLng: a.ubicacionLng ?? null,
+    ubicacionDireccion: a.ubicacionDireccion ?? null, mostrarDireccionMenu: a.mostrarDireccionMenu ?? null,
+    impresoraCocina: a.impresoraCocina ?? null,
+    ...cambios,
+  });
+}
+
 export interface UpdateUbicacionDto {
   ubicacionLat?: number | null;
   ubicacionLng?: number | null;

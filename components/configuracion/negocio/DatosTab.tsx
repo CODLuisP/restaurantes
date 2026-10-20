@@ -105,6 +105,7 @@ export default function DatosTab() {
         estadoContribuyente: estadoContribuyente || null,
         paperSize, autoAceptarPedidos: autoAceptar,
         usarFacturacionElectronica,
+        subdominio: empresa.subdominio ?? null, // se edita en Menú Digital; el PUT no debe borrarlo
       });
       triggerToast('Datos guardados.', 'success');
       refreshNegocioConfig(); // el switch de facturación electrónica afecta menú, Cobrar y Ventas del día
@@ -124,6 +125,7 @@ export default function DatosTab() {
         direccionCompleta: direccionCompleta || null, condicion: condicion || null, estadoContribuyente: estadoContribuyente || null,
         paperSize, autoAceptarPedidos: autoAceptar,
         usarFacturacionElectronica,
+        subdominio: empresa.subdominio ?? null,
         apiKeyFacturacion: apiKeyDraft.trim(),
       });
       setApiKeyEditando(false);

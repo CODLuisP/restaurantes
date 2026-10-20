@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { Plus, X } from 'lucide-react';
 import { Toggle, Select, Button, Spinner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
-import { getConfiguracion, updateConfiguracion } from '@/lib/api/configuracion';
+import { getConfiguracion, guardarConfiguracion } from '@/lib/api/configuracion';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 
 type DayKey = 'lun' | 'mar' | 'mie' | 'jue' | 'vie' | 'sab' | 'dom';
@@ -42,6 +42,8 @@ export default function HorariosTab() {
   const [descCompleta, setDescCompleta] = useState('');
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  /** Si la carga falla no se muestran valores por defecto como si fueran reales (guardarlos pisaría lo guardado). */
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     if (sId) load(sId);
@@ -52,6 +54,7 @@ export default function HorariosTab() {
   const load = (id: number) => {
     if (!token) return;
     setLoading(true);
+    setLoadError(false);
     getConfiguracion(token, id).then(c => {
       setZonaHoraria(c.zonaHoraria ?? 'Peru (Lima)');
       setNumeroPedidos(c.whatsappPedidos || '');
@@ -64,23 +67,27 @@ export default function HorariosTab() {
         const telefono = todasSucursales.find(s => s.id === id)?.telefono;
         if (telefono) setNumeroPedidos(telefono);
       }
-    }).catch(() => {
-      setZonaHoraria('Peru (Lima)'); setNumeroPedidos(''); setSchedule(defaultSchedule());
-      setTipoNegocio('Restaurante'); setDescCorta(''); setDescCompleta('');
-    }).finally(() => setLoading(false));
+    }).catch(() => setLoadError(true)).finally(() => setLoading(false));
   };
 
   const handleSave = async () => {
     if (!token || !sId) return;
+
+    // Cada día abierto necesita rangos completos y con la hora de cierre posterior a la de apertura.
+    for (const key of DAY_ORDER) {
+      const d = schedule[key];
+      if (!d.enabled) continue;
+      const incompleto = d.ranges.some(r => !r.from || !r.to);
+      const alReves = d.ranges.some(r => r.from && r.to && r.to <= r.from);
+      if (incompleto) { triggerToast(`${DAY_LABELS[key]}: completa la hora de apertura y de cierre (o quita el rango).`, 'warning'); return; }
+      if (alReves)    { triggerToast(`${DAY_LABELS[key]}: la hora de cierre debe ser posterior a la de apertura.`, 'warning'); return; }
+    }
+
     setSaving(true);
     try {
-      let igv = 18, moneda = 'S/.'; let logo: string | null = null; let inst = '', fb = '', tkt = '', sw = '', rl: string | null = null;
-      try { const c = await getConfiguracion(token, sId); igv = c.igvPorcentaje; moneda = c.monedaSimbolo; logo = c.logoUrl ?? null; inst = c.instagram ?? ''; fb = c.facebook ?? ''; tkt = c.tiktok ?? ''; sw = c.sitioWeb ?? ''; rl = c.reviewsLink ?? null; } catch {}
-      await updateConfiguracion(token, sId, {
-        igvPorcentaje: igv, monedaSimbolo: moneda, logoUrl: logo,
+      await guardarConfiguracion(token, sId, {
         zonaHoraria, tipoNegocio, descripcionCorta: descCorta, descripcionCompleta: descCompleta,
         whatsappPedidos: numeroPedidos, horariosJson: JSON.stringify(schedule),
-        instagram: inst, facebook: fb, tiktok: tkt, sitioWeb: sw, reviewsLink: rl,
       });
       triggerToast('Horarios guardados.', 'success');
     } catch { triggerToast('Error al guardar', 'error'); }
@@ -104,6 +111,16 @@ export default function HorariosTab() {
       <div className="py-16 flex flex-col items-center justify-center gap-3">
         <Spinner size="lg" />
         <p className="text-xs font-semibold text-slate-600">Cargando horarios y configuración...</p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="py-16 flex flex-col items-center justify-center gap-3 text-center">
+        <p className="text-sm font-semibold text-slate-700">No se pudo cargar la configuración de horarios.</p>
+        <p className="text-xs text-slate-500">Para no pisar lo que ya tenías guardado, no se muestran valores por defecto.</p>
+        <Button onClick={() => sId && load(sId)}>Reintentar</Button>
       </div>
     );
   }

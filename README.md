@@ -49,7 +49,7 @@ Incluye además un **menú digital público** que los comensales consultan escan
 | 🔔 **Por despachar** | El mozo confirma la entrega de las comandas listas. |
 | 💰 **Caja** | Apertura de turno, movimientos (ingresos/egresos), arqueo y cierre con control de faltantes/sobrantes entre turnos. |
 | 📖 **Menú Digital** | Carta del día editable, banners, página de bienvenida e importación de productos. Generación de **QR** por mesa. |
-| 🤖 **Análisis de platos con IA** | Sube una foto de un plato y **Gemini** genera nombre, descripción y categoría automáticamente. |
+| 🤖 **Importar carta con IA** | Sube fotos o el PDF de tu carta: la IA (**Cloudflare Workers AI**) detecta categorías, platos y precios, avisa de platos repetidos y tú revisas todo antes de importarlo. |
 | 👥 **Clientes (CRM)** | Registro de clientes, historial de compras y segmentación. |
 | 🛡️ **Personal** | Gestión de usuarios y roles (admin/cajero/mozo). |
 | 📈 **Reportes** | Métricas de ventas y desempeño (Recharts). |
@@ -67,7 +67,7 @@ Incluye además un **menú digital público** que los comensales consultan escan
 - **Animaciones:** [Motion](https://motion.dev/)
 - **Mapas:** [@react-google-maps/api](https://react-google-maps-api-docs.netlify.app/) (Maps + Geocoding + Places)
 - **QR:** [qrcode.react](https://www.npmjs.com/package/qrcode.react)
-- **IA:** Google **Gemini** (`gemini-2.5-flash`) vía API Route
+- **IA:** **Cloudflare Workers AI** (`@cf/mistralai/mistral-small-3.1-24b-instruct`) vía REST desde una API Route
 - **Estado:** React Context + `localStorage`
 - **Fuentes:** Inter + JetBrains Mono (`next/font`)
 
@@ -102,17 +102,15 @@ La aplicación quedará disponible en **http://localhost:3000**.
 Crea un archivo `.env.local` en la raíz basándote en `.env.example`:
 
 ```env
-# Requerida para el análisis de platos con IA (Gemini)
-GEMINI_API_KEY="tu_api_key_de_gemini"
-
-# URL donde se hospeda la app (links autorreferenciales, callbacks)
-APP_URL="http://localhost:3000"
+# Requeridas para importar la carta con IA (Cloudflare Workers AI)
+CLOUDFLARE_ACCOUNT_ID_AI="tu_account_id"
+CLOUDFLARE_AI_TOKEN="tu_token_workers_ai"
 
 # Requerida para el mapa de delivery (Maps JS + Geocoding + Places habilitadas)
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="tu_api_key_de_google_maps"
 ```
 
-> `GEMINI_API_KEY` es secreta (solo servidor). `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` se expone al cliente, restríngela por dominio en Google Cloud Console.
+> `CLOUDFLARE_AI_TOKEN` es secreta (solo servidor). `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` se expone al cliente, restríngela por dominio en Google Cloud Console.
 
 ---
 
@@ -148,7 +146,7 @@ restufly/
 │   │   ├── configuracion/      # Ajustes del negocio
 │   │   └── ui-components/      # Showcase de componentes UI
 │   ├── api/
-│   │   └── analizar-plato/     # API Route: análisis de imagen con Gemini
+│   │   └── leer-carta/         # API Route: lectura de cartas (foto/PDF) con Cloudflare Workers AI
 │   ├── menu/[mesaId]/          # Menú público (accesible por QR)
 │   ├── layout.tsx              # Layout raíz (fuentes + AuthProvider)
 │   └── page.tsx                # Pantalla de login

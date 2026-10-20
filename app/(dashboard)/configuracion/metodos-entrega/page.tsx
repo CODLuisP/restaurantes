@@ -7,7 +7,7 @@ import { Truck, Check, ArrowRight, Utensils, ShoppingBag, Printer } from 'lucide
 import { Toggle, Button, SucursalSelector, Spinner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
-import { getConfiguracion, updateConfiguracion } from '@/lib/api/configuracion';
+import { getConfiguracion, guardarConfiguracion } from '@/lib/api/configuracion';
 import { DEFAULT_METODOS_ENTREGA, parseMetodosEntrega, type MetodosEntrega } from '@/lib/config/metodos';
 
 type DeliveryMethodKey = 'mesa' | 'llevar' | 'delivery';
@@ -71,12 +71,8 @@ export default function MetodosEntregaPage() {
     if (!token || !sId) return;
     setSaving(true);
     try {
-      const actual = await getConfiguracion(token, sId);
-      await updateConfiguracion(token, sId, {
-        igvPorcentaje: actual.igvPorcentaje, monedaSimbolo: actual.monedaSimbolo, logoUrl: actual.logoUrl,
+      await guardarConfiguracion(token, sId, {
         metodosEntregaJson: JSON.stringify(updated),
-        instagram: actual.instagram, facebook: actual.facebook, tiktok: actual.tiktok,
-        sitioWeb: actual.sitioWeb, reviewsLink: actual.reviewsLink,
         impresoraCocina: impresora,
       });
       triggerToast('Métodos de entrega guardados.', 'success');

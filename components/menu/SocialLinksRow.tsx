@@ -12,25 +12,43 @@ export interface SocialLink {
 
 const ICON_SIZE = 'h-6 w-6';
 
+/** Deja solo el usuario: acepta "@mi_negocio", "instagram.com/mi_negocio" o la URL completa. */
+export function usuarioSocial(valor: string): string {
+  return valor
+    .trim()
+    .replace(/^https?:\/\/(www\.)?/i, '')
+    .replace(/^(instagram\.com|tiktok\.com)\//i, '')
+    .replace(/^@+/, '')
+    .split(/[/?#]/)[0]
+    .trim();
+}
+
+/** Asegura que un enlace tenga protocolo: "www.mi-sitio.com" → "https://www.mi-sitio.com". */
+export function enlaceWeb(valor: string): string {
+  const v = valor.trim();
+  if (!v) return '';
+  return /^https?:\/\//i.test(v) ? v : `https://${v}`;
+}
+
 export function buildSocialLinks(redes: RedesSocialesState): SocialLink[] {
   const links: (SocialLink | '')[] = [
-    redes.instagram.trim() && {
-      href: `https://instagram.com/${redes.instagram.trim()}`, label: 'Instagram',
+    usuarioSocial(redes.instagram) && {
+      href: `https://instagram.com/${usuarioSocial(redes.instagram)}`, label: 'Instagram',
       // eslint-disable-next-line @next/next/no-img-element
       icon: <img src="/svgs/redes/instagram-icon.svg" alt="Instagram" className={ICON_SIZE} />,
     },
     redes.facebook.trim() && {
-      href: redes.facebook.trim(), label: 'Facebook',
+      href: enlaceWeb(redes.facebook), label: 'Facebook',
       // eslint-disable-next-line @next/next/no-img-element
       icon: <img src="/svgs/redes/facebook-icon.svg" alt="Facebook" className={ICON_SIZE} />,
     },
-    redes.tiktok.trim() && {
-      href: `https://tiktok.com/@${redes.tiktok.trim()}`, label: 'TikTok',
+    usuarioSocial(redes.tiktok) && {
+      href: `https://tiktok.com/@${usuarioSocial(redes.tiktok)}`, label: 'TikTok',
       // eslint-disable-next-line @next/next/no-img-element
       icon: <img src="/svgs/redes/tiktok-icon-dark.svg" alt="TikTok" className={ICON_SIZE} />,
     },
     redes.sitio.trim() && {
-      href: redes.sitio.trim(), label: 'Sitio web',
+      href: enlaceWeb(redes.sitio), label: 'Sitio web',
       icon: <Globe className={ICON_SIZE} />,
     },
   ];

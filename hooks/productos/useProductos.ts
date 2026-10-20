@@ -18,10 +18,11 @@ import type {
 } from '@/types/productos';
 
 export function useProductos(sucursalId?: number | null) {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const { triggerToast } = useApp();
   const [productos, setProductos] = useState<ProductoDto[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Arranca en true: sin esto, mientras llega la sesión se mostraba "Tu carta está vacía" por un instante.
+  const [loading, setLoading] = useState(true);
 
   const token = session?.accessToken;
   const sessionError = (session as any)?.error;
@@ -48,23 +49,37 @@ export function useProductos(sucursalId?: number | null) {
   useEffect(() => {
     if (token && !sessionError) {
       fetchProductos();
+    } else if (status !== 'loading') {
+      setLoading(false);
     }
-  }, [token, sessionError, fetchProductos]);
+  }, [token, sessionError, status, fetchProductos]);
 
   const crearProducto = useCallback(
     async (dto: CreateProductoDto, precio?: number, disponible: boolean = true) => {
       if (!token || sessionError) return null;
+      // El precio es por sucursal: sin sucursal elegida (superadmin) el producto quedaría sin precio.
+      if (precio !== undefined && !sucursalId) {
+        triggerToast('Elige una sucursal para poder fijar el precio del producto.', 'warning');
+        return null;
+      }
       try {
         const producto = await createProducto(token, dto);
 
         if (precio !== undefined && sucursalId) {
-          await setPrecioSucursal(token, producto.id, sucursalId, {
-            precio,
-            disponible,
-            controlaStock: false,
-          });
-          producto.precio = precio;
-          producto.disponible = disponible;
+          try {
+            await setPrecioSucursal(token, producto.id, sucursalId, {
+              precio,
+              disponible,
+              controlaStock: false,
+            });
+            producto.precio = precio;
+            producto.disponible = disponible;
+          } catch (err: any) {
+            // El producto ya existe: se muestra en la lista (reintentar lo duplicaría) y se avisa del precio.
+            setProductos((prev) => [...prev, producto]);
+            triggerToast('El producto se creó, pero no se pudo guardar su precio. Edítalo para fijarlo.', 'warning');
+            return producto;
+          }
         }
 
         setProductos((prev) => [...prev, producto]);
@@ -83,21 +98,28 @@ export function useProductos(sucursalId?: number | null) {
       if (!token || sessionError) return null;
       try {
         const producto = await updateProducto(token, id, dto);
+        let precioGuardado = true;
 
         if (precioSucursal && sucursalId) {
-          await setPrecioSucursal(token, id, sucursalId, {
-            precio: precioSucursal.precio,
-            disponible: precioSucursal.disponible ?? true,
-            controlaStock: false,
-          });
-          producto.precio = precioSucursal.precio;
-          producto.disponible = precioSucursal.disponible ?? true;
+          try {
+            await setPrecioSucursal(token, id, sucursalId, {
+              precio: precioSucursal.precio,
+              disponible: precioSucursal.disponible ?? true,
+              controlaStock: false,
+            });
+            producto.precio = precioSucursal.precio;
+            producto.disponible = precioSucursal.disponible ?? true;
+          } catch {
+            precioGuardado = false;
+          }
         }
 
+        // Los datos del producto ya se guardaron: la lista los refleja aunque el precio haya fallado.
         setProductos((prev) =>
           prev.map((p) => (p.id === id ? { ...p, ...producto } : p))
         );
-        triggerToast('Producto actualizado exitosamente', 'success');
+        if (precioGuardado) triggerToast('Producto actualizado exitosamente', 'success');
+        else triggerToast('Se guardaron los datos del producto, pero no el precio. Intenta de nuevo.', 'warning');
         return producto;
       } catch (err: any) {
         triggerToast(err?.message || 'Error al actualizar producto', 'error');
@@ -109,7 +131,11 @@ export function useProductos(sucursalId?: number | null) {
 
   const toggleDisponible = useCallback(
     async (id: number, disponible: boolean) => {
-      if (!token || sessionError || !sucursalId) return;
+      if (!token || sessionError) return;
+      if (!sucursalId) {
+        triggerToast('Elige una sucursal para cambiar la disponibilidad.', 'warning');
+        return;
+      }
       try {
         await setPrecioSucursal(token, id, sucursalId, {
           disponible,

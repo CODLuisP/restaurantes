@@ -12,7 +12,7 @@ import { ProfileHeader, type ProfileTab } from "@/components/menu/ProfileHeader"
 import { buildSocialLinks, SocialLinksRow } from "@/components/menu/SocialLinksRow";
 import { BusinessInfoSection } from "@/components/menu/BusinessInfoSection";
 import { updateSucursal } from "@/lib/api/sucursales";
-import { getConfiguracion, updateConfiguracion } from "@/lib/api/configuracion";
+import { getConfiguracion, guardarConfiguracion } from "@/lib/api/configuracion";
 import { getBanners } from "@/lib/api/banners";
 import type { BannerDto } from "@/types/banners";
 import {
@@ -25,6 +25,12 @@ interface MenuHeaderSectionProps {
   catTabs: ProfileTab[];
   activeTab: string;
   onTabChange: (id: string) => void;
+}
+
+/** Un horariosJson corrupto no debe impedir que cargue el resto de la cabecera. */
+function parseHorarios(json?: string | null) {
+  if (!json) return {};
+  try { return JSON.parse(json); } catch { return {}; }
 }
 
 /** Cabecera del menú digital: banners/cover, datos del negocio, redes sociales y horarios. */
@@ -85,7 +91,7 @@ export default function MenuHeaderSection({
         descripcionCorta: c.descripcionCorta ?? "",
         descripcionCompleta: c.descripcionCompleta ?? "",
         numeroPedidos: c.whatsappPedidos ?? "",
-        schedule: c.horariosJson ? JSON.parse(c.horariosJson) : {},
+        schedule: parseHorarios(c.horariosJson),
       });
     }).catch(() => {});
     getBanners(token, sucursalId).then(setBanners).catch(() => {});
@@ -105,23 +111,21 @@ export default function MenuHeaderSection({
       const blob = await resizeImageToBlob(file, 400, 400, 0.8);
       const subida = await subirImagenProducto(blob);
 
-      let igv = 18;
-      let moneda = "S/.";
+      // El logo anterior solo se borra de Cloudflare cuando el nuevo ya quedó guardado:
+      // si guardar falla, la configuración sigue apuntando a una imagen que existe.
+      let idAnterior: string | null = null;
       try {
         const c = await getConfiguracion(token, sucursalId);
-        igv = c.igvPorcentaje;
-        moneda = c.monedaSimbolo;
-        if (c.logoUrl) {
-          const idAnterior = extractCloudflareImageId(c.logoUrl);
-          if (idAnterior) eliminarImagenProductoCloudflare(idAnterior);
-        }
+        if (c.logoUrl) idAnterior = extractCloudflareImageId(c.logoUrl);
       } catch { /* primera vez */ }
 
-      await updateConfiguracion(token, sucursalId, {
-        igvPorcentaje: igv,
-        monedaSimbolo: moneda,
-        logoUrl: subida.url,
-      });
+      try {
+        await guardarConfiguracion(token, sucursalId, { logoUrl: subida.url });
+      } catch (err) {
+        eliminarImagenProductoCloudflare(subida.imageId);
+        throw err;
+      }
+      if (idAnterior) eliminarImagenProductoCloudflare(idAnterior);
       setSucursalLogo(subida.url);
       triggerToast("Logo actualizado.", "success");
     } catch {
@@ -142,7 +146,8 @@ export default function MenuHeaderSection({
         nombre: bizForm.name.trim(),
         direccion: bizForm.address.trim() || null,
         telefono: bizForm.telefono.trim() || null,
-        activo: true,
+        // Conserva el estado actual: editar el nombre/dirección no debe reactivar una sucursal inactiva.
+        activo: sucursales.find((x) => x.id === sucursalId)?.activo ?? true,
       });
       // Se refleja en AppContext para que el resto de vistas vea el cambio (y este header, vía el efecto).
       setSucursales((prev) => prev.map((x) => (x.id === sucursalId ? actualizada : x)));
@@ -324,7 +329,7 @@ export default function MenuHeaderSection({
             label="Nombre del negocio"
             value={bizForm.name}
             onChange={(e) => setBizForm((f) => ({ ...f, name: e.target.value }))}
-            placeholder="Ej: Paykos Chicken"
+            placeholder="Ej: Mi Restaurante"
             autoFocus
             iconLeft={<Store className="h-4 w-4 text-slate-400" />}
           />

@@ -75,6 +75,8 @@ export default function BannersTab() {
   const [pendingBannerBlob, setPendingBannerBlob] = useState<Blob | null>(null);
   const [bannerPreviewUrl, setBannerPreviewUrl] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<BannerDto | null>(null);
+  /** Evita que un doble clic en "Crear banner" suba la imagen y cree el banner dos veces. */
+  const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const openAdd = () => {
@@ -133,9 +135,23 @@ export default function BannersTab() {
   };
 
   const handleSubmit = async () => {
-    if (!token || !selectedSucursalId) return;
+    if (!token || !selectedSucursalId || saving) return;
 
-    let imagenUrl = form.imagenUrl;
+    if (!pendingBannerBlob && !form.imagenUrl.trim()) {
+      triggerToast('Agrega una imagen para el banner.', 'warning');
+      return;
+    }
+    if (!pendingBannerBlob && !/^https?:\/\//i.test(form.imagenUrl.trim())) {
+      triggerToast('La URL de la imagen debe empezar con http:// o https://', 'warning');
+      return;
+    }
+    if (form.programacionHoraria && form.dias.length === 0) {
+      triggerToast('Elige al menos un día para la disponibilidad horaria (o desactívala).', 'warning');
+      return;
+    }
+
+    setSaving(true);
+    let imagenUrl = form.imagenUrl.trim();
     let imagenSubidaId: string | null = null;
 
     if (pendingBannerBlob) {
@@ -144,12 +160,10 @@ export default function BannersTab() {
         imagenUrl = subida.url;
         imagenSubidaId = subida.imageId;
       } catch {
+        setSaving(false);
         triggerToast('Error al subir la imagen.', 'error');
         return;
       }
-    } else if (!imagenUrl) {
-      triggerToast('Agrega una imagen para el banner.', 'warning');
-      return;
     }
 
     const dto: CreateBannerDto | UpdateBannerDto = {
@@ -164,13 +178,12 @@ export default function BannersTab() {
     try {
       if (editingId) {
         const originalBanner = banners.find(b => b.id === editingId);
-        if (originalBanner) {
-          const idAnterior = extractCloudflareImageId(originalBanner.imagenUrl);
-          if (idAnterior && imagenUrl !== originalBanner.imagenUrl) {
-            eliminarImagenProductoCloudflare(idAnterior);
-          }
-        }
         const updated = await updateBanner(token, editingId, dto);
+        // La imagen anterior se borra de Cloudflare solo cuando el cambio ya quedó guardado.
+        if (originalBanner && imagenUrl !== originalBanner.imagenUrl) {
+          const idAnterior = extractCloudflareImageId(originalBanner.imagenUrl);
+          if (idAnterior) eliminarImagenProductoCloudflare(idAnterior);
+        }
         setBanners(prev => prev.map(b => b.id === editingId ? updated : b));
         triggerToast('Banner actualizado.', 'success');
       } else {
@@ -182,15 +195,18 @@ export default function BannersTab() {
     } catch {
       if (imagenSubidaId) eliminarImagenProductoCloudflare(imagenSubidaId);
       triggerToast('Error al guardar el banner.', 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleDelete = async () => {
     if (!token || !deleteTarget) return;
     try {
+      await deleteBanner(token, deleteTarget.id);
+      // La imagen se borra de Cloudflare solo si el banner ya se eliminó (si no, quedaría roto).
       const idAnterior = extractCloudflareImageId(deleteTarget.imagenUrl);
       if (idAnterior) eliminarImagenProductoCloudflare(idAnterior);
-      await deleteBanner(token, deleteTarget.id);
       setBanners(prev => prev.filter(b => b.id !== deleteTarget.id));
       setDeleteTarget(null);
       triggerToast('Banner eliminado.', 'info');
@@ -331,8 +347,8 @@ export default function BannersTab() {
         footer={
           <>
             <Button variant="secondary" onClick={closeModal}>Cancelar</Button>
-            <Button onClick={handleSubmit} disabled={!form.imagenUrl && !pendingBannerBlob}>
-              {editingId ? 'Guardar banner' : 'Crear banner'}
+            <Button onClick={handleSubmit} disabled={saving || (!form.imagenUrl && !pendingBannerBlob)}>
+              {saving ? 'Guardando...' : editingId ? 'Guardar banner' : 'Crear banner'}
             </Button>
           </>
         }
@@ -349,11 +365,13 @@ export default function BannersTab() {
           </div>
 
           <div className="space-y-2">
+            {/* Siempre montado: si estuviera dentro del botón, "Subir imagen" no abría el selector al cambiar de modo. */}
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
             <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
               Imagen <span className="text-rose-500">*</span>
             </label>
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => { setImageMode('upload'); if (imageMode === 'upload') fileInputRef.current?.click(); }}
+              <button type="button" onClick={() => { setImageMode('upload'); if (!form.imagenUrl || pendingBannerBlob === null) fileInputRef.current?.click(); }}
                 className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-colors ${imageMode === 'upload' ? 'bg-brand text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                 <Upload className="h-3.5 w-3.5" /> Subir imagen
               </button>
@@ -375,8 +393,7 @@ export default function BannersTab() {
               ) : (
                 <button type="button" onClick={() => fileInputRef.current?.click()}
                   className="w-full py-6 rounded-xl border border-dashed border-slate-300 text-xs font-medium text-slate-500 hover:bg-slate-50 hover:border-slate-400 transition-colors">
-                  Seleccionar imagen (4:1)
-                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                  Seleccionar imagen (recomendado 1200 × 400 px)
                 </button>
               )
             ) : (

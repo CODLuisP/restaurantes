@@ -12,10 +12,11 @@ import {
 import type { CategoriaDto, CreateCategoriaDto, UpdateCategoriaDto } from '@/types/categorias';
 
 export function useCategorias() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const { triggerToast } = useApp();
   const [categorias, setCategorias] = useState<CategoriaDto[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Arranca en true para no mostrar un estado vacío mientras llega la sesión y los datos.
+  const [loading, setLoading] = useState(true);
 
   const token = session?.accessToken;
   const sessionError = (session as any)?.error;
@@ -40,8 +41,10 @@ export function useCategorias() {
   useEffect(() => {
     if (token && !sessionError) {
       fetchCategorias();
+    } else if (status !== 'loading') {
+      setLoading(false);
     }
-  }, [token, sessionError, fetchCategorias]);
+  }, [token, sessionError, status, fetchCategorias]);
 
   const crearCategoria = useCallback(
     async (dto: CreateCategoriaDto) => {

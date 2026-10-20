@@ -1,4 +1,5 @@
-import { ChevronDown, GripVertical, MoreVertical, Plus } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { ChevronDown, MoreVertical, Plus } from "lucide-react";
 import type { ProductoDto } from "@/types/productos";
 import ProductCard from "./ProductCard";
 
@@ -40,13 +41,24 @@ export default function CategorySection({
   onDeleteCategory,
   onAdd,
 }: CategorySectionProps) {
-  const availableCount = items.filter((i) => i.disponible).length;
+  const availableCount = items.filter((i) => i.disponible ?? true).length;
+
+  // El menú ⋮ se cierra al hacer clic fuera de él (antes solo se cerraba volviendo a pulsar ⋮).
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) onMenuToggle?.();
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menuOpen, onMenuToggle]);
+
   return (
     <div
       className={`rounded-2xl border overflow-visible transition-shadow hover:shadow-card ${highlight ? "border-amber-200 bg-linear-to-r from-amber-50 via-white to-purple-50" : "border-slate-200 bg-white"}`}
     >
       <div className="flex items-center gap-3 px-4 py-3">
-        <GripVertical className="h-4 w-4 text-slate-300 shrink-0 cursor-grab" />
         <span
           className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}
         >
@@ -72,14 +84,15 @@ export default function CategorySection({
           <button
             type="button"
             onClick={onAdd}
-            className="hidden sm:flex items-center gap-1 text-[11px] font-semibold text-brand hover:bg-brand/10 px-2 py-1 rounded-lg transition-colors shrink-0"
+            className="flex items-center gap-1 text-[11px] font-semibold text-brand hover:bg-brand/10 px-2 py-1 rounded-lg transition-colors shrink-0"
             title="Agregar producto a esta categoría"
+            aria-label="Agregar producto a esta categoría"
           >
-            <Plus className="h-3.5 w-3.5" /> Producto
+            <Plus className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Producto</span>
           </button>
         )}
         {onMenuToggle && (
-          <div className="relative shrink-0">
+          <div className="relative shrink-0" ref={menuRef}>
             <button
               type="button"
               onClick={onMenuToggle}

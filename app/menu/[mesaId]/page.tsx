@@ -1,22 +1,16 @@
-'use client';
+import type { Metadata } from 'next';
+import MenuMesa from './MenuMesa';
+import { metadataDelMenu, obtenerMesaPublica } from '@/lib/menu/publicoServidor';
 
-import { use, useState, useEffect } from 'react';
-import PublicMenu from '@/components/menu/PublicMenu';
-import { getMesaPublica } from '@/lib/api/publico';
+type Props = { params: Promise<{ mesaId: string }> };
 
-export default function MenuPublicoMesa({ params }: { params: Promise<{ mesaId: string }> }) {
-  const { mesaId } = use(params);
-  const [sucursalId, setSucursalId] = useState<number | undefined>(undefined);
-  const [mesaLabel, setMesaLabel] = useState(mesaId.replace(/^t/i, 'Mesa '));
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { mesaId } = await params;
+  const mesa = await obtenerMesaPublica(mesaId);
+  return metadataDelMenu(mesa?.sucursalId, null, mesa?.numero ? `Mesa ${mesa.numero}` : undefined);
+}
 
-  useEffect(() => {
-    getMesaPublica(mesaId)
-      .then(data => {
-        if (data?.sucursalId) setSucursalId(data.sucursalId);
-        if (data?.numero) setMesaLabel(`Mesa ${data.numero}`);
-      })
-      .catch(() => {});
-  }, [mesaId]);
-
-  return <PublicMenu mesaLabel={mesaLabel} mesaToken={mesaId} sucursalId={sucursalId} />;
+export default async function MenuPublicoMesa({ params }: Props) {
+  const { mesaId } = await params;
+  return <MenuMesa mesaId={mesaId} />;
 }

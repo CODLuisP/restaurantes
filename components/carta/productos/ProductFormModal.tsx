@@ -408,31 +408,34 @@ export default function ProductFormModal({
         setGuardando(false);
         return;
       }
-      if (pendingVariantes.length > 0) {
-        const token = session?.accessToken;
-        if (token) {
-          for (const v of pendingVariantes) {
-            await createVariante(token, creado.id, {
-              productoId: creado.id,
-              nombre: v.nombre,
-              precio: v.precio,
-            }).catch(() => {});
-          }
+      // Variantes y extras se crean uno a uno; si alguno falla se avisa (antes se ignoraba en silencio).
+      let variantesFallidas = 0;
+      let extrasFallidos = 0;
+      const tokenExtras = session?.accessToken;
+      if (tokenExtras) {
+        for (const v of pendingVariantes) {
+          await createVariante(tokenExtras, creado.id, {
+            productoId: creado.id,
+            nombre: v.nombre,
+            precio: v.precio,
+          }).catch(() => { variantesFallidas++; });
         }
-        setPendingVariantes([]);
+        for (const e of pendingExtras) {
+          await createExtra(tokenExtras, creado.id, {
+            productoId: creado.id,
+            nombre: e.nombre,
+            precio: e.precio,
+          }).catch(() => { extrasFallidos++; });
+        }
       }
-      if (pendingExtras.length > 0) {
-        const token = session?.accessToken;
-        if (token) {
-          for (const e of pendingExtras) {
-            await createExtra(token, creado.id, {
-              productoId: creado.id,
-              nombre: e.nombre,
-              precio: e.precio,
-            }).catch(() => {});
-          }
-        }
-        setPendingExtras([]);
+      setPendingVariantes([]);
+      setPendingExtras([]);
+      if (variantesFallidas > 0 || extrasFallidos > 0) {
+        const partes = [
+          variantesFallidas > 0 ? `${variantesFallidas} variante${variantesFallidas === 1 ? '' : 's'}` : '',
+          extrasFallidos > 0 ? `${extrasFallidos} extra${extrasFallidos === 1 ? '' : 's'}` : '',
+        ].filter(Boolean).join(' y ');
+        triggerToast(`El producto se creó, pero no se pudieron guardar ${partes}. Ábrelo con "Editar" para agregarlos.`, 'warning');
       }
     }
 

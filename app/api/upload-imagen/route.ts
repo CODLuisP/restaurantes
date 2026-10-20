@@ -1,9 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/auth';
 
 export const runtime = 'nodejs';
 
+/** Solo usuarios con sesión: el middleware deja pasar todo /api, así que sin esto cualquiera
+ *  podría subir o borrar imágenes en la cuenta de Cloudflare de la empresa. */
+async function exigirSesion() {
+  const session = await auth();
+  return session?.user
+    ? null
+    : NextResponse.json({ ok: false, error: 'No autorizado.' }, { status: 401 });
+}
+
 /** Proxy server-side hacia Cloudflare Images: las credenciales nunca llegan al cliente. */
 export async function POST(req: NextRequest) {
+  const noAutorizado = await exigirSesion();
+  if (noAutorizado) return noAutorizado;
+
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const apiToken = process.env.CLOUDFLARE_API_TOKEN;
   if (!accountId || !apiToken) {
@@ -51,6 +64,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const noAutorizado = await exigirSesion();
+  if (noAutorizado) return noAutorizado;
+
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const apiToken = process.env.CLOUDFLARE_API_TOKEN;
   if (!accountId || !apiToken) {

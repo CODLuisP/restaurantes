@@ -108,7 +108,7 @@ export default function CartaPage() {
             readOnly={readOnly}
           />
         )}
-        {!readOnly && tab === 'importar' && <ImportarTab />}
+        {!readOnly && tab === 'importar' && <ImportarTab sucursalId={sId} onIrACarta={() => changeTab('carta')} />}
         {!readOnly && tab === 'banners' && <BannersTab />}
         {!readOnly && tab === 'qr' && <QrTab />}
 
