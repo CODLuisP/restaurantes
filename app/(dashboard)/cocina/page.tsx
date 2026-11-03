@@ -144,6 +144,11 @@ export default function CocinaPage() {
                                       + {it.extras.map(e => e.nombre).join(', ')}
                                     </p>
                                   )}
+                                  {it.notas && (
+                                    <p className="text-[10px] font-semibold text-amber-700 bg-amber-50 rounded px-1.5 py-0.5 mt-0.5 inline-block">
+                                      Nota: {it.notas}
+                                    </p>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-1 shrink-0">
                                   {busy ? (

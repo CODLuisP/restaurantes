@@ -33,6 +33,7 @@ interface OrderPanelProps {
   onRemoveExisting: (productId: string) => Promise<void>;
   cart: OrderItem[];
   onUpdateQty: (productId: string, delta: number) => void;
+  onUpdateItemNotas?: (productId: string, notas: string) => void;
   cartTotal: number;
   isCajaOpen: boolean;
   onSend: () => void;
@@ -47,7 +48,7 @@ export default function OrderPanel({
   custName, setCustName, custPhone, setCustPhone, custAddress, setCustAddress,
   editingOrderId, isLoaded, posicion, autocompleteRef,
   onPlaceChanged, onGeocodeManual, onMapClick, onMarkerDragEnd,
-  existingItems, existingTotal, onExistingQty, onRemoveExisting, cart, onUpdateQty, cartTotal,
+  existingItems, existingTotal, onExistingQty, onRemoveExisting, cart, onUpdateQty, onUpdateItemNotas, cartTotal,
   isCajaOpen, onSend, sending, onClearCart,
 }: OrderPanelProps) {
   /* Ítems "ya en servicio" que están descontándose/quitándose en este momento — bloquea sus
@@ -55,6 +56,8 @@ export default function OrderPanel({
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   /** Plato ya enviado a cocina que se va a restar (1 unidad) o quitar (todo): requiere confirmar. */
   const [confirmQuitar, setConfirmQuitar] = useState<{ id: string; todo: boolean } | null>(null);
+  /** IDs de ítems que tienen visible el input de nota para cocina */
+  const [openNoteIds, setOpenNoteIds] = useState<Set<string>>(new Set());
 
   /* Congela "ya en la mesa"/"ya en el pedido" en su valor previo al envío — ver comentario junto
      a su uso en el bloque de totales. */
@@ -231,19 +234,63 @@ export default function OrderPanel({
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide block">
                     Por enviar ahora
                   </span>
-                  {cart.map(item => (
-                    <div key={item.product.id} className="bg-brand/5 border border-brand/10 rounded-xl px-3 py-2 flex justify-between items-center gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[11px] font-bold text-slate-800 truncate">{item.product.name}</p>
-                        <span className="text-[10px] font-mono text-brand font-bold">S/. {(item.product.price * item.quantity).toFixed(2)}</span>
+                  {cart.map(item => {
+                    const hasNote = Boolean(item.notas && item.notas.trim().length > 0);
+                    const isNoteOpen = openNoteIds.has(item.product.id) || hasNote;
+
+                    return (
+                      <div key={item.product.id} className="bg-brand/5 border border-brand/10 rounded-xl p-2.5 space-y-2">
+                        <div className="flex justify-between items-center gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-bold text-slate-800 truncate">{item.product.name}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] font-mono text-brand font-bold">S/ {(item.product.price * item.quantity).toFixed(2)}</span>
+                              {!isNoteOpen && (
+                                <button
+                                  type="button"
+                                  onClick={() => setOpenNoteIds(prev => new Set(prev).add(item.product.id))}
+                                  className="text-[10px] font-medium text-slate-400 hover:text-brand transition-colors"
+                                >
+                                  + Nota
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button onClick={() => onUpdateQty(item.product.id, -1)} className="p-1 rounded bg-slate-200 text-slate-700 hover:bg-slate-300"><Minus className="h-3 w-3" /></button>
+                            <span className="text-[11px] font-bold font-mono text-slate-800 w-4 text-center">{item.quantity}</span>
+                            <button onClick={() => onUpdateQty(item.product.id, 1)} className="p-1 rounded bg-slate-200 text-slate-700 hover:bg-slate-300"><Plus className="h-3 w-3" /></button>
+                          </div>
+                        </div>
+
+                        {isNoteOpen && (
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="Nota para cocina"
+                              value={item.notas ?? ''}
+                              onChange={e => onUpdateItemNotas?.(item.product.id, e.target.value)}
+                              className="w-full px-2.5 py-1 text-[11px] bg-white border border-slate-200 rounded-lg text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-brand"
+                            />
+                            {!hasNote && (
+                              <button
+                                type="button"
+                                onClick={() => setOpenNoteIds(prev => {
+                                  const next = new Set(prev);
+                                  next.delete(item.product.id);
+                                  return next;
+                                })}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                                title="Cerrar nota"
+                              >
+                                &times;
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button onClick={() => onUpdateQty(item.product.id, -1)} className="p-1 rounded bg-slate-200 text-slate-700 hover:bg-slate-300"><Minus className="h-3 w-3" /></button>
-                        <span className="text-[11px] font-bold font-mono text-slate-800 w-4 text-center">{item.quantity}</span>
-                        <button onClick={() => onUpdateQty(item.product.id, 1)} className="p-1 rounded bg-slate-200 text-slate-700 hover:bg-slate-300"><Plus className="h-3 w-3" /></button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 

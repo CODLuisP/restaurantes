@@ -116,7 +116,7 @@ export function useProductos(sucursalId?: number | null) {
 
         // Los datos del producto ya se guardaron: la lista los refleja aunque el precio haya fallado.
         setProductos((prev) =>
-          prev.map((p) => (p.id === id ? { ...p, ...producto } : p))
+          prev.map((p) => (p.id === id ? { ...p, ...producto, variantes: p.variantes, extras: p.extras } : p))
         );
         if (precioGuardado) triggerToast('Producto actualizado exitosamente', 'success');
         else triggerToast('Se guardaron los datos del producto, pero no el precio. Intenta de nuevo.', 'warning');

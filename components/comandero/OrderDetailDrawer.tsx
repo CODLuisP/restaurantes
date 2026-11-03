@@ -198,7 +198,10 @@ export default function OrderDetailDrawer({
                   return (
                     <div key={item.product.id} className="flex justify-between items-center gap-2 text-xs">
                       <span className="text-slate-700 truncate flex items-center gap-1.5 min-w-0">
-                        <span className="truncate">{item.quantity}x {item.product.name}</span>
+                        <div className="min-w-0 truncate">
+                          <span className="truncate block">{item.quantity}x {item.product.name}</span>
+                          {item.notas && <span className="text-[10px] text-amber-700 bg-amber-50 rounded px-1.5 py-0.2 block truncate">Nota: {item.notas}</span>}
+                        </div>
                         {kitchen && (
                           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${kitchen.className}`}>
                             {kitchen.label}

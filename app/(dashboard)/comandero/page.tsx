@@ -211,6 +211,10 @@ export default function ComanderoPage() {
     });
   };
 
+  const handleUpdateItemNotas = (productId: string, notas: string) => {
+    setCart(prev => prev.map(i => i.product.id === productId ? { ...i, notas } : i));
+  };
+
   const handleUpdateQty = (productId: string, delta: number) => {
     setCart(prev =>
       prev.map(i => i.product.id === productId ? { ...i, quantity: i.quantity + delta } : i)
@@ -355,6 +359,7 @@ export default function ComanderoPage() {
           onRemoveExisting={handleRemoveExisting}
           cart={cart}
           onUpdateQty={handleUpdateQty}
+          onUpdateItemNotas={handleUpdateItemNotas}
           cartTotal={cartTotal}
           isCajaOpen={isCajaOpen}
           onSend={onSend}

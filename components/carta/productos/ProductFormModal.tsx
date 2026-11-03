@@ -3,15 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSession } from "next-auth/react";
-import { Camera, Check, ImagePlus, Plus, X } from "lucide-react";
+import { Camera, Check, Equal, ImagePlus, Plus, Trash2, X } from "lucide-react";
 import { Toggle, Input, Select } from "@/components/ui";
 import { useApp } from "@/context/AppContext";
 import type { CategoriaDto } from "@/types/categorias";
 import type {
   ProductoDto,
-  ProductoVarianteDto,
-  CreateProductoVarianteDto,
-  UpdateProductoVarianteDto,
   ProductoExtraDto,
   CreateProductoExtraDto,
   UpdateProductoExtraDto,
@@ -34,9 +31,16 @@ import {
   subirImagenProducto,
   eliminarImagenProductoCloudflare,
 } from "@/lib/uploadImagen";
-import VariantRow from "./VariantRow";
 import ExtraRow from "./ExtraRow";
 import { emptyForm, type ProductForm } from "./types";
+
+interface DraftVariante {
+  /** ID positivo = variante existente en BD; ID negativo = variante nueva en borrador. */
+  id: number;
+  nombre: string;
+  precio: string;
+  disponible: boolean;
+}
 
 interface ProductFormModalProps {
   open: boolean;
@@ -68,7 +72,6 @@ export default function ProductFormModal({
   editingItem,
   defaultCategoriaId,
   categoriasOrdenadas,
-  isCollapsed,
   crearProducto,
   editarProducto,
   crearCategoria,
@@ -86,22 +89,19 @@ export default function ProductFormModal({
   const [pendingImageBlob, setPendingImageBlob] = useState<Blob | null>(null);
   const originalImagenUrlRef = useRef<string>("");
 
-  const [variantes, setVariantes] = useState<ProductoVarianteDto[]>([]);
-  const [pendingVariantes, setPendingVariantes] = useState<{ id: number; nombre: string; precio: number }[]>([]);
+  // Tipo de producto: "simple" (un único precio) o "variantes" (lista de variantes con su precio).
+  const [tipoProducto, setTipoProducto] = useState<"simple" | "variantes">("simple");
+  const [variantesDraft, setVariantesDraft] = useState<DraftVariante[]>([]);
+  const [originalVarianteIds, setOriginalVarianteIds] = useState<number[]>([]);
   const variantIdCounter = useRef(-1);
-  const [variantForm, setVariantForm] = useState({ nombre: "", precio: "" });
-  const [showVariantInput, setShowVariantInput] = useState(false);
 
-  const isCreatingVariants = !editingItem;
-  const allVariantes = isCreatingVariants ? pendingVariantes : variantes;
-
-  const [extras, setExtras] = useState<ProductoExtraDto[]>([]);
-  const [pendingExtras, setPendingExtras] = useState<{ id: number; nombre: string; precio: number }[]>([]);
+  const [extrasDraft, setExtrasDraft] = useState<{ id: number; nombre: string; precio: number; disponible: boolean }[]>([]);
+  const [originalExtraIds, setOriginalExtraIds] = useState<number[]>([]);
   const extraIdCounter = useRef(-1);
   const [extraForm, setExtraForm] = useState({ nombre: "", precio: "" });
   const [showExtraInput, setShowExtraInput] = useState(false);
 
-  const allExtras = isCreatingVariants ? pendingExtras : extras;
+  const allExtras = extrasDraft;
 
   // Creación de categoría en línea: evita tener que cerrar el formulario para crearla.
   const [showNewCategoria, setShowNewCategoria] = useState(false);
@@ -123,14 +123,34 @@ export default function ProductFormModal({
     cancelarNuevaCategoria();
   };
 
+  const crearVariantesIniciales = (): DraftVariante[] => [
+    { id: variantIdCounter.current--, nombre: "Pequeña", precio: "0", disponible: true },
+    { id: variantIdCounter.current--, nombre: "Mediana", precio: "0", disponible: true },
+  ];
+
   const loadVariantes = async (productoId: number) => {
     const token = session?.accessToken;
     if (!token) return;
     try {
       const data = await getVariantes(token, productoId);
-      setVariantes(data);
+      setOriginalVarianteIds(data.map((v) => v.id));
+      if (data.length > 0) {
+        setTipoProducto("variantes");
+        setVariantesDraft(
+          data.map((v) => ({
+            id: v.id,
+            nombre: v.nombre,
+            precio: String(v.precio),
+            disponible: v.disponible ?? true,
+          })),
+        );
+      } else {
+        setTipoProducto("simple");
+        setVariantesDraft([]);
+      }
     } catch {
-      setVariantes([]);
+      setOriginalVarianteIds([]);
+      setVariantesDraft([]);
     }
   };
 
@@ -139,9 +159,18 @@ export default function ProductFormModal({
     if (!token) return;
     try {
       const data = await getExtras(token, productoId);
-      setExtras(data);
+      setOriginalExtraIds(data.map((e) => e.id));
+      setExtrasDraft(
+        data.map((e) => ({
+          id: e.id,
+          nombre: e.nombre,
+          precio: e.precio,
+          disponible: e.disponible ?? true,
+        })),
+      );
     } catch {
-      setExtras([]);
+      setOriginalExtraIds([]);
+      setExtrasDraft([]);
     }
   };
 
@@ -157,19 +186,48 @@ export default function ProductFormModal({
         imagenUrl: editingItem.imagenUrl ?? "",
       });
       originalImagenUrlRef.current = editingItem.imagenUrl ?? "";
+      if (editingItem.variantes && editingItem.variantes.length > 0) {
+        setTipoProducto("variantes");
+        setOriginalVarianteIds(editingItem.variantes.map((v) => v.id));
+        setVariantesDraft(
+          editingItem.variantes.map((v) => ({
+            id: v.id,
+            nombre: v.nombre,
+            precio: String(v.precio),
+            disponible: v.disponible ?? true,
+          })),
+        );
+      } else {
+        setTipoProducto("simple");
+        setOriginalVarianteIds([]);
+        setVariantesDraft([]);
+      }
+      if (editingItem.extras && editingItem.extras.length > 0) {
+        setOriginalExtraIds(editingItem.extras.map((e) => e.id));
+        setExtrasDraft(
+          editingItem.extras.map((e) => ({
+            id: e.id,
+            nombre: e.nombre,
+            precio: e.precio,
+            disponible: e.disponible ?? true,
+          })),
+        );
+      } else {
+        setOriginalExtraIds([]);
+        setExtrasDraft([]);
+      }
       loadVariantes(editingItem.id);
       loadExtras(editingItem.id);
     } else {
       setForm(emptyForm(defaultCategoriaId));
       originalImagenUrlRef.current = "";
-      setVariantes([]);
-      setExtras([]);
+      setTipoProducto("simple");
+      setOriginalVarianteIds([]);
+      setVariantesDraft([]);
+      setOriginalExtraIds([]);
+      setExtrasDraft([]);
     }
     setPendingImageBlob(null);
-    setPendingVariantes([]);
-    setShowVariantInput(false);
-    setVariantForm({ nombre: "", precio: "" });
-    setPendingExtras([]);
     setShowExtraInput(false);
     setExtraForm({ nombre: "", precio: "" });
     setShowNewCategoria(false);
@@ -177,18 +235,47 @@ export default function ProductFormModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editingItem, defaultCategoriaId]);
 
-  const handleProductImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleSelectTipoProducto = (tipo: "simple" | "variantes") => {
+    setTipoProducto(tipo);
+    if (tipo === "variantes" && variantesDraft.length === 0) {
+      setVariantesDraft(crearVariantesIniciales());
+    }
+  };
+
+  const handleAddVarianteRow = () => {
+    setVariantesDraft((prev) => [
+      ...prev,
+      { id: variantIdCounter.current--, nombre: "", precio: "0", disponible: true },
+    ]);
+  };
+
+  const handleChangeVariante = (id: number, field: "nombre" | "precio", value: string) => {
+    setVariantesDraft((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, [field]: value } : v)),
+    );
+  };
+
+  const handleRemoveVarianteRow = (id: number) => {
+    setVariantesDraft((prev) => prev.filter((v) => v.id !== id));
+  };
+
+  const procesarArchivoImagen = async (file: File) => {
     try {
       const blob = await resizeImageToBlob(file, 800, 800, 0.75);
-      if (form.imagenUrl?.startsWith("blob:")) URL.revokeObjectURL(form.imagenUrl);
-      const previewUrl = URL.createObjectURL(blob);
+      setForm((f) => {
+        if (f.imagenUrl?.startsWith("blob:")) URL.revokeObjectURL(f.imagenUrl);
+        return { ...f, imagenUrl: URL.createObjectURL(blob) };
+      });
       setPendingImageBlob(blob);
-      setForm((f) => ({ ...f, imagenUrl: previewUrl }));
     } catch {
       triggerToast("No se pudo procesar la imagen.", "error");
     }
+  };
+
+  const handleProductImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await procesarArchivoImagen(file);
     e.target.value = "";
   };
 
@@ -216,114 +303,48 @@ export default function ProductFormModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, guardando, showNewCategoria, form.imagenUrl]);
 
-  const handleCreateVariante = async () => {
-    const nombre = variantForm.nombre.trim();
-    const precio = parseFloat(variantForm.precio) || 0;
-    if (!nombre) return;
-
-    if (editingItem) {
-      const token = session?.accessToken;
-      if (!token) return;
-      try {
-        const dto: CreateProductoVarianteDto = { productoId: editingItem.id, nombre, precio };
-        const created = await createVariante(token, editingItem.id, dto);
-        setVariantes((prev) => [...prev, created]);
-      } catch {
-        triggerToast("Error al crear variante", "error");
+  /* Permite pegar una imagen desde el portapapeles con Ctrl + V mientras el modal está abierto. */
+  useEffect(() => {
+    if (!open) return;
+    const onPaste = (e: ClipboardEvent) => {
+      if (guardando) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            procesarArchivoImagen(file);
+            return;
+          }
+        }
       }
-    } else {
-      const newId = variantIdCounter.current--;
-      setPendingVariantes((prev) => [...prev, { id: newId, nombre, precio }]);
-    }
-    setVariantForm({ nombre: "", precio: "" });
-    setShowVariantInput(false);
-  };
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, guardando]);
 
-  const handleUpdateVariante = async (id: number, dto: UpdateProductoVarianteDto) => {
-    if (isCreatingVariants) {
-      setPendingVariantes((prev) =>
-        prev.map((v) => (v.id === id ? { ...v, nombre: dto.nombre, precio: dto.precio } : v))
-      );
-      return;
-    }
-    const token = session?.accessToken;
-    if (!token) return;
-    try {
-      const updated = await updateVariante(token, id, dto);
-      setVariantes((prev) => prev.map((v) => (v.id === id ? updated : v)));
-    } catch {
-      triggerToast("Error al actualizar variante", "error");
-    }
-  };
-
-  const handleDeleteVariante = async (id: number) => {
-    if (isCreatingVariants) {
-      setPendingVariantes((prev) => prev.filter((v) => v.id !== id));
-      return;
-    }
-    const token = session?.accessToken;
-    if (!token) return;
-    try {
-      await deleteVariante(token, id);
-      setVariantes((prev) => prev.filter((v) => v.id !== id));
-    } catch {
-      triggerToast("Error al eliminar variante", "error");
-    }
-  };
-
-  const handleCreateExtra = async () => {
+  const handleCreateExtra = () => {
     const nombre = extraForm.nombre.trim();
     const precio = parseFloat(extraForm.precio) || 0;
     if (!nombre) return;
 
-    if (editingItem) {
-      const token = session?.accessToken;
-      if (!token) return;
-      try {
-        const dto: CreateProductoExtraDto = { productoId: editingItem.id, nombre, precio };
-        const created = await createExtra(token, editingItem.id, dto);
-        setExtras((prev) => [...prev, created]);
-      } catch {
-        triggerToast("Error al crear extra", "error");
-      }
-    } else {
-      const newId = extraIdCounter.current--;
-      setPendingExtras((prev) => [...prev, { id: newId, nombre, precio }]);
-    }
+    const newId = extraIdCounter.current--;
+    setExtrasDraft((prev) => [...prev, { id: newId, nombre, precio, disponible: true }]);
     setExtraForm({ nombre: "", precio: "" });
     setShowExtraInput(false);
   };
 
-  const handleUpdateExtra = async (id: number, dto: UpdateProductoExtraDto) => {
-    if (isCreatingVariants) {
-      setPendingExtras((prev) =>
-        prev.map((e) => (e.id === id ? { ...e, nombre: dto.nombre, precio: dto.precio } : e))
-      );
-      return;
-    }
-    const token = session?.accessToken;
-    if (!token) return;
-    try {
-      const updated = await updateExtra(token, id, dto);
-      setExtras((prev) => prev.map((e) => (e.id === id ? updated : e)));
-    } catch {
-      triggerToast("Error al actualizar extra", "error");
-    }
+  const handleUpdateExtra = (id: number, dto: UpdateProductoExtraDto) => {
+    setExtrasDraft((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, nombre: dto.nombre, precio: dto.precio, disponible: dto.disponible } : e)),
+    );
   };
 
-  const handleDeleteExtra = async (id: number) => {
-    if (isCreatingVariants) {
-      setPendingExtras((prev) => prev.filter((e) => e.id !== id));
-      return;
-    }
-    const token = session?.accessToken;
-    if (!token) return;
-    try {
-      await deleteExtra(token, id);
-      setExtras((prev) => prev.filter((e) => e.id !== id));
-    } catch {
-      triggerToast("Error al eliminar extra", "error");
-    }
+  const handleDeleteExtra = (id: number) => {
+    setExtrasDraft((prev) => prev.filter((e) => e.id !== id));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -336,17 +357,35 @@ export default function ProductFormModal({
       triggerToast("Selecciona una categoría para el producto.", "warning");
       return;
     }
-    // Precio 0 solo tiene sentido si el precio real lo dan las variantes (ej. Personal / Familiar).
-    if (!(form.precio > 0) && allVariantes.length === 0) {
-      triggerToast("Ingresa un precio mayor a S/ 0.00 (o agrega variantes con su precio).", "warning");
-      return;
+
+    if (tipoProducto === "simple") {
+      if (!(form.precio > 0)) {
+        triggerToast("Ingresa un precio mayor a S/ 0.00.", "warning");
+        return;
+      }
+    } else {
+      if (variantesDraft.length === 0) {
+        triggerToast("Agrega al menos una variante para el producto.", "warning");
+        return;
+      }
+      const varianteInvalida = variantesDraft.some(
+        (v) => !v.nombre.trim() || !(parseFloat(v.precio) > 0),
+      );
+      if (varianteInvalida) {
+        triggerToast("Completa el nombre y un precio mayor a S/ 0.00 en cada variante.", "warning");
+        return;
+      }
     }
+
+    const precioGuardar =
+      tipoProducto === "simple"
+        ? form.precio
+        : Math.min(...variantesDraft.map((v) => parseFloat(v.precio) || 0));
 
     setGuardando(true);
 
     // La imagen recién se sube a Cloudflare aquí, al confirmar guardado
     // (no al seleccionarla), para no subir/borrar de más si el usuario la cambia varias veces.
-    // Esto es un detalle interno: de cara al usuario todo el proceso es un solo "Guardando...".
     let imagenUrl: string | undefined = form.imagenUrl || undefined;
     let imagenSubidaId: string | null = null;
 
@@ -372,6 +411,20 @@ export default function ProductFormModal({
       if (idAnterior) eliminarImagenProductoCloudflare(idAnterior);
     };
 
+    const token = session?.accessToken;
+    const extrasParaGuardar =
+      showExtraInput && extraForm.nombre.trim()
+        ? [
+            ...extrasDraft,
+            {
+              id: extraIdCounter.current--,
+              nombre: extraForm.nombre.trim(),
+              precio: parseFloat(extraForm.precio) || 0,
+              disponible: true,
+            },
+          ]
+        : extrasDraft;
+
     if (editingItem) {
       const resultado = await editarProducto(
         editingItem.id,
@@ -382,7 +435,7 @@ export default function ProductFormModal({
           imagenUrl,
         },
         {
-          precio: form.precio,
+          precio: precioGuardar,
           disponible: form.disponible,
         },
       );
@@ -392,6 +445,89 @@ export default function ProductFormModal({
         return;
       }
       eliminarImagenAnterior();
+
+      if (token) {
+        let variantesFallidas = 0;
+        if (tipoProducto === "simple") {
+          for (const oldId of originalVarianteIds) {
+            await deleteVariante(token, oldId).catch(() => { variantesFallidas++; });
+          }
+          resultado.variantes = [];
+        } else {
+          const currentIds = new Set(variantesDraft.filter((v) => v.id > 0).map((v) => v.id));
+          for (const oldId of originalVarianteIds) {
+            if (!currentIds.has(oldId)) {
+              await deleteVariante(token, oldId).catch(() => { variantesFallidas++; });
+            }
+          }
+          const nuevasVariantes = [];
+          for (const v of variantesDraft) {
+            const nombre = v.nombre.trim();
+            const precio = parseFloat(v.precio) || 0;
+            if (v.id > 0) {
+              const upd = await updateVariante(token, v.id, {
+                nombre,
+                precio,
+                disponible: v.disponible,
+              }).catch(() => {
+                variantesFallidas++;
+                return null;
+              });
+              if (upd) nuevasVariantes.push(upd);
+            } else {
+              const created = await createVariante(token, editingItem.id, {
+                productoId: editingItem.id,
+                nombre,
+                precio,
+              }).catch(() => {
+                variantesFallidas++;
+                return null;
+              });
+              if (created) nuevasVariantes.push(created);
+            }
+          }
+          resultado.variantes = nuevasVariantes;
+        }
+
+        let extrasFallidos = 0;
+        const currentExtraIds = new Set(extrasParaGuardar.filter((e) => e.id > 0).map((e) => e.id));
+        for (const oldId of originalExtraIds) {
+          if (!currentExtraIds.has(oldId)) {
+            await deleteExtra(token, oldId).catch(() => { extrasFallidos++; });
+          }
+        }
+        const nuevosExtras: ProductoExtraDto[] = [];
+        for (const e of extrasParaGuardar) {
+          const nombre = e.nombre.trim();
+          const precio = e.precio;
+          if (e.id > 0) {
+            const upd = await updateExtra(token, e.id, {
+              nombre,
+              precio,
+              disponible: e.disponible,
+            }).catch(() => {
+              extrasFallidos++;
+              return null;
+            });
+            if (upd) nuevosExtras.push(upd);
+          } else {
+            const created = await createExtra(token, editingItem.id, {
+              productoId: editingItem.id,
+              nombre,
+              precio,
+            }).catch(() => {
+              extrasFallidos++;
+              return null;
+            });
+            if (created) nuevosExtras.push(created);
+          }
+        }
+        resultado.extras = nuevosExtras;
+
+        if (variantesFallidas > 0 || extrasFallidos > 0) {
+          triggerToast("El producto se actualizó, pero hubo un problema al sincronizar algunas variantes o extras.", "warning");
+        }
+      }
     } else {
       const creado = await crearProducto(
         {
@@ -400,7 +536,7 @@ export default function ProductFormModal({
           descripcion: form.descripcion.trim() || undefined,
           imagenUrl,
         },
-        form.precio,
+        precioGuardar,
         form.disponible,
       );
       if (!creado) {
@@ -408,34 +544,47 @@ export default function ProductFormModal({
         setGuardando(false);
         return;
       }
-      // Variantes y extras se crean uno a uno; si alguno falla se avisa (antes se ignoraba en silencio).
+      // Variantes y extras se crean uno a uno; si alguno falla se avisa.
       let variantesFallidas = 0;
       let extrasFallidos = 0;
-      const tokenExtras = session?.accessToken;
-      if (tokenExtras) {
-        for (const v of pendingVariantes) {
-          await createVariante(tokenExtras, creado.id, {
-            productoId: creado.id,
-            nombre: v.nombre,
-            precio: v.precio,
-          }).catch(() => { variantesFallidas++; });
+      if (token) {
+        if (tipoProducto === "variantes") {
+          const variantesCreadas = [];
+          for (const v of variantesDraft) {
+            const created = await createVariante(token, creado.id, {
+              productoId: creado.id,
+              nombre: v.nombre.trim(),
+              precio: parseFloat(v.precio) || 0,
+            }).catch(() => {
+              variantesFallidas++;
+              return null;
+            });
+            if (created) variantesCreadas.push(created);
+          }
+          creado.variantes = variantesCreadas;
         }
-        for (const e of pendingExtras) {
-          await createExtra(tokenExtras, creado.id, {
+        const extrasCreados: ProductoExtraDto[] = [];
+        for (const e of extrasParaGuardar) {
+          const created = await createExtra(token, creado.id, {
             productoId: creado.id,
-            nombre: e.nombre,
+            nombre: e.nombre.trim(),
             precio: e.precio,
-          }).catch(() => { extrasFallidos++; });
+          }).catch(() => {
+            extrasFallidos++;
+            return null;
+          });
+          if (created) extrasCreados.push(created);
         }
+        creado.extras = extrasCreados;
       }
-      setPendingVariantes([]);
-      setPendingExtras([]);
+      setVariantesDraft([]);
+      setExtrasDraft([]);
       if (variantesFallidas > 0 || extrasFallidos > 0) {
         const partes = [
-          variantesFallidas > 0 ? `${variantesFallidas} variante${variantesFallidas === 1 ? '' : 's'}` : '',
-          extrasFallidos > 0 ? `${extrasFallidos} extra${extrasFallidos === 1 ? '' : 's'}` : '',
-        ].filter(Boolean).join(' y ');
-        triggerToast(`El producto se creó, pero no se pudieron guardar ${partes}. Ábrelo con "Editar" para agregarlos.`, 'warning');
+          variantesFallidas > 0 ? `${variantesFallidas} variante${variantesFallidas === 1 ? "" : "s"}` : "",
+          extrasFallidos > 0 ? `${extrasFallidos} extra${extrasFallidos === 1 ? "" : "s"}` : "",
+        ].filter(Boolean).join(" y ");
+        triggerToast(`El producto se creó, pero no se pudieron guardar ${partes}. Ábrelo con "Editar" para agregarlos.`, "warning");
       }
     }
 
@@ -447,19 +596,13 @@ export default function ProductFormModal({
 
   if (!open) return null;
 
-  // Solo mostramos "Cambiar imagen"/"Quitar imagen" cuando hay una imagen ya resuelta
-  // (archivo recién elegido, o la que trae el producto al editar). Si se basara en
-  // "form.imagenUrl tiene algo", el input de pegar URL desaparecería a la primera letra
-  // que el usuario escriba, sin dejarlo terminar de pegar el link.
-  const tieneImagenCargada =
-    !!pendingImageBlob ||
-    (!!originalImagenUrlRef.current && form.imagenUrl === originalImagenUrlRef.current);
+  const tieneImagenCargada = !!form.imagenUrl;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-xs"
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="bg-white shadow-2xl w-full max-w-xl h-full flex flex-col overflow-hidden animate-slide-in-right">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
           <div>
             <h2 className="text-base font-bold text-slate-800">
@@ -478,179 +621,254 @@ export default function ProductFormModal({
         </div>
         <form
           onSubmit={handleSubmit}
-          className="p-6 space-y-4 overflow-y-auto max-h-[calc(90vh-120px)]"
+          className="p-6 space-y-4 flex-1 flex flex-col overflow-y-auto"
         >
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-              Foto del plato
-            </label>
-            <button
-              type="button"
-              onClick={() => productImageRef.current?.click()}
-              className="group/pimg relative w-full h-40 rounded-xl overflow-hidden border-2 border-dashed border-slate-200 hover:border-brand bg-slate-50 flex items-center justify-center transition-colors"
-            >
-              {form.imagenUrl ? (
-                <>
-                  <img
-                    src={form.imagenUrl}
-                    alt="Vista previa"
-                    className="absolute inset-0 h-full w-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/pimg:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-semibold">
-                    <Camera className="h-4 w-4" /> Cambiar foto
+          <div className="flex items-start gap-4">
+            <div className="shrink-0 flex flex-col items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => productImageRef.current?.click()}
+                className="group/pimg relative w-34 h-34 rounded-2xl overflow-hidden border-2 border-dashed border-brand/40 hover:border-brand bg-brand/5 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                {form.imagenUrl ? (
+                  <>
+                    <img
+                      src={form.imagenUrl}
+                      alt="Vista previa"
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/pimg:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-semibold">
+                      <Camera className="h-4 w-4" /> Cambiar
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center gap-1.5 text-brand">
+                    <ImagePlus className="h-6 w-6" />
+                    <span className="text-xs font-semibold">
+                      Subir foto
+                    </span>
                   </div>
-                </>
-              ) : (
-                <div className="flex flex-col items-center gap-1.5 text-slate-400">
-                  <ImagePlus className="h-7 w-7" />
-                  <span className="text-xs font-medium">
-                    Sube una foto del plato
-                  </span>
-                  <span className="text-[10px]">JPG o PNG</span>
-                </div>
-              )}
-            </button>
-            <input
-              ref={productImageRef}
-              type="file"
-              accept="image/*"
-              onChange={handleProductImage}
-              className="hidden"
-            />
-            {tieneImagenCargada ? (
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => productImageRef.current?.click()}
-                  className="text-[11px] font-medium text-brand hover:text-brand-hover"
-                >
-                  Cambiar imagen
-                </button>
+                )}
+              </button>
+              <input
+                ref={productImageRef}
+                type="file"
+                accept="image/*"
+                onChange={handleProductImage}
+                className="hidden"
+              />
+              {tieneImagenCargada && (
                 <button
                   type="button"
                   onClick={handleQuitarImagenProducto}
-                  className="text-[11px] font-medium text-rose-500 hover:text-rose-600"
+                  className="text-[11px] font-medium text-rose-500 hover:text-rose-600 cursor-pointer"
                 >
-                  Quitar imagen
+                  Quitar foto
+                </button>
+              )}
+            </div>
+
+            <div className="flex-1 min-w-0 space-y-3">
+              <Input
+                label="Nombre del producto"
+                placeholder="Ej: Ceviche Mixto"
+                value={form.nombre}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, nombre: e.target.value }))
+                }
+                required
+                autoFocus
+              />
+
+              {showNewCategoria ? (
+                <div className="w-full space-y-1">
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    Nueva categoría
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      value={newCategoriaNombre}
+                      onChange={(e) => setNewCategoriaNombre(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") { e.preventDefault(); handleCrearCategoria(); }
+                        if (e.key === "Escape") { e.preventDefault(); cancelarNuevaCategoria(); }
+                      }}
+                      placeholder="Ej: Ceviches"
+                      className="input flex-1 min-w-0 py-2 px-3"
+                      disabled={creandoCategoria}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCrearCategoria}
+                      disabled={!newCategoriaNombre.trim() || creandoCategoria}
+                      className="px-2.5 py-2 bg-brand text-white rounded-xl hover:bg-brand-hover disabled:opacity-50 shrink-0"
+                      title="Crear categoría"
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelarNuevaCategoria}
+                      disabled={creandoCategoria}
+                      className="px-1.5 py-2 text-slate-400 hover:text-slate-600 shrink-0"
+                      title="Cancelar"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    {creandoCategoria ? "Creando categoría..." : "Se seleccionará automáticamente al crearla."}
+                  </p>
+                </div>
+              ) : (
+                <Select
+                  label="Categoría"
+                  error={
+                    !form.categoriaId ? "Selecciona o crea una categoría" : undefined
+                  }
+                  value={form.categoriaId}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    if (value === NUEVA_CATEGORIA_OPTION) {
+                      setShowNewCategoria(true);
+                      return;
+                    }
+                    setForm((f) => ({ ...f, categoriaId: value }));
+                  }}
+                >
+                  <option value={0} disabled>
+                    {categoriasOrdenadas.length === 0 ? "Sin categorías aún" : "Seleccionar categoría"}
+                  </option>
+                  {categoriasOrdenadas.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre}
+                    </option>
+                  ))}
+                  <option value={NUEVA_CATEGORIA_OPTION}>+ Crear nueva categoría</option>
+                </Select>
+              )}
+            </div>
+          </div>
+
+          {/* Tipo de Producto: Precio Simple vs Con Variantes */}
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-700">
+                Tipo de Producto
+              </label>
+              <div className="grid grid-cols-2 p-1 rounded-xl border border-slate-200 bg-white">
+                <button
+                  type="button"
+                  onClick={() => handleSelectTipoProducto("simple")}
+                  className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    tipoProducto === "simple"
+                      ? "bg-brand text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-800"
+                  }`}
+                >
+                  Precio Simple
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectTipoProducto("variantes")}
+                  className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    tipoProducto === "variantes"
+                      ? "bg-brand text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-800"
+                  }`}
+                >
+                  Con Variantes
                 </button>
               </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Input
-                  placeholder="…o pega una URL de imagen"
-                  value={form.imagenUrl}
-                  onChange={(e) => {
-                    setPendingImageBlob(null);
-                    setForm((f) => ({ ...f, imagenUrl: e.target.value }));
-                  }}
+            </div>
+
+            {tipoProducto === "simple" ? (
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Precio <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  placeholder="0.00"
+                  value={form.precio || ""}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      precio: parseFloat(e.target.value) || 0,
+                    }))
+                  }
+                  className="input w-full py-2.5 px-3"
                 />
-                {form.imagenUrl && (
-                  <button
-                    type="button"
-                    onClick={handleQuitarImagenProducto}
-                    className="text-[11px] font-medium text-rose-500 hover:text-rose-600 shrink-0"
-                  >
-                    Quitar
-                  </button>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {variantesDraft.length > 0 && (
+                  <div className="flex items-center gap-3 px-3">
+                    <span className="w-4 shrink-0" />
+                    <span className="flex-1 text-xs font-semibold text-slate-400">
+                      Nombre
+                    </span>
+                    <span className="w-36 text-xs font-semibold text-slate-400">
+                      Precio <span className="text-slate-400">*</span>
+                    </span>
+                    <span className="w-7 shrink-0" />
+                  </div>
                 )}
+
+                {variantesDraft.map((v) => (
+                  <div
+                    key={v.id}
+                    className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-white"
+                  >
+                    <Equal className="h-4 w-4 text-slate-400 shrink-0" />
+                    <input
+                      value={v.nombre}
+                      onChange={(e) => handleChangeVariante(v.id, "nombre", e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") e.preventDefault();
+                      }}
+                      placeholder="Ej: Pequeña"
+                      className="input flex-1 min-w-0 py-2 px-3"
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.5}
+                      placeholder="0"
+                      value={v.precio}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => handleChangeVariante(v.id, "precio", e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") e.preventDefault();
+                      }}
+                      className="input w-36 py-2 px-3"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveVarianteRow(v.id)}
+                      className="p-1.5 text-slate-300 hover:text-rose-500 rounded-lg transition-colors shrink-0 cursor-pointer"
+                      title="Eliminar variante"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={handleAddVarianteRow}
+                  className="w-full py-2.5 px-4 rounded-xl border border-dashed border-slate-300 text-xs font-semibold text-brand hover:bg-brand/5 hover:border-brand/40 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="h-4 w-4" /> Agregar variante
+                </button>
               </div>
             )}
           </div>
 
-          <Input
-            label="Nombre del producto"
-            placeholder="Ej: Ceviche Mixto"
-            value={form.nombre}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, nombre: e.target.value }))
-            }
-            required
-            autoFocus
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Precio (S/.)"
-              type="number"
-              min={0}
-              step={0.5}
-              value={form.precio}
-              onFocus={(e) => e.target.select()}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  precio: parseFloat(e.target.value) || 0,
-                }))
-              }
-            />
-            {showNewCategoria ? (
-              <div className="w-full space-y-1">
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  Nueva categoría
-                </label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    value={newCategoriaNombre}
-                    onChange={(e) => setNewCategoriaNombre(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") { e.preventDefault(); handleCrearCategoria(); }
-                      if (e.key === "Escape") { e.preventDefault(); cancelarNuevaCategoria(); }
-                    }}
-                    placeholder="Ej: Ceviches"
-                    className="input flex-1 min-w-0 py-2 px-3"
-                    disabled={creandoCategoria}
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    onClick={handleCrearCategoria}
-                    disabled={!newCategoriaNombre.trim() || creandoCategoria}
-                    className="px-2.5 py-2 bg-brand text-white rounded-xl hover:bg-brand-hover disabled:opacity-50 shrink-0"
-                    title="Crear categoría"
-                  >
-                    <Check className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={cancelarNuevaCategoria}
-                    disabled={creandoCategoria}
-                    className="px-1.5 py-2 text-slate-400 hover:text-slate-600 shrink-0"
-                    title="Cancelar"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                <p className="text-[10px] text-slate-400">
-                  {creandoCategoria ? "Creando categoría..." : "Se seleccionará automáticamente al crearla."}
-                </p>
-              </div>
-            ) : (
-              <Select
-                label="Categoría"
-                error={
-                  !form.categoriaId ? "Selecciona o crea una categoría" : undefined
-                }
-                value={form.categoriaId}
-                onChange={(e) => {
-                  const value = Number(e.target.value);
-                  if (value === NUEVA_CATEGORIA_OPTION) {
-                    setShowNewCategoria(true);
-                    return;
-                  }
-                  setForm((f) => ({ ...f, categoriaId: value }));
-                }}
-              >
-                <option value={0} disabled>
-                  {categoriasOrdenadas.length === 0 ? "Sin categorías aún" : "Seleccionar categoría"}
-                </option>
-                {categoriasOrdenadas.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-                <option value={NUEVA_CATEGORIA_OPTION}>+ Crear nueva categoría</option>
-              </Select>
-            )}
-          </div>
           <div className="space-y-1">
             <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Descripción
@@ -683,70 +901,6 @@ export default function ProductFormModal({
                 }
               />
             </div>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                Variantes
-              </span>
-              {!showVariantInput && (
-                <button
-                  type="button"
-                  onClick={() => setShowVariantInput(true)}
-                  className="text-xs font-semibold text-brand hover:bg-brand/10 px-2 py-1 rounded-lg transition-colors"
-                >
-                  <Plus className="h-3.5 w-3.5 inline mr-1" /> Agregar
-                </button>
-              )}
-            </div>
-
-            {showVariantInput && (
-              <div className="flex items-center gap-2 p-3 rounded-xl">
-                <input
-                  value={variantForm.nombre}
-                  onChange={(e) => setVariantForm((f) => ({ ...f, nombre: e.target.value }))}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreateVariante(); } }}
-                  placeholder="Nombre (ej: Mediano)"
-                  className="input flex-1 py-2 px-1.5"
-                  autoFocus
-                />
-                <input
-                  type="number"
-                  min={0}
-                  step={0.5}
-                  placeholder="S/."
-                  value={variantForm.precio}
-                  onChange={(e) => setVariantForm((f) => ({ ...f, precio: e.target.value }))}
-                  onFocus={(e) => e.target.select()}
-                  className="input w-28 py-2 px-1.5"
-                />
-                <button
-                  type="button"
-                  onClick={handleCreateVariante}
-                  disabled={!variantForm.nombre.trim()}
-                  className="px-3 py-2 text-xs font-semibold bg-brand text-white rounded-xl hover:bg-brand-hover disabled:opacity-50 shrink-0"
-                >
-                  <Check className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowVariantInput(false); setVariantForm({ nombre: "", precio: "" }); }}
-                  className="px-2 py-2 text-xs text-slate-400 hover:text-slate-600 shrink-0"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            )}
-
-            {allVariantes.map((v) => (
-              <VariantRow
-                key={v.id}
-                variante={v}
-                onUpdate={(dto) => handleUpdateVariante(v.id, dto)}
-                onDelete={() => handleDeleteVariante(v.id)}
-              />
-            ))}
           </div>
 
           <div className="space-y-3">
@@ -818,7 +972,7 @@ export default function ProductFormModal({
             ))}
           </div>
 
-          <div className="flex gap-2 pt-4 border-t border-slate-100">
+          <div className="flex gap-2 pt-4 mt-auto border-t border-slate-100">
             <button
               type="button"
               onClick={handleClose}
