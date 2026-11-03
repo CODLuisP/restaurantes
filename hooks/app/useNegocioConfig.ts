@@ -57,6 +57,7 @@ export function useNegocioConfig() {
   const [sucursalSincronizada, setSucursalSincronizada] = useState<boolean | null>(null);
   const [empresa, setEmpresa] = useState<EmpresaDto | null>(null);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
+  const [sucursalLogo, setSucursalLogo] = useState<string | null>(null);
   const [ticketsConfig, setTicketsConfig] = useState<TicketsConfigDto | null>(null);
   const [negocioConfigErrores, setNegocioConfigErrores] = useState<NegocioConfigErrores>(SIN_ERRORES);
   const [negocioConfigLoading, setNegocioConfigLoading] = useState(true);
@@ -78,6 +79,7 @@ export function useNegocioConfig() {
       setMetodosEntrega(parseMetodosEntrega(c.metodosEntregaJson));
       setImpresoraCocina(c.impresoraCocina ?? false);
       setSucursalSincronizada(c.sincronizadoFacturacion ?? null);
+      setSucursalLogo(c.logoUrl ?? null);
     }
     if (emp.status === 'fulfilled') setEmpresa(emp.value);
     if (sucs.status === 'fulfilled') setSucursales(sucs.value);
@@ -120,15 +122,16 @@ export function useNegocioConfig() {
 
   const negocioTicket = useMemo<NegocioTicket>(() => ({
     businessName: empresa ? (empresa.razonSocial || empresa.nombreComercial || empresa.nombre || undefined) : undefined,
-    logoUrl: empresa?.logoUrl ?? undefined,
+    logoUrl: (empresa?.logoUrl || sucursalLogo) ?? undefined,
     ruc: empresa?.ruc || undefined,
     direccion: empresa ? (empresa.direccionCompleta || empresa.direccion || undefined) : undefined,
-  }), [empresa]);
+  }), [empresa, sucursalLogo]);
 
   return {
     metodosPago, metodosEntrega, igvPorcentaje, impresoraCocina, sucursalSincronizada,
     empresa, usarFacturacionElectronica,
     sucursales, setSucursales,
+    sucursalLogo,
     ticketsConfig, cocinaBlocks, clienteBlocks, ticketPaperSize, negocioTicket,
     negocioConfigLoading, negocioConfigErrores, refreshNegocioConfig,
   };

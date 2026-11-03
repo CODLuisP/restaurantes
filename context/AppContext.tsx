@@ -74,6 +74,7 @@ interface AppContextType {
   /** Para reflejar al instante un alta/edición de sucursal hecha en esta sesión. */
   setSucursales: React.Dispatch<React.SetStateAction<Sucursal[]>>;
   /** Diseño de tickets guardado en Configuración → Tickets (null si nunca se guardó). */
+  sucursalLogo: string | null;
   ticketsConfig: TicketsConfigDto | null;
   /** Datos del negocio para los bloques "Negocio"/"Imagen" de los tickets impresos. */
   negocioTicket: NegocioTicket;
@@ -191,6 +192,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const {
     metodosPago, metodosEntrega, igvPorcentaje, impresoraCocina, sucursalSincronizada,
     empresa, usarFacturacionElectronica, sucursales, setSucursales,
+    sucursalLogo,
     ticketsConfig, cocinaBlocks, clienteBlocks, ticketPaperSize, negocioTicket,
     negocioConfigLoading, negocioConfigErrores, refreshNegocioConfig,
   } = useNegocioConfig();
@@ -771,6 +773,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         empresa,
         sucursales,
         setSucursales,
+        sucursalLogo,
         ticketsConfig,
         negocioTicket,
         clienteBlocks,
