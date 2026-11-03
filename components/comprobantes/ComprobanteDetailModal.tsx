@@ -17,7 +17,9 @@ interface ComprobanteDetailModalProps {
   empresa: EmpresaDto | null;
 }
 
-/** Vista previa imprimible del comprobante seleccionado, con su QR y detalle de ítems. */
+/** Vista previa imprimible del comprobante seleccionado — reconstrucción propia en HTML/Tailwind
+ *  (no el PDF/HTML que genera el OSE: ese no tiene un endpoint de HTML y pedirlo como PDF embebido
+ *  no se veía bien). "Descargar PDF" sí trae siempre el documento oficial emitido ante SUNAT. */
 export default function ComprobanteDetailModal({
   selectedComprobante, setSelectedComprobante, comprobanteSizes, onDownload, triggerToast, empresa,
 }: ComprobanteDetailModalProps) {
@@ -118,7 +120,7 @@ export default function ComprobanteDetailModal({
         {selectedComprobante && (
           <div className="comprobante-print-area flex justify-center p-3 bg-slate-100 rounded-xl max-h-[60vh] overflow-y-auto">
             {/* Formato Ticket (80mm o 58mm) */}
-            {((comprobanteSizes[selectedComprobante.numero] || 'A4') === 'Ticket 80mm' || 
+            {((comprobanteSizes[selectedComprobante.numero] || 'A4') === 'Ticket 80mm' ||
               (comprobanteSizes[selectedComprobante.numero] || 'A4') === 'Ticket 58mm') ? (
               <div 
                 className={`bg-white p-6 shadow-sm border border-slate-200 font-mono text-slate-800 text-[11px] leading-tight select-text ${

@@ -181,8 +181,14 @@ export async function downloadPdfBlob(token: string, ventaId: number, tamano: st
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
-export function getHtmlUrl(ventaId: number, tamano: string = 'Ticket80mm') {
-  return `${API_URL}/api/comprobantes/${ventaId}/html?tamano=${encodeURIComponent(tamano)}`;
+/** Traduce el tamaño elegido en pantalla al valor que espera el backend/OSE. */
+export function formatoATamano(size: 'A4' | 'A5' | 'Ticket 80mm' | 'Ticket 58mm'): string {
+  switch (size) {
+    case 'Ticket 80mm': return 'Ticket80mm';
+    case 'Ticket 58mm': return 'Ticket58mm';
+    case 'A5': return 'MediaCarta';
+    default: return 'A4';
+  }
 }
 
 /** Descarga un blob con el header Authorization y dispara la descarga real del archivo (sin abrir pestaña). */

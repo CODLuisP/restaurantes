@@ -13,7 +13,7 @@ import { useNegocioConfig, type NegocioConfigErrores, type NegocioTicket } from 
 import type { EmpresaDto } from '@/lib/api/empresas';
 import type { Sucursal } from '@/lib/api/sucursales';
 import type { TicketsConfigDto } from '@/lib/api/ticketsConfig';
-import type { PaperSize } from '@/components/configuracion/tickets/ticketData';
+import type { PaperSize, TicketBlock } from '@/components/configuracion/tickets/ticketData';
 import type { MetodosPago, MetodosEntrega } from '@/lib/config/metodos';
 import { useMesasCatalogo } from '@/hooks/mesas/useMesasCatalogo';
 import { useActiveOrders } from '@/hooks/comandero/useActiveOrders';
@@ -77,6 +77,8 @@ interface AppContextType {
   ticketsConfig: TicketsConfigDto | null;
   /** Datos del negocio para los bloques "Negocio"/"Imagen" de los tickets impresos. */
   negocioTicket: NegocioTicket;
+  /** Plantilla del ticket de cliente (Configuración → Tickets) — se usa al imprimir en Cobrar. */
+  clienteBlocks: TicketBlock[];
   ticketPaperSize: PaperSize;
   negocioConfigLoading: boolean;
   /** Qué parte de la carga central falló, para que cada vista muestre su aviso. */
@@ -189,7 +191,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const {
     metodosPago, metodosEntrega, igvPorcentaje, impresoraCocina, sucursalSincronizada,
     empresa, usarFacturacionElectronica, sucursales, setSucursales,
-    ticketsConfig, cocinaBlocks, ticketPaperSize, negocioTicket,
+    ticketsConfig, cocinaBlocks, clienteBlocks, ticketPaperSize, negocioTicket,
     negocioConfigLoading, negocioConfigErrores, refreshNegocioConfig,
   } = useNegocioConfig();
   const ticketBusinessName = negocioTicket.businessName;
@@ -294,10 +296,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           mozo: authSession?.user?.name ?? undefined,
           nombre: item.product.name,
           cantidad: Math.min(-delta, item.quantity),
-        });
+        }, ticketPaperSize);
       }
     },
-    [tables, updateTableItemQtyBackend, impresoraCocina, authSession?.user?.name]
+    [tables, updateTableItemQtyBackend, impresoraCocina, ticketPaperSize, authSession?.user?.name]
   );
 
   const removeTableItem = useCallback(
@@ -310,10 +312,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           mozo: authSession?.user?.name ?? undefined,
           nombre: item.product.name,
           cantidad: item.quantity,
-        });
+        }, ticketPaperSize);
       }
     },
-    [tables, removeTableItemBackend, impresoraCocina, authSession?.user?.name]
+    [tables, removeTableItemBackend, impresoraCocina, ticketPaperSize, authSession?.user?.name]
   );
 
   const {
@@ -771,6 +773,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setSucursales,
         ticketsConfig,
         negocioTicket,
+        clienteBlocks,
         ticketPaperSize,
         negocioConfigLoading,
         negocioConfigErrores,

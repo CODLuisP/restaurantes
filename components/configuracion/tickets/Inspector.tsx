@@ -134,6 +134,7 @@ export default function Inspector({ block, onChange, onMove, onDuplicate, onRemo
             <FieldLabel>Datos del local</FieldLabel>
             <CheckRow checked={block.showAddress ?? false} onChange={v => onChange({ showAddress: v })} label="Dirección" />
             <CheckRow checked={block.showPhone ?? false} onChange={v => onChange({ showPhone: v })} label="Teléfono" />
+            <CheckRow checked={block.fiscalAddress ?? false} onChange={v => onChange({ fiscalAddress: v })} label={'Prefijo "Dir. Fiscal:"'} />
           </div>
         </div>
       )}
@@ -180,6 +181,7 @@ export default function Inspector({ block, onChange, onMove, onDuplicate, onRemo
         <div className="space-y-1">
           <FieldLabel>Datos a mostrar</FieldLabel>
           <CheckRow checked={block.showClientName ?? true} onChange={v => onChange({ showClientName: v })} label="Nombre" />
+          <CheckRow checked={block.showClientDoc ?? false} onChange={v => onChange({ showClientDoc: v })} label="Documento (DNI/RUC)" />
           <CheckRow checked={block.showClientPhone ?? true} onChange={v => onChange({ showClientPhone: v })} label="Teléfono" />
           <CheckRow checked={block.showClientAddress ?? true} onChange={v => onChange({ showClientAddress: v })} label="Dirección" />
           <CheckRow checked={block.showDeliveryTime ?? true} onChange={v => onChange({ showDeliveryTime: v })} label="Hora de entrega" />
@@ -209,6 +211,11 @@ export default function Inspector({ block, onChange, onMove, onDuplicate, onRemo
       )}
 
       {block.type === 'pago' && textFormat}
+
+      {(block.type === 'comprobante-cabecera' || block.type === 'detalle-comprobante'
+        || block.type === 'totales-comprobante' || block.type === 'forma-pago') && (
+        <p className="text-xs text-slate-500">Se completa con los datos reales del comprobante al cobrar. Ajusta su posición con el espaciado.</p>
+      )}
 
       {block.type === 'qr' && (
         <p className="text-xs text-slate-500">El QR enlaza al seguimiento del pedido. Ajusta su posición con el espaciado.</p>

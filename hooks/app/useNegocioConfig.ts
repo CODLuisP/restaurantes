@@ -104,8 +104,19 @@ export function useNegocioConfig() {
     return defaultConfig().cocina;
   }, [ticketsConfig]);
 
+  /** Plantilla del ticket de cliente (el que se imprime al cobrar) — mismo criterio que cocinaBlocks. */
+  const clienteBlocks = useMemo<TicketBlock[]>(() => {
+    if (ticketsConfig?.clienteJson) {
+      try { return JSON.parse(ticketsConfig.clienteJson); } catch { /* plantilla por defecto */ }
+    }
+    return defaultConfig().cliente;
+  }, [ticketsConfig]);
+
+  /* El tamaño de papel se define en Configuración → Información del negocio → Impresión (empresa);
+     el de la plantilla de tickets solo es el respaldo si la empresa no lo tiene. */
+  const esPapel = (v: unknown): v is PaperSize => v === '58mm' || v === '80mm';
   const ticketPaperSize: PaperSize =
-    ticketsConfig?.paperSize === '58mm' || ticketsConfig?.paperSize === '80mm' ? ticketsConfig.paperSize : '80mm';
+    esPapel(empresa?.paperSize) ? empresa.paperSize : esPapel(ticketsConfig?.paperSize) ? ticketsConfig.paperSize : '80mm';
 
   const negocioTicket = useMemo<NegocioTicket>(() => ({
     businessName: empresa ? (empresa.razonSocial || empresa.nombreComercial || empresa.nombre || undefined) : undefined,
@@ -118,7 +129,7 @@ export function useNegocioConfig() {
     metodosPago, metodosEntrega, igvPorcentaje, impresoraCocina, sucursalSincronizada,
     empresa, usarFacturacionElectronica,
     sucursales, setSucursales,
-    ticketsConfig, cocinaBlocks, ticketPaperSize, negocioTicket,
+    ticketsConfig, cocinaBlocks, clienteBlocks, ticketPaperSize, negocioTicket,
     negocioConfigLoading, negocioConfigErrores, refreshNegocioConfig,
   };
 }

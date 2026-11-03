@@ -4,7 +4,7 @@
 
 import type { TicketBlock, PaperSize } from '@/components/configuracion/tickets/ticketData';
 import { renderComandaHtml, type TicketOrderData } from './renderTicket';
-import { thermalCss } from './thermal';
+import { thermalCss, thermalPrintScript } from './thermal';
 
 export function imprimirComanda(blocks: TicketBlock[], paper: PaperSize, data: TicketOrderData) {
   if (typeof window === 'undefined' || data.items.length === 0) return;
@@ -25,7 +25,7 @@ export interface CancelacionData {
 
 /** Ticket de cancelación — se imprime cuando el mozo quita o reduce un plato ya enviado a cocina
  *  (con "Impresora en cocina" activo no hay pantalla que lo muestre desaparecer solo). */
-export function imprimirCancelacion({ mesa, mozo, nombre, cantidad }: CancelacionData) {
+export function imprimirCancelacion({ mesa, mozo, nombre, cantidad }: CancelacionData, paper: PaperSize = '80mm') {
   if (typeof window === 'undefined') return;
 
   const hora = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
@@ -33,7 +33,7 @@ export function imprimirCancelacion({ mesa, mozo, nombre, cantidad }: Cancelacio
   if (!win) return;
 
   win.document.write(`<!DOCTYPE html><html><head><title>Cancelación</title><style>
-    ${thermalCss('80mm')}
+    ${thermalCss(paper)}
     h2 { text-align: center; margin: 0 0 10px; font-size: 22px; letter-spacing: 1px;
          border: 3px solid #000; padding: 4px; }
     .item { font-size: 18px; text-align: center; padding: 6px 0 10px; word-break: break-word; }
@@ -47,7 +47,7 @@ export function imprimirCancelacion({ mesa, mozo, nombre, cantidad }: Cancelacio
       ${mozo ? `<p><strong>Mozo:</strong> ${mozo}</p>` : ''}
       <p><strong>Hora:</strong> ${hora}</p>
     </div>
-    <script>window.onload=function(){window.print();window.close()}<\/script>
+    ${thermalPrintScript(paper)}
   </body></html>`);
   win.document.close();
 }

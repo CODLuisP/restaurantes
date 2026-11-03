@@ -17,6 +17,7 @@ import {
   getComprobanteDetalle,
   getNotasDeVenta,
   getComprobantes,
+  formatoATamano,
   type NotaVentaResult,
 } from '@/lib/api/comprobantes';
 import ComprobantesFilters from '@/components/comprobantes/ComprobantesFilters';
@@ -321,8 +322,7 @@ export default function ComprobantesPage() {
     setDescargandoKey(key);
     try {
       if (type === 'PDF') {
-        const tamano = size === 'Ticket 80mm' ? 'Ticket80mm' : size === 'Ticket 58mm' ? 'Ticket58mm' : size === 'A5' ? 'MediaCarta' : 'A4';
-        await downloadPdfBlob(token, id, tamano);
+        await downloadPdfBlob(token, id, formatoATamano(size));
         triggerToast(`Abriendo PDF del comprobante...`, 'info');
       } else if (type === 'XML') {
         await downloadXmlBlob(token, id);

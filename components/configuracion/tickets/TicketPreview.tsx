@@ -2,7 +2,7 @@
 
 import { QRCodeCanvas } from 'qrcode.react';
 import type { TicketBlock, FontSize, Align } from './ticketData';
-import { SAMPLE, SEP_CHAR, money } from './ticketData';
+import { SAMPLE, SEP_CHAR, money, COMPROBANTE_COLOR } from './ticketData';
 
 const SIZE_CLASS: Record<FontSize, string> = {
   small: 'text-[9px]',
@@ -59,7 +59,7 @@ function BlockView({ block }: { block: TicketBlock }) {
                 {SAMPLE.businessName}
               </div>
             )}
-            {block.showAddress && <div className="text-[9px]">{SAMPLE.businessAddress}</div>}
+            {block.showAddress && <div className="text-[9px]">{block.fiscalAddress ? 'Dir. Fiscal: ' : ''}{SAMPLE.businessAddress}</div>}
             {block.showPhone && <div className="text-[9px]">{SAMPLE.businessPhone}</div>}
           </div>
         );
@@ -75,6 +75,13 @@ function BlockView({ block }: { block: TicketBlock }) {
         );
 
       case 'datos-pedido':
+        if (block.tabular) {
+          return (
+            <div className={sizeCls}>
+              {block.showFecha && <div className="flex gap-1.5"><b className="w-[52px] shrink-0">Fecha:</b><span>{SAMPLE.date} {SAMPLE.time}</span></div>}
+            </div>
+          );
+        }
         return (
           <div className={`${sizeCls} space-y-0.5`}>
             {block.showFecha && (
@@ -92,6 +99,14 @@ function BlockView({ block }: { block: TicketBlock }) {
         return <div className={`${align} ${SIZE_CLASS[block.size ?? 'xlarge']} font-bold`}>Pedido #{SAMPLE.orderNumber}</div>;
 
       case 'cliente':
+        if (block.tabular) {
+          return (
+            <div className={sizeCls}>
+              {block.showClientName && <div className="flex gap-1.5"><b className="w-[52px] shrink-0">Cliente:</b><span>{SAMPLE.customerName}</span></div>}
+              {block.showClientDoc && <div className="flex gap-1.5"><b className="w-[52px] shrink-0">Doc.:</b><span>{SAMPLE.customerDoc}</span></div>}
+            </div>
+          );
+        }
         return (
           <div className={`${sizeCls} space-y-0.5`}>
             {block.showClientName && <div><span className="font-bold">Cliente:</span> {SAMPLE.customerName}</div>}
@@ -147,6 +162,60 @@ function BlockView({ block }: { block: TicketBlock }) {
         return (
           <div className="flex justify-center">
             <QRCodeCanvas value={`${typeof window !== 'undefined' ? window.location.origin : ''}/menu`} size={96} bgColor="#ffffff" fgColor="#000000" level="M" />
+          </div>
+        );
+
+      case 'comprobante-cabecera':
+        return (
+          <div className="text-center">
+            <div className="text-[15px] font-bold py-0.5">RUC: {SAMPLE.ruc}</div>
+            <div className="font-bold text-[14px] text-white py-0.5" style={{ background: COMPROBANTE_COLOR }}>{SAMPLE.docLabel}</div>
+            <div className="text-[14px] font-bold py-1">N° {SAMPLE.docNumber}</div>
+          </div>
+        );
+
+      case 'detalle-comprobante':
+        return (
+          <table className={`w-full border-collapse ${sizeCls}`}>
+            <thead>
+              <tr className="text-white" style={{ background: COMPROBANTE_COLOR }}>
+                <th className="text-left px-0.5">#</th><th className="text-left">Cod</th><th className="text-left">Cant</th>
+                <th className="text-left">Desc</th><th className="text-right">P.Vent</th><th className="text-right pr-0.5">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {SAMPLE.items.map((it, i) => (
+                <tr key={i}>
+                  <td>{i + 1}</td><td>P00{i + 1}</td><td>{it.qty.toFixed(2)}</td><td>{it.name}</td>
+                  <td className="text-right">{(it.price / it.qty).toFixed(2)}</td><td className="text-right">{it.price.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        );
+
+      case 'totales-comprobante': {
+        const base = SAMPLE.total / (1 + SAMPLE.igvPorcentaje / 100);
+        return (
+          <div className={sizeCls}>
+            <div className="flex justify-between"><span>Op. Gravadas</span><span>{money(base)}</span></div>
+            <div className="flex justify-between"><span>Op. Exoneradas</span><span>{money(0)}</span></div>
+            <div className="flex justify-between"><span>Op. Inafectas</span><span>{money(0)}</span></div>
+            <div className="flex justify-between"><span>I.G.V. ({SAMPLE.igvPorcentaje}%)</span><span>{money(SAMPLE.total - base)}</span></div>
+            <div className="flex justify-between font-bold text-[14px] text-white px-1 py-0.5 mt-1" style={{ background: COMPROBANTE_COLOR }}>
+              <span>IMPORTE TOTAL</span><span>{money(SAMPLE.total)}</span>
+            </div>
+            <div className="font-bold pt-1">OCHENTA Y CINCO CON 00/100 SOLES</div>
+          </div>
+        );
+      }
+
+      case 'forma-pago':
+        return (
+          <div className={sizeCls}>
+            <div className="font-bold pb-0.5">FORMA DE PAGO</div>
+            <div className="flex justify-between"><span>Tipo</span><span>Contado</span></div>
+            <div className="flex justify-between"><span>{SAMPLE.paymentMethod}</span><span>{money(SAMPLE.total)}</span></div>
           </div>
         );
     }

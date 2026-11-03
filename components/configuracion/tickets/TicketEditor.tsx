@@ -192,7 +192,13 @@ export default function TicketEditor() {
           @media print{body{padding:0;display:block}}
         </style></head>
         <body>${clone.outerHTML}
-        <script>window.onload=function(){setTimeout(function(){window.print()},120)}<\/script>
+        <script>window.onload=function(){setTimeout(function(){
+          var mm=Math.ceil(document.body.firstElementChild.offsetHeight*25.4/96)+2;
+          var s=document.createElement('style');
+          s.textContent='@page{size:${pageWidthMm}mm '+mm+'mm;margin:0}';
+          document.head.appendChild(s);
+          window.print()
+        },120)}<\/script>
         </body></html>`);
       win.document.close();
       setSelectedId(prevSelected);

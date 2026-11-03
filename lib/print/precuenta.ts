@@ -2,7 +2,7 @@
  *  document.write + window.print()). A diferencia de un comprobante real, no lleva serie ni
  *  correlativo: es solo el detalle que el mozo entrega al cliente antes de cobrar. */
 
-import { thermalCss } from './thermal';
+import { thermalCss, thermalPrintScript } from './thermal';
 
 const esc =(s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const money = (n: number) => n.toFixed(2);
@@ -52,7 +52,7 @@ export function imprimirPreCuenta(data: PreCuentaData, paper: '58mm' | '80mm' = 
     ${filas}
     <div class="sep"></div>
     <div class="row" style="font-size:16px"><span>TOTAL</span><span class="amount">S/. ${money(total)}</span></div>
-    <script>window.onload=function(){window.print();window.close()}<\/script>
+    ${thermalPrintScript(paper)}
   </body></html>`;
 
   const win = window.open('', '_blank', 'width=380,height=600');

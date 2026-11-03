@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Image as ImageIcon, Store, Pilcrow, Minus, ClipboardList, Hash,
-  User, ListOrdered, Sigma, CreditCard, QrCode,
+  User, ListOrdered, Sigma, CreditCard, QrCode, FileText, Table, Calculator, Wallet,
 } from 'lucide-react';
 
 export type Side = 'cliente' | 'cocina';
@@ -10,7 +10,11 @@ export type PaperSize = '80mm' | '58mm';
 export type BlockType =
   | 'imagen' | 'negocio' | 'texto' | 'separador'
   | 'datos-pedido' | 'numero-pedido' | 'cliente'
-  | 'productos' | 'totales' | 'pago' | 'qr';
+  | 'productos' | 'totales' | 'pago' | 'qr'
+  | 'comprobante-cabecera' | 'detalle-comprobante' | 'totales-comprobante' | 'forma-pago';
+
+/** Color de las barras del comprobante (cabecera de tipo, tabla e importe total). */
+export const COMPROBANTE_COLOR = '#1f2d4d';
 
 export type Align = 'left' | 'center' | 'right';
 export type FontSize = 'small' | 'normal' | 'large' | 'xlarge';
@@ -43,6 +47,12 @@ export interface TicketBlock {
   compactName?: boolean;
   showAddress?: boolean;
   showPhone?: boolean;
+  /** Antepone "Dir. Fiscal:" a la dirección (formato de comprobante). */
+  fiscalAddress?: boolean;
+
+  /* datos-pedido / cliente: etiqueta y valor en dos columnas (formato de comprobante) */
+  tabular?: boolean;
+  showClientDoc?: boolean;
 
   /* datos-pedido */
   showFecha?: boolean;
@@ -83,6 +93,10 @@ export const BLOCK_META: Record<BlockType, { label: string; icon: LucideIcon; su
   'totales':       { label: 'Totales',          icon: Sigma,         subtitle: () => 'Subtotal y total' },
   'pago':          { label: 'Pago',             icon: CreditCard,    subtitle: () => 'Método de pago' },
   'qr':            { label: 'QR',               icon: QrCode,        subtitle: () => 'Código QR' },
+  'comprobante-cabecera': { label: 'Tipo y número', icon: FileText,    subtitle: () => 'RUC, BOLETA ELECTRÓNICA y N°' },
+  'detalle-comprobante':  { label: 'Detalle SUNAT', icon: Table,       subtitle: () => 'Cód, cant, desc, P.Vent, total' },
+  'totales-comprobante':  { label: 'Totales SUNAT', icon: Calculator,  subtitle: () => 'Gravadas, IGV, total y en letras' },
+  'forma-pago':           { label: 'Forma de pago', icon: Wallet,      subtitle: () => 'Contado y método' },
 };
 
 export const SEP_LABEL: Record<SepStyle, string> = {
@@ -97,6 +111,7 @@ export const SEP_CHAR: Record<SepStyle, string> = {
 export const ADDABLE: BlockType[] = [
   'imagen', 'negocio', 'texto', 'separador', 'datos-pedido',
   'numero-pedido', 'cliente', 'productos', 'totales', 'pago', 'qr',
+  'comprobante-cabecera', 'detalle-comprobante', 'totales-comprobante', 'forma-pago',
 ];
 
 let seq = 0;
@@ -117,6 +132,10 @@ export function makeBlock(type: BlockType): TicketBlock {
     case 'totales':       return { ...base, showSubtotal: true, showEnvio: true, size: 'normal' };
     case 'pago':          return { ...base, align: 'center', bold: true, size: 'normal' };
     case 'qr':            return { ...base, align: 'center' };
+    case 'comprobante-cabecera': return { ...base };
+    case 'detalle-comprobante':  return { ...base, size: 'small' };
+    case 'totales-comprobante':  return { ...base, size: 'normal' };
+    case 'forma-pago':           return { ...base, size: 'normal' };
   }
 }
 
@@ -155,33 +174,37 @@ export const SAMPLE = {
   total: 85,
   paymentMethod: 'Yape',
   currency: 'S/',
+  ruc: '20603202326',
+  docLabel: 'BOLETA ELECTRÓNICA',
+  docNumber: 'B001-00000006',
+  customerDoc: '16756609',
+  igvPorcentaje: 18,
 };
 
 export const money = (n: number) =>
   `${SAMPLE.currency} ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /* ── Configuración por defecto ── */
+/** Diseño de comprobante electrónico (boleta/factura) — barras de color, detalle con código,
+ *  desglose de IGV, importe en letras, forma de pago y QR. */
 function defaultCliente(): TicketBlock[] {
+  const sep = { ...makeBlock('separador'), sepStyle: 'linea' as SepStyle };
   return [
     makeBlock('imagen'),
-    makeBlock('negocio'),
-    { ...makeBlock('texto'), text: '¡Gracias por su preferencia!', bold: false },
-    makeBlock('separador'),
-    makeBlock('datos-pedido'),
-    makeBlock('numero-pedido'),
-    makeBlock('separador'),
-    makeBlock('cliente'),
-    makeBlock('separador'),
-    makeBlock('productos'),
-    makeBlock('separador'),
-    makeBlock('totales'),
-    makeBlock('separador'),
-    makeBlock('pago'),
-    makeBlock('separador'),
-    { ...makeBlock('texto'), text: '¡Vuelve pronto!', bold: true },
+    { ...makeBlock('negocio'), showAddress: true, fiscalAddress: true, compactName: false },
+    { ...sep, id: uid() },
+    makeBlock('comprobante-cabecera'),
+    { ...sep, id: uid() },
+    { ...makeBlock('cliente'), tabular: true, showClientDoc: true, showClientPhone: false, showClientAddress: false, showDeliveryTime: false },
+    { ...makeBlock('datos-pedido'), tabular: true, showFecha: true, showHora: false },
+    { ...sep, id: uid() },
+    makeBlock('detalle-comprobante'),
+    { ...sep, id: uid() },
+    makeBlock('totales-comprobante'),
+    { ...sep, id: uid() },
+    makeBlock('forma-pago'),
     makeBlock('qr'),
-    makeBlock('separador'),
-    { ...makeBlock('texto'), text: 'Generado con RestoFly', size: 'small', bold: false },
+    { ...makeBlock('texto'), text: 'Representación impresa del comprobante electrónico', size: 'small', bold: false },
   ];
 }
 

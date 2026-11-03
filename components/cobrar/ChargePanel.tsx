@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import {
-  Ban, CheckCircle2, ChevronDown, Divide, FileText, Loader2, MapPin, Pencil, Phone, Receipt, Search, Users, Wallet, X,
+  Ban, CheckCircle2, ChevronDown, Divide, FileText, Loader2, MapPin, Pencil, Phone, Printer, Receipt, Search, Users, Wallet, X,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import type { PaymentMethod, DocType, CustomerDoc, ChargeInput, SalesHistory, PaymentLine } from '@/types';
@@ -14,6 +14,9 @@ import { getSeriesFacturacion, type SeriesSucursal } from '@/lib/api/facturacion
 import { ApiError } from '@/lib/api/client';
 import { getClientes } from '@/lib/api/clientes';
 import type { Cliente } from '@/types/clientes';
+import { imprimirReciboCliente } from '@/lib/print/recibo';
+import { qrToDataUrl } from '@/lib/print/qrDataUrl';
+import { getComprobanteDetalle } from '@/lib/api/comprobantes';
 export default function ChargePanel({
   selected, isCajaOpen, cashier, onAddItems, onClosed,
 }: {
@@ -25,7 +28,7 @@ export default function ChargePanel({
 }) {
   const {
     chargeTable, chargeOrder, triggerToast, metodosPago, igvPorcentaje, impresoraCocina,
-    usarFacturacionElectronica, sucursalSincronizada,
+    usarFacturacionElectronica, sucursalSincronizada, clienteBlocks, ticketPaperSize, negocioTicket,
   } = useApp();
   const { data: session } = useSession();
 
@@ -277,6 +280,7 @@ export default function ChargePanel({
   };
 
   const [stage, setStage] = useState<'idle' | 'charging'>('idle');
+  const [imprimiendo, setImprimiendo] = useState(false);
   const submitting = stage !== 'idle';
 
   /* Si algún método usado se deshabilita (o carga la config después del primer render), vuelve a
@@ -368,10 +372,13 @@ export default function ChargePanel({
   };
   const validationError = validate();
 
-  /* ── Cobro ── */
-  const doCharge = async () => {
+  /* ── Cobro ──
+     imprimir=true además imprime el ticket de cliente (plantilla de Configuración → Tickets, con
+     el tamaño de papel definido ahí) apenas se confirma el cobro. */
+  const doCharge = async (imprimir: boolean) => {
     const err = validate();
     if (err) { triggerToast(err, 'warning'); return; }
+    setImprimiendo(imprimir);
 
     const customerDoc: CustomerDoc | undefined =
       docType === 'Factura'
@@ -413,6 +420,65 @@ export default function ChargePanel({
 
       if (sale.change != null && sale.change > 0) {
         triggerToast(`Vuelto a entregar: ${money(sale.change)}`, 'info');
+      }
+
+      if (imprimir) {
+        const ahora = new Date();
+
+        /* El N° real (serie-correlativo) y el hash los asigna el backend/SUNAT al emitir: se leen
+           del comprobante recién creado en vez de mostrar el N° de pedido. */
+        let numero: string | undefined;
+        let hash: string | undefined;
+        let igvDoc = igv;
+        let totalDoc = amountDue;
+        const token = session?.accessToken;
+        if (token) {
+          try {
+            const det = await getComprobanteDetalle(token, Number(sale.id));
+            numero = det.numero || undefined;
+            hash = det.hashCpe || undefined;
+            igvDoc = det.igv;
+            totalDoc = det.total;
+          } catch { /* se imprime con los datos locales */ }
+        }
+
+        /* Mismo contenido que el QR oficial de SUNAT: RUC|tipo|serie|correlativo|IGV|total|fecha|tipo doc|doc|hash.
+           Una nota de venta no tiene comprobante electrónico: ahí el QR lleva al menú digital. */
+        const [serie, correlativo] = (numero ?? '').split('-');
+        const qrValue = docType !== 'Nota de venta' && serie && correlativo
+          ? [
+              negocioTicket.ruc ?? '', docType === 'Factura' ? '01' : '03', serie, correlativo,
+              igvDoc.toFixed(2), totalDoc.toFixed(2), ahora.toLocaleDateString('en-CA'),
+              customerDoc?.type === 'RUC' ? '6' : customerDoc ? '1' : '0', customerDoc?.number ?? '0', hash ?? '',
+            ].join('|')
+          : `${window.location.origin}/menu`;
+
+        imprimirReciboCliente(clienteBlocks, ticketPaperSize, {
+          businessName: negocioTicket.businessName,
+          businessAddress: negocioTicket.direccion,
+          logoUrl: negocioTicket.logoUrl,
+          ruc: negocioTicket.ruc,
+          docLabel: docType === 'Factura' ? 'FACTURA ELECTRÓNICA' : docType === 'Boleta' ? 'BOLETA ELECTRÓNICA' : 'NOTA DE VENTA',
+          docNumber: numero,
+          clienteDoc: customerDoc?.number,
+          igv: igvDoc,
+          igvPorcentaje,
+          pagos: paymentLines.map(p => ({ metodo: p.method, monto: p.amount })),
+          fecha: ahora.toLocaleDateString('es-PE'),
+          hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+          mozo: selected.waiter ?? cashier,
+          clienteName: customerDoc?.name ?? selected.customer,
+          clientePhone: selected.phone,
+          clienteAddress: selected.address,
+          items: chargingItems.map((i, idx) => ({
+            cantidad: i.quantity, nombre: i.product.name, precio: i.product.price,
+            codigo: i.product.sku || `P${String(idx + 1).padStart(3, '0')}`,
+          })),
+          subtotal: base,
+          total: totalDoc,
+          paymentMethod: paymentLines.map(p => p.method).join(' + '),
+          qrDataUrl: qrToDataUrl(qrValue),
+        });
       }
 
       if (willCloseAfter) {
@@ -871,18 +937,33 @@ export default function ChargePanel({
         )}
       </div>
 
-      {/* Botón cobrar */}
-      <button
-        onClick={doCharge}
-        disabled={!isCajaOpen || submitting || !!validationError}
-        className="w-full bg-brand hover:bg-brand-hover text-white text-sm font-bold py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:cursor-not-allowed"
-      >
-        {stage === 'charging' ? (
-          <><Loader2 className="h-4 w-4 animate-spin" /> {docType !== 'Nota de venta' ? 'Emitiendo y registrando…' : 'Registrando cobro…'}</>
-        ) : (
-          <><CheckCircle2 className="h-4 w-4" /> Cobrar {money(amountDue)}{docType !== 'Nota de venta' ? ` · ${docType}` : ''}</>
-        )}
-      </button>
+      {/* Botón cobrar — "Cobrar" solo registra el pago; "Cobrar e imprimir" además imprime el
+          ticket de cliente (plantilla y tamaño configurados en Configuración → Tickets). */}
+      <div className="flex gap-2 items-stretch">
+        <button
+          onClick={() => doCharge(true)}
+          disabled={!isCajaOpen || submitting || !!validationError}
+          className="flex-1 bg-brand hover:bg-brand-hover text-white text-sm font-bold py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:cursor-not-allowed"
+        >
+          {stage === 'charging' && imprimiendo ? (
+            <><Loader2 className="h-4 w-4 animate-spin" /> {docType !== 'Nota de venta' ? 'Emitiendo y registrando…' : 'Registrando cobro…'}</>
+          ) : (
+            <><Printer className="h-4 w-4" /> Cobrar e imprimir {money(amountDue)}{docType !== 'Nota de venta' ? ` · ${docType}` : ''}</>
+          )}
+        </button>
+        <button
+          onClick={() => doCharge(false)}
+          disabled={!isCajaOpen || submitting || !!validationError}
+          className="shrink-0 bg-[#1f2d4d] hover:bg-[#18233c] text-white text-xs font-bold px-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 disabled:bg-slate-300 disabled:cursor-not-allowed"
+        >
+          {stage === 'charging' && !imprimiendo ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <CheckCircle2 className="h-3.5 w-3.5" />
+          )}
+          Solo cobrar
+        </button>
+      </div>
 
       {validationError && isCajaOpen && (
         <p className="text-[10px] text-rose-500 text-center -mt-1">{validationError}</p>

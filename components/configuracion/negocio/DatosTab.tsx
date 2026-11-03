@@ -184,8 +184,6 @@ export default function DatosTab() {
       <Input label="Dirección fiscal" value={direccion} onChange={e => setDireccion(e.target.value)} placeholder="AV. MEXICO NRO. 1187 URB. MATUTE" />
       <SectionHeader icon={<Printer className="h-3.5 w-3.5 text-slate-400" />} title="Impresión" />
       <div className="flex gap-2">{PAPER_SIZES.map(s => <button key={s.id} type="button" onClick={() => setPaperSize(s.id)} className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${paperSize === s.id ? 'bg-brand text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{s.label}</button>)}</div>
-      <SectionHeader title="Pedidos" />
-      <div className="flex items-center justify-between py-1"><span className="text-sm text-slate-700">Auto-aceptar pedidos</span><Toggle checked={autoAceptar} onChange={setAutoAceptar} /></div>
       <SectionHeader title="Facturación" />
       <div className="flex items-center justify-between py-1">
         <div>
