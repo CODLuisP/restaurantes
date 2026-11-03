@@ -3,41 +3,31 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { Plus, X } from 'lucide-react';
-import { Toggle, Select, Button, Spinner } from '@/components/ui';
+import { Toggle, Button, Spinner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
+import {
+  DAY_LABELS,
+  DAY_ORDER,
+  makeDefaultSchedule,
+  normalizeSchedule,
+  type DayKey,
+  type DaySchedule,
+} from '@/context/HorariosContext';
 import { getConfiguracion, guardarConfiguracion } from '@/lib/api/configuracion';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 
-type DayKey = 'lun' | 'mar' | 'mie' | 'jue' | 'vie' | 'sab' | 'dom';
-interface DayRange { from: string; to: string }
-interface DaySchedule { enabled: boolean; ranges: DayRange[] }
-
-const DAY_LABELS: Record<DayKey, string> = { lun: 'Lunes', mar: 'Martes', mie: 'Miércoles', jue: 'Jueves', vie: 'Viernes', sab: 'Sábado', dom: 'Domingo' };
-const DAY_ORDER: DayKey[] = ['lun', 'mar', 'mie', 'jue', 'vie', 'sab', 'dom'];
-const DEFAULT_RANGE: DayRange = { from: '09:00', to: '22:00' };
 const DESC_CORTA_MAX = 200;
 const DESC_LARGA_MAX = 500;
 
-function defaultSchedule(): Record<DayKey, DaySchedule> {
-  return {
-    lun: { enabled: true, ranges: [{ ...DEFAULT_RANGE }] }, mar: { enabled: true, ranges: [{ ...DEFAULT_RANGE }] },
-    mie: { enabled: true, ranges: [{ ...DEFAULT_RANGE }] }, jue: { enabled: true, ranges: [{ ...DEFAULT_RANGE }] },
-    vie: { enabled: true, ranges: [{ ...DEFAULT_RANGE }] }, sab: { enabled: true, ranges: [{ ...DEFAULT_RANGE }] },
-    dom: { enabled: false, ranges: [{ ...DEFAULT_RANGE }] },
-  };
-}
-
-export default function HorariosTab() {
+export default function HorariosTab({ sucursalId: propSucursalId }: { sucursalId?: number | null }) {
   const { data: session } = useSession();
-  const { triggerToast, sucursales: todasSucursales } = useApp();
+  const { triggerToast } = useApp();
   const token = session?.accessToken;
-  const isSuperAdmin = session?.user?.role === 'superadmin';
 
-  const { sucursales, sId, selectSucursal, sucursalesLoading } = useSucursalSelector();
-  const [zonaHoraria, setZonaHoraria] = useState('Peru (Lima)');
-  const [numeroPedidos, setNumeroPedidos] = useState('');
-  const [schedule, setSchedule] = useState<Record<DayKey, DaySchedule>>(defaultSchedule());
-  const [tipoNegocio, setTipoNegocio] = useState('Restaurante');
+  const { sId: fallbackSId, sucursalesLoading } = useSucursalSelector();
+  const sId = propSucursalId !== undefined ? propSucursalId : fallbackSId;
+
+  const [schedule, setSchedule] = useState<Record<DayKey, DaySchedule>>(makeDefaultSchedule());
   const [descCorta, setDescCorta] = useState('');
   const [descCompleta, setDescCompleta] = useState('');
   const [saving, setSaving] = useState(false);
@@ -55,19 +45,22 @@ export default function HorariosTab() {
     if (!token) return;
     setLoading(true);
     setLoadError(false);
-    getConfiguracion(token, id).then(c => {
-      setZonaHoraria(c.zonaHoraria ?? 'Peru (Lima)');
-      setNumeroPedidos(c.whatsappPedidos || '');
-      setTipoNegocio(c.tipoNegocio ?? 'Restaurante');
-      setDescCorta(c.descripcionCorta ?? '');
-      setDescCompleta(c.descripcionCompleta ?? '');
-      if (c.horariosJson) { try { setSchedule({ ...defaultSchedule(), ...JSON.parse(c.horariosJson) }); } catch { setSchedule(defaultSchedule()); } }
-      else setSchedule(defaultSchedule());
-      if (!c.whatsappPedidos) {
-        const telefono = todasSucursales.find(s => s.id === id)?.telefono;
-        if (telefono) setNumeroPedidos(telefono);
-      }
-    }).catch(() => setLoadError(true)).finally(() => setLoading(false));
+    getConfiguracion(token, id)
+      .then(c => {
+        setDescCorta(c.descripcionCorta ?? '');
+        setDescCompleta(c.descripcionCompleta ?? '');
+        if (c.horariosJson) {
+          try {
+            setSchedule(normalizeSchedule(JSON.parse(c.horariosJson)));
+          } catch {
+            setSchedule(makeDefaultSchedule());
+          }
+        } else {
+          setSchedule(makeDefaultSchedule());
+        }
+      })
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false));
   };
 
   const handleSave = async () => {
@@ -79,19 +72,29 @@ export default function HorariosTab() {
       if (!d.enabled) continue;
       const incompleto = d.ranges.some(r => !r.from || !r.to);
       const alReves = d.ranges.some(r => r.from && r.to && r.to <= r.from);
-      if (incompleto) { triggerToast(`${DAY_LABELS[key]}: completa la hora de apertura y de cierre (o quita el rango).`, 'warning'); return; }
-      if (alReves)    { triggerToast(`${DAY_LABELS[key]}: la hora de cierre debe ser posterior a la de apertura.`, 'warning'); return; }
+      if (incompleto) {
+        triggerToast(`${DAY_LABELS[key]}: completa la hora de apertura y de cierre (o quita el rango).`, 'warning');
+        return;
+      }
+      if (alReves) {
+        triggerToast(`${DAY_LABELS[key]}: la hora de cierre debe ser posterior a la de apertura.`, 'warning');
+        return;
+      }
     }
 
     setSaving(true);
     try {
       await guardarConfiguracion(token, sId, {
-        zonaHoraria, tipoNegocio, descripcionCorta: descCorta, descripcionCompleta: descCompleta,
-        whatsappPedidos: numeroPedidos, horariosJson: JSON.stringify(schedule),
+        descripcionCorta: descCorta,
+        descripcionCompleta: descCompleta,
+        horariosJson: JSON.stringify(schedule),
       });
       triggerToast('Horarios guardados.', 'success');
-    } catch { triggerToast('Error al guardar', 'error'); }
-    finally { setSaving(false); }
+    } catch {
+      triggerToast('Error al guardar', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const updateDay = (key: DayKey, updater: (day: DaySchedule) => DaySchedule) => {
@@ -101,7 +104,12 @@ export default function HorariosTab() {
   const applyToDays = (source: DayKey, targets: DayKey[]) => {
     setSchedule(prev => {
       const next = { ...prev };
-      targets.forEach(t => { next[t] = { enabled: prev[source].enabled, ranges: prev[source].ranges.map(r => ({ ...r })) }; });
+      targets.forEach(t => {
+        next[t] = {
+          enabled: prev[source].enabled,
+          ranges: prev[source].ranges.map(r => ({ ...r })),
+        };
+      });
       return next;
     });
   };
@@ -127,30 +135,7 @@ export default function HorariosTab() {
 
   return (
     <div className="space-y-6">
-      {isSuperAdmin && sucursales.length > 0 && (
-        <div className="flex justify-end">
-          <Select value={sId ?? ''} onChange={e => selectSucursal(Number(e.target.value))}>
-            {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-          </Select>
-        </div>
-      )}
-
       <p className="text-sm text-slate-600">Configura los horarios de atención de tu negocio</p>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        
-        <div className="space-y-1">
-          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Zona horaria</label>
-          <input type="text" value={zonaHoraria} onChange={e => setZonaHoraria(e.target.value)} className="input w-full px-3 py-2" />
-        </div>
-        <div className="space-y-1">
-          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Número para pedidos</label>
-          <div className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2">
-            <span className="h-6 w-6 rounded-md flex items-center justify-center shrink-0"><img src="/svgs/redes/whatsapp-icon.svg" alt="WhatsApp" className="h-5 w-5" /></span>
-            <input type="text" value={numeroPedidos} onChange={e => setNumeroPedidos(e.target.value.replace(/[^\d ()+-]/g, ''))} placeholder="+51 999 999 999" inputMode="tel" className="flex-1 min-w-0 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none" />
-          </div>
-        </div>
-      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {DAY_ORDER.map((key, idx) => {
@@ -164,22 +149,63 @@ export default function HorariosTab() {
                 </div>
                 {idx === 0 ? (
                   <div className="flex items-center gap-3 text-[11px] font-semibold text-brand">
-                    <button type="button" onClick={() => applyToDays('lun', ['mar','mie','jue','vie'])} className="hover:underline">Lun-Vie</button>
-                    <button type="button" onClick={() => applyToDays('lun', ['mar','mie','jue','vie','sab','dom'])} className="hover:underline">Todos</button>
+                    <button type="button" onClick={() => applyToDays('lun', ['mar', 'mie', 'jue', 'vie'])} className="hover:underline">Lun-Vie</button>
+                    <button type="button" onClick={() => applyToDays('lun', ['mar', 'mie', 'jue', 'vie', 'sab', 'dom'])} className="hover:underline">Todos</button>
                   </div>
-                ) : !d.enabled ? <span className="text-[11px] italic text-slate-400">Cerrado</span> : null}
+                ) : !d.enabled ? (
+                  <span className="text-[11px] italic text-slate-400">Cerrado</span>
+                ) : null}
               </div>
               {d.enabled && (
                 <div className="space-y-2 pl-11">
                   {d.ranges.map((range, ri) => (
                     <div key={ri} className="flex items-center gap-2">
-                      <input type="time" value={range.from} onChange={e => updateDay(key, day => ({ ...day, ranges: day.ranges.map((r, i) => i === ri ? { ...r, from: e.target.value } : r) }))} className="input px-2.5 py-1.5 text-xs w-28" />
+                      <input
+                        type="time"
+                        value={range.from}
+                        onChange={e =>
+                          updateDay(key, day => ({
+                            ...day,
+                            ranges: day.ranges.map((r, i) => (i === ri ? { ...r, from: e.target.value } : r)),
+                          }))
+                        }
+                        className="input px-2.5 py-1.5 text-xs w-28"
+                      />
                       <span className="text-xs text-slate-400">a</span>
-                      <input type="time" value={range.to} onChange={e => updateDay(key, day => ({ ...day, ranges: day.ranges.map((r, i) => i === ri ? { ...r, to: e.target.value } : r) }))} className="input px-2.5 py-1.5 text-xs w-28" />
-                      {d.ranges.length > 1 && <button type="button" onClick={() => updateDay(key, day => ({ ...day, ranges: day.ranges.filter((_, i) => i !== ri) }))} className="p-1 text-slate-400 hover:text-rose-500"><X className="h-3.5 w-3.5" /></button>}
+                      <input
+                        type="time"
+                        value={range.to}
+                        onChange={e =>
+                          updateDay(key, day => ({
+                            ...day,
+                            ranges: day.ranges.map((r, i) => (i === ri ? { ...r, to: e.target.value } : r)),
+                          }))
+                        }
+                        className="input px-2.5 py-1.5 text-xs w-28"
+                      />
+                      {d.ranges.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateDay(key, day => ({
+                              ...day,
+                              ranges: day.ranges.filter((_, i) => i !== ri),
+                            }))
+                          }
+                          className="p-1 text-slate-400 hover:text-rose-500"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                   ))}
-                  <button type="button" onClick={() => updateDay(key, day => ({ ...day, ranges: [...day.ranges, { from: '', to: '' }] }))} className="flex items-center gap-1 text-[11px] font-semibold text-brand hover:underline"><Plus className="h-3 w-3" /> Agregar rango</button>
+                  <button
+                    type="button"
+                    onClick={() => updateDay(key, day => ({ ...day, ranges: [...day.ranges, { from: '', to: '' }] }))}
+                    className="flex items-center gap-1 text-[11px] font-semibold text-brand hover:underline"
+                  >
+                    <Plus className="h-3 w-3" /> Agregar rango
+                  </button>
                 </div>
               )}
             </div>
@@ -187,25 +213,31 @@ export default function HorariosTab() {
         })}
       </div>
 
-      <div className="pt-6 border-t border-slate-100"><p className="text-xs font-bold text-slate-700 uppercase tracking-wide">Rubro de negocio</p></div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="space-y-1">
-          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tipo de negocio</label>
-          <select value={tipoNegocio} onChange={e => setTipoNegocio(e.target.value)} className="input w-full px-3 py-2">
-            <option>Restaurante</option><option>Cafetería</option><option>Bar</option><option>Food Truck</option><option>Pastelería</option>
-          </select>
-        </div>
-
-        <div className="space-y-1">
-          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Descripción corta</label>
-          <input type="text" value={descCorta} onChange={e => setDescCorta(e.target.value.slice(0, DESC_CORTA_MAX))} placeholder="Breve descripción..." className="input w-full px-3 py-2" />
-          <p className="text-right text-[11px] text-slate-400">{descCorta.length}/{DESC_CORTA_MAX}</p>
-        </div>
+      <div className="pt-6 border-t border-slate-100">
+        <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">Descripción del negocio</p>
       </div>
+
+      <div className="space-y-1">
+        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Descripción corta</label>
+        <input
+          type="text"
+          value={descCorta}
+          onChange={e => setDescCorta(e.target.value.slice(0, DESC_CORTA_MAX))}
+          placeholder="Breve descripción..."
+          className="input w-full px-3 py-2"
+        />
+        <p className="text-right text-[11px] text-slate-400">{descCorta.length}/{DESC_CORTA_MAX}</p>
+      </div>
+
       <div className="space-y-1">
         <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Descripción completa</label>
-        <textarea value={descCompleta} onChange={e => setDescCompleta(e.target.value.slice(0, DESC_LARGA_MAX))} placeholder="Describe tu negocio en detalle..." rows={4} className="input w-full px-3 py-2 resize-none" />
+        <textarea
+          value={descCompleta}
+          onChange={e => setDescCompleta(e.target.value.slice(0, DESC_LARGA_MAX))}
+          placeholder="Describe tu negocio en detalle..."
+          rows={4}
+          className="input w-full px-3 py-2 resize-none"
+        />
         <p className="text-right text-[11px] text-slate-400">{descCompleta.length}/{DESC_LARGA_MAX}</p>
       </div>
 

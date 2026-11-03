@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
-  ChevronLeft, ChevronRight, Image as ImageIcon, MapPin, Phone, Store,
+  ChevronLeft, ChevronRight, ExternalLink, Image as ImageIcon, MapPin, Phone, Store,
 } from "lucide-react";
 import { Modal, Button, Input } from "@/components/ui";
 import { useApp } from "@/context/AppContext";
-import { useBusiness } from "@/context/BusinessContext";
+import { getTodayDayKey } from "@/context/HorariosContext";
 import { ProfileHeader, type ProfileTab } from "@/components/menu/ProfileHeader";
 import { buildSocialLinks, SocialLinksRow } from "@/components/menu/SocialLinksRow";
 import { BusinessInfoSection } from "@/components/menu/BusinessInfoSection";
@@ -38,15 +39,17 @@ export default function MenuHeaderSection({
   sucursalId, onGoToBanners,
   catTabs, activeTab, onTabChange,
 }: MenuHeaderSectionProps) {
+  const router = useRouter();
   const { data: session } = useSession();
   const { triggerToast, sucursales, setSucursales } = useApp();
-  const { business } = useBusiness();
   const token = session?.accessToken;
 
   const [sucursalNombre, setSucursalNombre] = useState("");
-  const [sucursalDireccion, setSucursalDireccion] = useState("");
+  const [ubicacionDireccion, setUbicacionDireccion] = useState("");
+  const [mostrarDireccionMenu, setMostrarDireccionMenu] = useState(false);
   const [sucursalTelefono, setSucursalTelefono] = useState("");
   const [sucursalLogo, setSucursalLogo] = useState("");
+  const [horariosJsonRaw, setHorariosJsonRaw] = useState("");
   const [redesState, setRedesState] = useState({ instagram: "", facebook: "", tiktok: "", sitio: "", reviewsLink: "" });
   const [horariosState, setHorariosState] = useState({
     zonaHoraria: "Peru (Lima)", tipoNegocio: "Restaurante", descripcionCorta: "", descripcionCompleta: "", numeroPedidos: "",
@@ -62,15 +65,28 @@ export default function MenuHeaderSection({
   });
   const [banners, setBanners] = useState<BannerDto[]>([]);
   const [bannerIndex, setBannerIndex] = useState(0);
-  const activeBanners = banners.filter((b) => b.activo);
-  const socialLinks = buildSocialLinks(redesState);
+  const todayKey = getTodayDayKey();
+  const activeBanners = banners.filter(
+    (b) => b.activo && (!b.programacionHoraria || b.dias.length === 0 || b.dias.includes(todayKey)),
+  );
+  const socialLinks = buildSocialLinks(
+    {
+      ...redesState,
+      whatsappPedidos: horariosState.numeroPedidos,
+      horariosJson: horariosJsonRaw,
+    },
+    sucursalTelefono,
+  );
 
-  /* Nombre/dirección/teléfono salen de las sucursales ya cargadas en AppContext. */
+  const direccionActiva = mostrarDireccionMenu && ubicacionDireccion.trim().length > 0;
+  const sucursalDireccion = direccionActiva ? ubicacionDireccion.trim() : "";
+
+  /* Nombre y teléfono salen de las sucursales ya cargadas en AppContext;
+     la dirección se obtiene de Configuración → Ubicación (ubicacionDireccion + mostrarDireccionMenu). */
   useEffect(() => {
     const s = sucursales.find((x) => x.id === sucursalId);
     if (!s) return;
     setSucursalNombre(s.nombre);
-    setSucursalDireccion(s.direccion ?? "");
     setSucursalTelefono(s.telefono ?? "");
   }, [sucursales, sucursalId]);
 
@@ -78,6 +94,9 @@ export default function MenuHeaderSection({
     if (!token || !sucursalId) return;
     getConfiguracion(token, sucursalId).then((c) => {
       setSucursalLogo(c.logoUrl ?? "");
+      setUbicacionDireccion((c.ubicacionDireccion ?? "").trim());
+      setMostrarDireccionMenu(!!c.mostrarDireccionMenu);
+      setHorariosJsonRaw(c.horariosJson ?? "");
       setRedesState({
         instagram: c.instagram ?? "",
         facebook: c.facebook ?? "",
@@ -99,7 +118,12 @@ export default function MenuHeaderSection({
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [showBusinessForm, setShowBusinessForm] = useState(false);
-  const [bizForm, setBizForm] = useState({ name: "", address: "", telefono: "" });
+  const [bizForm, setBizForm] = useState({ name: "", telefono: "" });
+
+  const goToUbicacion = () => {
+    setShowBusinessForm(false);
+    router.push("/configuracion/negocio?tab=ubicacion");
+  };
 
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -135,19 +159,21 @@ export default function MenuHeaderSection({
   };
 
   const openBusinessForm = () => {
-    setBizForm({ name: sucursalNombre, address: sucursalDireccion, telefono: sucursalTelefono });
+    setBizForm({ name: sucursalNombre, telefono: sucursalTelefono });
     setShowBusinessForm(true);
   };
 
   const submitBusinessForm = async () => {
     if (!token || !sucursalId) return;
     try {
+      const actual = sucursales.find((x) => x.id === sucursalId);
       const actualizada = await updateSucursal(token, sucursalId, {
         nombre: bizForm.name.trim(),
-        direccion: bizForm.address.trim() || null,
+        codEstablecimiento: actual?.codEstablecimiento ?? null,
+        direccion: actual?.direccion ?? null,
         telefono: bizForm.telefono.trim() || null,
-        // Conserva el estado actual: editar el nombre/dirección no debe reactivar una sucursal inactiva.
-        activo: sucursales.find((x) => x.id === sucursalId)?.activo ?? true,
+        // Conserva el estado actual: editar el nombre/teléfono no debe reactivar una sucursal inactiva.
+        activo: actual?.activo ?? true,
       });
       // Se refleja en AppContext para que el resto de vistas vea el cambio (y este header, vía el efecto).
       setSucursales((prev) => prev.map((x) => (x.id === sucursalId ? actualizada : x)));
@@ -237,32 +263,57 @@ export default function MenuHeaderSection({
 
   const headerSubtitle = (
     <div className="space-y-0.5">
-      <div
-        onClick={openBusinessForm}
-        className="flex items-center gap-1.5 flex-wrap truncate group/sub cursor-pointer"
-        title="Haz clic para editar la dirección y teléfono del negocio"
-      >
-        <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400 group-hover/sub:text-brand transition-colors" />
+      <div className="flex items-center gap-1.5 flex-wrap truncate">
         {sucursalDireccion ? (
-          <span className="group-hover/sub:text-slate-900 transition-colors">{sucursalDireccion}</span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openBusinessForm();
+            }}
+            className="flex items-center gap-1.5 truncate group/sub cursor-pointer"
+            title="Ver información del negocio"
+          >
+            <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400 group-hover/sub:text-brand transition-colors" />
+            <span className="group-hover/sub:text-slate-900 transition-colors truncate">
+              {sucursalDireccion}
+            </span>
+          </button>
         ) : (
-          <span className="text-amber-600 font-medium hover:underline text-xs">
-            + Agrega la dirección del negocio
-          </span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              goToUbicacion();
+            }}
+            className="flex items-center gap-1.5 text-amber-600 font-medium hover:underline text-xs cursor-pointer"
+            title="Ir a Configuración → Ubicación para definir y activar la dirección"
+          >
+            <MapPin className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+            <span>+ Establecer dirección del negocio</span>
+          </button>
         )}
-        {(sucursalDireccion || sucursalTelefono) && (
-          <span className="text-slate-300 mx-0.5">—</span>
-        )}
-        {sucursalTelefono ? (
-          <span className="text-slate-500 text-xs flex items-center gap-1 group-hover/sub:text-slate-900 transition-colors">
-            <Phone className="h-3 w-3 text-slate-400 group-hover/sub:text-brand transition-colors" />
-            {sucursalTelefono}
-          </span>
-        ) : (
-          <span className="text-amber-600 font-medium hover:underline text-xs">
-            + Agrega teléfono
-          </span>
-        )}
+        <span className="text-slate-300 mx-0.5">—</span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            openBusinessForm();
+          }}
+          className="cursor-pointer group/tel flex items-center gap-1"
+          title="Haz clic para editar el teléfono del negocio"
+        >
+          {sucursalTelefono ? (
+            <span className="text-slate-500 text-xs flex items-center gap-1 group-hover/tel:text-slate-900 transition-colors">
+              <Phone className="h-3 w-3 text-slate-400 group-hover/tel:text-brand transition-colors" />
+              {sucursalTelefono}
+            </span>
+          ) : (
+            <span className="text-amber-600 font-medium hover:underline text-xs">
+              + Agrega teléfono
+            </span>
+          )}
+        </button>
       </div>
     </div>
   );
@@ -275,8 +326,10 @@ export default function MenuHeaderSection({
         descripcionCorta={horariosState.descripcionCorta}
         descripcionCompleta={horariosState.descripcionCompleta}
         schedule={horariosState.schedule}
-        numeroPedidos={horariosState.numeroPedidos}
-        direccion={business.mostrarDireccionEnMenu ? business.ubicacionDireccion : ""}
+        numeroPedidos={horariosState.numeroPedidos || sucursalTelefono}
+        direccion={sucursalDireccion}
+        telefono={sucursalTelefono}
+        socialLinks={socialLinks}
       />
     </div>
   );
@@ -310,7 +363,7 @@ export default function MenuHeaderSection({
         open={showBusinessForm}
         onClose={() => setShowBusinessForm(false)}
         title="Información del negocio"
-        subtitle="Edita el nombre, dirección y teléfono que verán tus clientes en la carta digital."
+        subtitle="Edita el nombre y teléfono que verán tus clientes en la carta digital."
         size="sm"
         fullHeight={false}
         footer={
@@ -333,13 +386,50 @@ export default function MenuHeaderSection({
             autoFocus
             iconLeft={<Store className="h-4 w-4 text-slate-400" />}
           />
-          <Input
-            label="Dirección"
-            value={bizForm.address}
-            onChange={(e) => setBizForm((f) => ({ ...f, address: e.target.value }))}
-            placeholder="Ej: Vía de Evitamiento Nte. 1850, Cajamarca"
-            iconLeft={<MapPin className="h-4 w-4 text-slate-400" />}
-          />
+          <div className="space-y-1.5">
+            <div
+              onClick={!direccionActiva ? goToUbicacion : undefined}
+              className={!direccionActiva ? "cursor-pointer" : undefined}
+            >
+              <Input
+                label="Dirección"
+                value={sucursalDireccion}
+                disabled
+                readOnly
+                placeholder={
+                  ubicacionDireccion
+                    ? "Dirección desactivada en el menú"
+                    : "Sin dirección configurada en Ubicación"
+                }
+                iconLeft={<MapPin className="h-4 w-4 text-slate-400" />}
+                className="bg-slate-50 text-slate-500 cursor-not-allowed"
+              />
+            </div>
+            {!direccionActiva ? (
+              <button
+                type="button"
+                onClick={goToUbicacion}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100/80 border border-amber-200 text-amber-800 text-xs font-semibold transition-colors cursor-pointer text-left"
+              >
+                <span className="flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                  {ubicacionDireccion
+                    ? "No está activa en el menú — ir a Ubicación para activarla"
+                    : "Ir a Ubicación para establecer la dirección"}
+                </span>
+                <ExternalLink className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={goToUbicacion}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-brand hover:underline cursor-pointer"
+              >
+                Editar o desactivar dirección en Configuración → Ubicación
+                <ExternalLink className="h-3 w-3" />
+              </button>
+            )}
+          </div>
           <Input
             label="Teléfono de contacto"
             value={bizForm.telefono}

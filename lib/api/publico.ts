@@ -43,11 +43,14 @@ export interface ConfiguracionPublicaDto {
   igvPorcentaje?: number | null;
   metodosPagoJson?: string | null;
   metodosEntregaJson?: string | null;
+  ubicacionDireccion?: string | null;
+  mostrarDireccionMenu?: boolean | null;
 }
 
 export interface SucursalPublicaDto {
   nombre?: string | null;
   direccion?: string | null;
+  telefono?: string | null;
 }
 
 export interface CierrePublicoDto {

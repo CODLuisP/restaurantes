@@ -15,13 +15,13 @@ import {
   SUBDOMINIO_MAX, sufijoDominio, sugerirSubdominio, urlMenuPublico, validarSubdominio,
 } from '@/lib/menu/subdominio';
 
-export default function QrTab() {
+export default function QrTab({ sucursalId: propSucursalId }: { sucursalId?: number | null }) {
   const { data: session } = useSession();
   const { triggerToast, empresa, refreshNegocioConfig } = useApp();
   const token = session?.accessToken;
-  const isSuperAdmin = session?.user?.role === 'superadmin';
 
-  const { sucursales, sId, selectSucursal, sucursalesLoading: loading } = useSucursalSelector();
+  const { sucursales, sId: fallbackSId, sucursalesLoading: loading } = useSucursalSelector();
+  const sId = propSucursalId !== undefined ? propSucursalId : fallbackSId;
   const [origen, setOrigen] = useState('');
   const [copied, setCopied] = useState(false);
   const canvasId = 'qr-canvas-carta-tab';
@@ -119,14 +119,6 @@ export default function QrTab() {
 
   return (
     <div className="space-y-5">
-      {isSuperAdmin && sucursales.length > 0 && (
-        <div className="flex justify-end">
-          <Select value={sId ?? ''} onChange={e => selectSucursal(Number(e.target.value))}>
-            {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-          </Select>
-        </div>
-      )}
-
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
         <div className="flex items-center gap-2 mb-1">
           <Globe className="w-5 h-5 text-brand" />

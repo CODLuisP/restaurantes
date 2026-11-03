@@ -12,6 +12,7 @@ export default function PublicProductCard({
   onSelectVariant,
   selectedExtraIds = [],
   onToggleExtra,
+  disabled = false,
 }: {
   item: ProductoMenu;
   quantity?: number;
@@ -21,6 +22,7 @@ export default function PublicProductCard({
   onSelectVariant?: (variantId: number | null) => void;
   selectedExtraIds?: number[];
   onToggleExtra?: (extraId: number) => void;
+  disabled?: boolean;
 }) {
   const precioBase = item.variantes?.find(v => v.id === selectedVariantId)?.precio ?? item.precio;
   const totalExtras = item.extras
@@ -95,7 +97,15 @@ export default function PublicProductCard({
 
         {/* Botón / Selector de cantidad */}
         <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between">
-          {quantity === 0 ? (
+          {disabled ? (
+            <button
+              type="button"
+              disabled
+              className="w-full bg-slate-100 text-slate-400 text-xs font-bold py-2 rounded-xl flex items-center justify-center cursor-not-allowed"
+            >
+              No disponible
+            </button>
+          ) : quantity === 0 ? (
             <button
               onClick={onAdd}
               className="w-full bg-brand hover:bg-brand-hover text-white text-xs font-bold py-2 rounded-xl transition-all flex items-center justify-center gap-1 shadow-sm cursor-pointer"

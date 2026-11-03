@@ -72,17 +72,28 @@ export async function guardarConfiguracion(
   cambios: Partial<UpdateConfiguracionDto>,
 ) {
   const a = await getConfiguracion(token, sucursalId);
+  let horariosJson = cambios.horariosJson !== undefined ? cambios.horariosJson : (a.horariosJson ?? null);
+  if (cambios.horariosJson && a.horariosJson) {
+    try {
+      const prevObj = JSON.parse(a.horariosJson);
+      const nextObj = JSON.parse(cambios.horariosJson);
+      if (prevObj && typeof prevObj === 'object' && nextObj && typeof nextObj === 'object') {
+        horariosJson = JSON.stringify({ ...prevObj, ...nextObj });
+      }
+    } catch { /* conservar cambios.horariosJson tal cual */ }
+  }
   return updateConfiguracion(token, sucursalId, {
     igvPorcentaje: a.igvPorcentaje, monedaSimbolo: a.monedaSimbolo, logoUrl: a.logoUrl ?? null,
     instagram: a.instagram, facebook: a.facebook, tiktok: a.tiktok, sitioWeb: a.sitioWeb, reviewsLink: a.reviewsLink ?? null,
     zonaHoraria: a.zonaHoraria, tipoNegocio: a.tipoNegocio,
     descripcionCorta: a.descripcionCorta ?? null, descripcionCompleta: a.descripcionCompleta ?? null,
-    whatsappPedidos: a.whatsappPedidos ?? null, horariosJson: a.horariosJson ?? null,
+    whatsappPedidos: a.whatsappPedidos ?? null,
     metodosPagoJson: a.metodosPagoJson ?? null, metodosEntregaJson: a.metodosEntregaJson ?? null,
     ubicacionLat: a.ubicacionLat ?? null, ubicacionLng: a.ubicacionLng ?? null,
     ubicacionDireccion: a.ubicacionDireccion ?? null, mostrarDireccionMenu: a.mostrarDireccionMenu ?? null,
     impresoraCocina: a.impresoraCocina ?? null,
     ...cambios,
+    horariosJson,
   });
 }
 
