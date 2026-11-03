@@ -7,7 +7,7 @@ import { GOOGLE_MAPS_LOADER_ID, GOOGLE_MAPS_LIBRARIES } from '@/lib/googleMapsLo
 import { Toggle, Button, SucursalSelector, Spinner } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
-import { getConfiguracion, updateUbicacion } from '@/lib/api/configuracion';
+import { getConfiguracion, guardarConfiguracion, updateUbicacion } from '@/lib/api/configuracion';
 import { ApiError } from '@/lib/api/client';
 
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -39,10 +39,21 @@ export default function UbicacionTab() {
     if (!token || !sId) return;
     setSaving(true);
     try {
+      const dirLimpia = direccion.trim();
       await updateUbicacion(token, sId, {
-        ubicacionDireccion: direccion || null, mostrarDireccionMenu: mostrarDireccion,
+        ubicacionDireccion: dirLimpia || null, mostrarDireccionMenu: mostrarDireccion,
         ubicacionLat: posicion.lat, ubicacionLng: posicion.lng,
       });
+      await guardarConfiguracion(token, sId, {
+        ubicacionDireccion: dirLimpia || null,
+        mostrarDireccionMenu: mostrarDireccion,
+        ubicacionLat: posicion.lat,
+        ubicacionLng: posicion.lng,
+        horariosJson: JSON.stringify({
+          _ubicacionDireccion: dirLimpia,
+          _mostrarDireccionMenu: mostrarDireccion,
+        }),
+      }).catch(() => {});
       triggerToast('Ubicación guardada.', 'success');
     } catch (error) {
       triggerToast(error instanceof ApiError ? error.message : 'Error al guardar', 'error');

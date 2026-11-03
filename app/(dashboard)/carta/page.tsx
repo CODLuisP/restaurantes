@@ -23,7 +23,7 @@ const TABS: { id: TabId; label: string; icon: LucideIcon }[] = [
   { id: 'banners',    label: 'Banners',               icon: Image },
   { id: 'qr',         label: 'QR y Link de la Carta', icon: QrCode },
   { id: 'redes',      label: 'Redes Sociales',        icon: Share2 },
-  { id: 'horarios',   label: 'Horarios y rubro de negocio', icon: Clock },
+  { id: 'horarios',   label: 'Horarios',                icon: Clock },
   { id: 'cierres',    label: 'Cierres programados',   icon: CalendarClock },
 ];
 
@@ -87,11 +87,9 @@ export default function CartaPage() {
             </button>
           );
         })}
-        {tab === 'carta' && (
-          <div className="ml-auto pb-2">
-            <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sId} onChange={selectSucursal} />
-          </div>
-        )}
+        <div className="ml-auto pb-2">
+          <SucursalSelector visible={isSuperAdmin} sucursales={sucursales} sId={sId} onChange={selectSucursal} />
+        </div>
       </div>
 
       {/* Content */}
@@ -109,14 +107,14 @@ export default function CartaPage() {
           />
         )}
         {!readOnly && tab === 'importar' && <ImportarTab sucursalId={sId} onIrACarta={() => changeTab('carta')} />}
-        {!readOnly && tab === 'banners' && <BannersTab />}
-        {!readOnly && tab === 'qr' && <QrTab />}
+        {!readOnly && tab === 'banners' && <BannersTab sucursalId={sId} />}
+        {!readOnly && tab === 'qr' && <QrTab sucursalId={sId} />}
 
         {!readOnly && (tab === 'redes' || tab === 'horarios' || tab === 'cierres') && (
           <div className="card-lg p-4">
-            {tab === 'redes' && <RedesSocialesTab />}
-            {tab === 'horarios' && <HorariosTab />}
-            {tab === 'cierres' && <CierresProgramadosTab />}
+            {tab === 'redes' && <RedesSocialesTab sucursalId={sId} />}
+            {tab === 'horarios' && <HorariosTab sucursalId={sId} />}
+            {tab === 'cierres' && <CierresProgramadosTab sucursalId={sId} />}
           </div>
         )}
       </div>

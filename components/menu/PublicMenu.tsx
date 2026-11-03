@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import {
   Utensils,
   MapPin,
+  Phone,
   ChevronLeft,
   ChevronRight,
   Star,
@@ -17,6 +18,7 @@ import {
   buildSocialLinks,
   SocialLinksRow,
 } from "@/components/menu/SocialLinksRow";
+import { parseCartaMetaFromHorarios } from "@/context/HorariosContext";
 import { BusinessInfoSection } from "@/components/menu/BusinessInfoSection";
 import {
   ProfileHeader,
@@ -63,7 +65,11 @@ export default function PublicMenu({
   const [banners, setBanners] = useState<BannerPublico[]>([]);
   const [bizName, setBizName] = useState("");
   const [bizAddress, setBizAddress] = useState("");
+  const [bizPhone, setBizPhone] = useState("");
   const [bizLogo, setBizLogo] = useState("");
+  const [horariosJsonRaw, setHorariosJsonRaw] = useState("");
+  const [cartaActiva, setCartaActiva] = useState(true);
+  const [featuredIds, setFeaturedIds] = useState<Set<number>>(new Set());
   const [redes, setRedes] = useState({
     instagram: "",
     facebook: "",
@@ -112,6 +118,13 @@ export default function PublicMenu({
     getConfiguracionPublica(sucursalId)
       .then((c) => {
         setBizLogo(c.logoUrl ?? "");
+        setHorariosJsonRaw(c.horariosJson ?? "");
+        const meta = parseCartaMetaFromHorarios(c.horariosJson);
+        setCartaActiva(meta.cartaActiva);
+        setFeaturedIds(new Set(meta.destacados));
+        const mostrarDir = c.mostrarDireccionMenu ?? meta.mostrarDireccionMenu ?? false;
+        const dirUbicacion = (c.ubicacionDireccion ?? meta.ubicacionDireccion ?? "").trim();
+        setBizAddress(mostrarDir ? dirUbicacion : "");
         setRedes({
           instagram: c.instagram ?? "",
           facebook: c.facebook ?? "",
@@ -119,13 +132,19 @@ export default function PublicMenu({
           sitio: c.sitioWeb ?? "",
           reviewsLink: c.reviewsLink ?? "",
         });
+        let parsedSchedule = {};
+        if (c.horariosJson) {
+          try {
+            parsedSchedule = JSON.parse(c.horariosJson);
+          } catch {}
+        }
         setHorarios({
           zonaHoraria: c.zonaHoraria ?? "Peru (Lima)",
           tipoNegocio: c.tipoNegocio ?? "Restaurante",
           descripcionCorta: c.descripcionCorta ?? "",
           descripcionCompleta: c.descripcionCompleta ?? "",
           whatsappPedidos: c.whatsappPedidos ?? "",
-          schedule: c.horariosJson ? JSON.parse(c.horariosJson) : {},
+          schedule: parsedSchedule,
         });
         setMetodosEntrega(parseMetodosEntrega(c.metodosEntregaJson));
       })
@@ -133,7 +152,7 @@ export default function PublicMenu({
     getSucursalPublica(sucursalId)
       .then((s) => {
         setBizName(s.nombre ?? "");
-        setBizAddress(s.direccion ?? "");
+        setBizPhone(s.telefono ?? "");
       })
       .catch(() => {});
     getCierresPublico(sucursalId)
@@ -179,7 +198,10 @@ export default function PublicMenu({
     );
   }, [search, availableItems]);
 
-  const featuredItems = searchedItems.filter((i) => false); // featured no existe en API aún
+  const featuredItems = useMemo(
+    () => searchedItems.filter((i) => featuredIds.has(i.id)),
+    [searchedItems, featuredIds],
+  );
   const groupedCategories = allCategories
     .map((category) => ({
       category,
@@ -338,16 +360,40 @@ export default function PublicMenu({
 
   const subtitle = (
     <div className="space-y-0.5">
-      {bizAddress && (
-        <p className="flex items-center gap-1 truncate">
-          <MapPin className="h-3 w-3 shrink-0 text-slate-400" /> {bizAddress}
-        </p>
+      {bizAddress || bizPhone ? (
+        <div className="flex items-center gap-1.5 flex-wrap truncate">
+          {bizAddress && (
+            <span className="flex items-center gap-1 truncate">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" /> {bizAddress}
+            </span>
+          )}
+          {bizAddress && bizPhone && (
+            <span className="text-slate-300 mx-0.5">—</span>
+          )}
+          {bizPhone && (
+            <a
+              href={`tel:${bizPhone.replace(/\s+/g, "")}`}
+              className="text-slate-500 text-xs flex items-center gap-1 hover:text-brand transition-colors"
+            >
+              <Phone className="h-3 w-3 text-slate-400" />
+              {bizPhone}
+            </a>
+          )}
+        </div>
+      ) : (
+        <p>Restaurante · Carta del Día</p>
       )}
-      {!bizAddress && <p>Restaurante · Carta del Día</p>}
     </div>
   );
 
-  const socialLinks = buildSocialLinks(redes);
+  const socialLinks = buildSocialLinks(
+    {
+      ...redes,
+      whatsappPedidos: horarios.whatsappPedidos,
+      horariosJson: horariosJsonRaw,
+    },
+    bizPhone,
+  );
   const headerActions = (
     <div className="flex items-center gap-3">
       {socialLinks.length > 0 && <SocialLinksRow links={socialLinks} />}
@@ -356,8 +402,10 @@ export default function PublicMenu({
         descripcionCorta={horarios.descripcionCorta}
         descripcionCompleta={horarios.descripcionCompleta}
         schedule={horarios.schedule}
-        numeroPedidos={horarios.whatsappPedidos}
+        numeroPedidos={horarios.whatsappPedidos || bizPhone}
         direccion={bizAddress}
+        telefono={bizPhone}
+        socialLinks={socialLinks}
       />
     </div>
   );
@@ -392,6 +440,16 @@ export default function PublicMenu({
           </div>
         )}
 
+        {!cartaActiva ? (
+          <div className="mt-6 border border-dashed border-slate-300 rounded-2xl py-16 px-4 text-center bg-white">
+            <Utensils className="h-8 w-8 text-slate-300 mx-auto mb-3" />
+            <h4 className="text-sm font-bold text-slate-800">Carta no disponible temporalmente</h4>
+            <p className="text-xs text-slate-500 mt-1">
+              El establecimiento ha ocultado su carta por el momento. Vuelve a intentarlo más tarde.
+            </p>
+          </div>
+        ) : (
+        <>
         {/* ── Buscador de Platos ── */}
         <div className="relative mt-6 max-w-md">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
@@ -413,7 +471,7 @@ export default function PublicMenu({
         </div>
 
         {/* ── Platos ── */}
-        <div className="space-y-3 mt-6">
+        <div id="carta-platos" className="space-y-3 mt-6">
           {showFeatured && (
             <PublicCategory
               title="Destacados"
@@ -426,6 +484,7 @@ export default function PublicMenu({
               highlight
               icon={<Star className="h-4 w-4 text-white fill-white" />}
               iconBg="bg-gradient-to-br from-amber-400 to-fuchsia-500"
+              disabled={!!cierreActivo}
             />
           )}
 
@@ -441,6 +500,7 @@ export default function PublicMenu({
               onToggle={() => toggle(category)}
               icon={<Utensils className="h-4 w-4" />}
               iconBg={CATEGORY_ICON_BG[category] ?? "bg-gray-100 text-gray-600"}
+              disabled={!!cierreActivo}
             />
           ))}
 
@@ -453,6 +513,8 @@ export default function PublicMenu({
             </div>
           )}
         </div>
+        </>
+        )}
 
         {/* Footer */}
         <div className="pt-8 pb-4 text-center">
@@ -467,7 +529,7 @@ export default function PublicMenu({
       </div>
 
       {/* ── Botón Flotante del Carrito ── */}
-      {cartCount > 0 && (
+      {cartCount > 0 && cartaActiva && !cierreActivo && (
         <button
           onClick={() => setShowCheckout(true)}
           className="fixed bottom-6 right-6 bg-brand hover:bg-brand-hover text-white px-5 py-4 rounded-full shadow-xl flex items-center gap-3 transition-transform hover:scale-105 active:scale-95 z-45 font-bold cursor-pointer"

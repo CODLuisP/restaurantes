@@ -30,5 +30,3 @@ export const STAT_TONES: Record<string, string> = {
   amber: "bg-emerald-50 text-emerald-600",
   violet: "bg-emerald-50 text-emerald-600",
 };
-
-export const FEATURED_STORAGE_KEY = "restopro_productos_destacados";

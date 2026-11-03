@@ -35,17 +35,17 @@ const emptyForm = (): BannerForm => ({
   titulo: '', imagenUrl: '', gradient: '', activo: true, programacionHoraria: false, dias: ['lun','mar','mie','jue','vie','sab','dom'],
 });
 
-export default function BannersTab() {
+export default function BannersTab({ sucursalId: propSucursalId }: { sucursalId?: number | null }) {
   const { data: session } = useSession();
   const { triggerToast } = useApp();
   const token = session?.accessToken;
-  const isSuperAdmin = session?.user?.role === "superadmin";
 
   const [banners, setBanners] = useState<BannerDto[]>([]);
   const [loading, setLoading] = useState(true);
   const {
-    sucursales, sId: selectedSucursalId, selectSucursal: handleSucursalChange, sucursalesLoading,
+    sId: fallbackSucursalId, sucursalesLoading,
   } = useSucursalSelector();
+  const selectedSucursalId = propSucursalId !== undefined ? propSucursalId : fallbackSucursalId;
 
   const fetchBanners = useCallback(async (sId: number) => {
     if (!token) {
@@ -231,18 +231,6 @@ export default function BannersTab() {
 
   return (
     <div className="space-y-5">
-      {isSuperAdmin && sucursales.length > 0 && (
-        <div className="flex justify-end">
-          <Select
-            value={selectedSucursalId ?? ""}
-            onChange={(e) => handleSucursalChange(Number(e.target.value))}
-          >
-            {sucursales.map((s) => (
-              <option key={s.id} value={s.id}>{s.nombre}</option>
-            ))}
-          </Select>
-        </div>
-      )}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="text-xl font-bold text-slate-900">Banners</h3>

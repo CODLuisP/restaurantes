@@ -19,6 +19,7 @@ export default function PublicCategory({
   icon,
   iconBg,
   highlight,
+  disabled = false,
 }: {
   title: string;
   items: ProductoMenu[];
@@ -30,6 +31,7 @@ export default function PublicCategory({
   icon: React.ReactNode;
   iconBg: string;
   highlight?: boolean;
+  disabled?: boolean;
 }) {
   const [variantSelections, setVariantSelections] = useState<Record<number, number | null>>({});
   const [extraSelections, setExtraSelections] = useState<Record<number, number[]>>({});
@@ -91,6 +93,7 @@ export default function PublicCategory({
                   onSelectVariant={(vid) => setVariantSelections(prev => ({ ...prev, [item.id]: vid }))}
                   selectedExtraIds={selectedExtraIds}
                   onToggleExtra={(eid) => toggleExtra(item.id, eid)}
+                  disabled={disabled}
                 />
               );
             })}

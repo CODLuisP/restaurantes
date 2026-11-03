@@ -1,7 +1,3 @@
-'use client';
-
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-
 export type DayKey = 'lun' | 'mar' | 'mie' | 'jue' | 'vie' | 'sab' | 'dom';
 
 export interface DayRange { from: string; to: string }
@@ -42,11 +38,15 @@ export function normalizeSchedule(schedule?: Partial<Record<DayKey, Partial<DayS
 }
 
 /** Convierte JS Date#getDay() (0 = domingo) a nuestra clave de día. */
-const JS_DAY_TO_KEY: DayKey[] = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
+export const JS_DAY_TO_KEY: DayKey[] = ['dom', 'lun', 'mar', 'mie', 'jue', 'vie', 'sab'];
+
+export function getTodayDayKey(now = new Date()): DayKey {
+  return JS_DAY_TO_KEY[now.getDay()];
+}
 
 /** true si, según el horario configurado, el negocio está abierto en este momento. */
 export function isOpenNow(schedule: Record<DayKey, DaySchedule>, now = new Date()): boolean {
-  const day = schedule[JS_DAY_TO_KEY[now.getDay()]];
+  const day = schedule[getTodayDayKey(now)];
   if (!day?.enabled) return false;
   const mins = now.getHours() * 60 + now.getMinutes();
   return day.ranges.some(r => {
@@ -57,66 +57,26 @@ export function isOpenNow(schedule: Record<DayKey, DaySchedule>, now = new Date(
   });
 }
 
-export interface HorariosState {
-  zonaHoraria: string;
-  schedule: Record<DayKey, DaySchedule>;
-  tipoNegocio: string;
-  descripcionCompleta: string;
-  numeroPedidos: string;
-}
-
-export const HORARIOS_STORAGE_KEY = 'restopro_horarios_negocio_v1';
-const STORAGE_KEY = HORARIOS_STORAGE_KEY;
-
-export const DEFAULT_HORARIOS: HorariosState = {
-  zonaHoraria: 'Peru (Lima)',
-  schedule: makeDefaultSchedule(),
-  tipoNegocio: 'Restaurante',
-  descripcionCompleta: '',
-  numeroPedidos: '',
-};
-
-interface HorariosContextType {
-  horarios: HorariosState;
-  updateHorarios: (changes: Partial<HorariosState>) => void;
-}
-
-const HorariosContext = createContext<HorariosContextType | null>(null);
-
-export function HorariosProvider({ children }: { children: React.ReactNode }) {
-  const [horarios, setHorarios] = useState<HorariosState>(DEFAULT_HORARIOS);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setHorarios({
-          ...DEFAULT_HORARIOS,
-          ...parsed,
-          schedule: normalizeSchedule(parsed.schedule),
-        });
-      }
-    } catch {}
-  }, []);
-
-  const updateHorarios = useCallback((changes: Partial<HorariosState>) => {
-    setHorarios(prev => {
-      const next = { ...prev, ...changes };
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
-      return next;
-    });
-  }, []);
-
-  return (
-    <HorariosContext.Provider value={{ horarios, updateHorarios }}>
-      {children}
-    </HorariosContext.Provider>
-  );
-}
-
-export function useHorarios() {
-  const ctx = useContext(HorariosContext);
-  if (!ctx) throw new Error('useHorarios must be used within HorariosProvider');
-  return ctx;
+/** Extrae metadatos adicionales guardados junto con horariosJson (_cartaActiva, _destacados, _mostrarDireccionMenu, _ubicacionDireccion). */
+export function parseCartaMetaFromHorarios(horariosJson?: string | null): {
+  cartaActiva: boolean;
+  destacados: number[];
+  mostrarDireccionMenu?: boolean;
+  ubicacionDireccion?: string;
+} {
+  if (!horariosJson) return { cartaActiva: true, destacados: [] };
+  try {
+    const parsed = JSON.parse(horariosJson);
+    const cartaActiva = typeof parsed?._cartaActiva === 'boolean' ? parsed._cartaActiva : true;
+    const destacados = Array.isArray(parsed?._destacados)
+      ? parsed._destacados.filter((n: unknown): n is number => typeof n === 'number')
+      : [];
+    const mostrarDireccionMenu =
+      typeof parsed?._mostrarDireccionMenu === 'boolean' ? parsed._mostrarDireccionMenu : undefined;
+    const ubicacionDireccion =
+      typeof parsed?._ubicacionDireccion === 'string' ? parsed._ubicacionDireccion : undefined;
+    return { cartaActiva, destacados, mostrarDireccionMenu, ubicacionDireccion };
+  } catch {
+    return { cartaActiva: true, destacados: [] };
+  }
 }

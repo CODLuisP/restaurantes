@@ -1,14 +1,17 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import {
   Search, Eye, Upload, FolderPlus, Plus, Star, Store, Utensils,
   Package, LayoutGrid, CheckCircle2, X,
 } from "lucide-react";
 import { Toggle, Modal, Button, Input, Spinner } from "@/components/ui";
-import { useCarta } from "@/context/CartaContext";
 import { useSidebar } from "@/context/SidebarContext";
 import { useApp } from "@/context/AppContext";
+import { parseCartaMetaFromHorarios } from "@/context/HorariosContext";
+import { getConfiguracion, guardarConfiguracion } from "@/lib/api/configuracion";
+import { urlMenuPublico } from "@/lib/menu/subdominio";
 import type { SucursalOption } from "@/hooks/useSucursalSelector";
 import { useProductos } from "@/hooks/productos/useProductos";
 import { useCategorias } from "@/hooks/categorias/useCategorias";
@@ -18,7 +21,7 @@ import MenuHeaderSection from "./productos/MenuHeaderSection";
 import StatChip from "./productos/StatChip";
 import CategorySection from "./productos/CategorySection";
 import ProductFormModal from "./productos/ProductFormModal";
-import { CATEGORY_ICON_BG, FEATURED_STORAGE_KEY } from "./productos/types";
+import { CATEGORY_ICON_BG } from "./productos/types";
 
 interface ProductosTabProps {
   onGoToImportar?: () => void;
@@ -57,45 +60,52 @@ export default function ProductosTab({
     eliminarCategoria,
   } = useCategorias();
 
-  const { carta, toggleCartaActive } = useCarta();
+  const { data: session } = useSession();
+  const token = session?.accessToken;
   const { isCollapsed } = useSidebar();
-  const { triggerToast } = useApp();
+  const { triggerToast, empresa } = useApp();
 
+  const [cartaActiva, setCartaActiva] = useState(true);
   const [featuredIds, setFeaturedIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(FEATURED_STORAGE_KEY);
-      if (stored) setFeaturedIds(new Set(JSON.parse(stored)));
-    } catch {}
-  }, []);
+    if (!token || !resolvedSucursalId) return;
+    getConfiguracion(token, resolvedSucursalId)
+      .then((c) => {
+        const meta = parseCartaMetaFromHorarios(c.horariosJson);
+        setCartaActiva(meta.cartaActiva);
+        setFeaturedIds(new Set(meta.destacados));
+      })
+      .catch(() => {});
+  }, [token, resolvedSucursalId]);
 
-  useEffect(() => {
-    if (productos.length === 0) return;
-    const existingIds = new Set(productos.map((p) => p.id));
-    setFeaturedIds((prev) => {
-      const cleaned = new Set([...prev].filter((id) => existingIds.has(id)));
-      if (cleaned.size !== prev.size) {
-        try {
-          localStorage.setItem(FEATURED_STORAGE_KEY, JSON.stringify([...cleaned]));
-        } catch {}
-      }
-      return cleaned;
-    });
-  }, [productos]);
-
-  const persistFeatured = (ids: Set<number>) => {
-    setFeaturedIds(ids);
+  const guardarMetaCarta = async (nextActiva: boolean, nextDestacados: Set<number>) => {
+    if (!token || !resolvedSucursalId) return;
     try {
-      localStorage.setItem(FEATURED_STORAGE_KEY, JSON.stringify([...ids]));
-    } catch {}
+      await guardarConfiguracion(token, resolvedSucursalId, {
+        horariosJson: JSON.stringify({
+          _cartaActiva: nextActiva,
+          _destacados: [...nextDestacados],
+        }),
+      });
+    } catch {
+      triggerToast("No se pudo guardar el cambio en la carta.", "error");
+    }
+  };
+
+  const toggleCartaActive = () => {
+    const next = !cartaActiva;
+    setCartaActiva(next);
+    guardarMetaCarta(next, featuredIds);
+    triggerToast(next ? "Carta activada para clientes." : "Carta ocultada para clientes.", "info");
   };
 
   const toggleFeatured = (id: number) => {
     const next = new Set(featuredIds);
     if (next.has(id)) next.delete(id);
     else next.add(id);
-    persistFeatured(next);
+    setFeaturedIds(next);
+    guardarMetaCarta(cartaActiva, next);
   };
 
   const [search, setSearch] = useState("");
@@ -296,7 +306,13 @@ export default function ProductosTab({
           <button
             onClick={() => {
               if (!resolvedSucursalId) { triggerToast("Elige una sucursal para ver su vista previa.", "warning"); return; }
-              window.open(`/menu?sucursalId=${resolvedSucursalId}`, "_blank");
+              const previewUrl = urlMenuPublico({
+                origen: window.location.origin,
+                subdominio: empresa?.subdominio?.trim() || null,
+                sucursalId: resolvedSucursalId,
+                variasSucursales: sucursales.length > 1,
+              });
+              window.open(previewUrl, "_blank");
             }}
             className="btn-secondary"
             title="Ver la carta como la ve el cliente"
@@ -315,11 +331,11 @@ export default function ProductosTab({
           </button>
           <div
             className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white shrink-0"
-            title={carta.active ? "Carta visible para clientes" : "Carta oculta"}
+            title={cartaActiva ? "Carta visible para clientes" : "Carta oculta"}
           >
-            <Toggle checked={carta.active} onChange={toggleCartaActive} />
-            <span className={`text-xs font-semibold whitespace-nowrap ${carta.active ? "text-brand" : "text-slate-400"}`}>
-              {carta.active ? "Carta activa" : "Carta oculta"}
+            <Toggle checked={cartaActiva} onChange={toggleCartaActive} />
+            <span className={`text-xs font-semibold whitespace-nowrap ${cartaActiva ? "text-brand" : "text-slate-400"}`}>
+              {cartaActiva ? "Carta activa" : "Carta oculta"}
             </span>
           </div>
           <button onClick={() => openAdd()} className="btn-primary">

@@ -9,13 +9,13 @@ import { getCierres, createCierre, deleteCierre } from '@/lib/api/cierres';
 import { useSucursalSelector } from '@/hooks/useSucursalSelector';
 import type { CierreDto } from '@/types/cierres';
 
-export default function CierresProgramadosTab() {
+export default function CierresProgramadosTab({ sucursalId: propSucursalId }: { sucursalId?: number | null }) {
   const { data: session } = useSession();
   const { triggerToast } = useApp();
   const token = session?.accessToken;
-  const isSuperAdmin = session?.user?.role === 'superadmin';
 
-  const { sucursales, sId, selectSucursal, sucursalesLoading } = useSucursalSelector();
+  const { sId: fallbackSId, sucursalesLoading } = useSucursalSelector();
+  const sId = propSucursalId !== undefined ? propSucursalId : fallbackSId;
   const [cierres, setCierres] = useState<CierreDto[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [motivo, setMotivo] = useState('');
@@ -76,14 +76,6 @@ export default function CierresProgramadosTab() {
 
   return (
     <div className="space-y-6">
-      {isSuperAdmin && sucursales.length > 0 && (
-        <div className="flex justify-end">
-          <Select value={sId ?? ''} onChange={e => selectSucursal(Number(e.target.value))}>
-            {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-          </Select>
-        </div>
-      )}
-
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-slate-600">Programa cierres futuros con un motivo visible para tus clientes</p>
         <Button size="sm" onClick={() => setModalOpen(true)} className="shrink-0">Nuevo cierre</Button>
