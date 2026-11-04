@@ -11,3 +11,6 @@ coverage/
 .next/
 out/
 
+
+# caché de compilación incremental de TypeScript (se regenera en cada build)
+*.tsbuildinfo
