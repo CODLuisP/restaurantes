@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useMemo, useCallback } from 'react';
+import { createContext, useContext, useState, useMemo, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { MOCK_PRODUCTS, MOCK_CUSTOMERS, INITIAL_SALES_HISTORY } from '@/data/mockData';
 import type {
@@ -336,9 +336,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   /* Aviso en vivo a todo mozo: cuando cocina marca un pedido como "listo", cualquiera puede recogerlo y servirlo. */
+  const listosPorPedido = useRef(new Map<number, number>());
   const onPedidoListoParaMozo = useCallback((pedido: PedidoDto) => {
-    if (pedido.estado === 'listo' && isMozo) {
-      triggerToast(`🔔 ${pedidoLabel(pedido)} lista para servir.`, 'info');
+    // Avisa por cada plato que pasa a "listo" (no espera a que estén todos los del pedido).
+    const listos = pedido.items.filter(it => it.estado === 'listo').length;
+    const antes = listosPorPedido.current.get(pedido.id) ?? 0;
+    if (listos > 0) listosPorPedido.current.set(pedido.id, listos);
+    else listosPorPedido.current.delete(pedido.id);
+    if (listos > antes && isMozo) {
+      triggerToast(`🔔 ${pedidoLabel(pedido)}: ${listos > 1 ? `${listos} platos listos` : 'plato listo'} para servir.`, 'info');
     }
   }, [isMozo, triggerToast]);
   usePedidoEvents(onPedidoListoParaMozo);

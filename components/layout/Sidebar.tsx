@@ -96,7 +96,7 @@ export default function Sidebar() {
   const [isCajaOpen, setIsCajaOpen] = useState(isCajaRoute);
 
   /* Comandas listas por despachar — cualquier mozo puede recogerlas y entregarlas, sin importar quién las tomó. */
-  const readyCount = pedidos.filter(p => p.estado === 'listo').length;
+  const readyCount = pedidos.filter(p => p.items.some(it => it.estado === 'listo')).length;
 
   /* Pedidos que el propio cliente armó desde el menú digital y siguen sin confirmar — en vivo. */
   const pendingConfirmCount =
