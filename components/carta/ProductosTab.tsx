@@ -21,6 +21,7 @@ import MenuHeaderSection from "./productos/MenuHeaderSection";
 import StatChip from "./productos/StatChip";
 import CategorySection from "./productos/CategorySection";
 import ProductFormModal from "./productos/ProductFormModal";
+import ProductDetailModal from "./productos/ProductDetailModal";
 import { CATEGORY_ICON_BG } from "./productos/types";
 
 interface ProductosTabProps {
@@ -155,6 +156,9 @@ export default function ProductosTab({
   };
 
   const closeForm = () => setShowForm(false);
+
+  /* Solo lectura (mozo, cajero…): ficha del producto con sus variantes y extras. */
+  const [viewingItem, setViewingItem] = useState<ProductoDto | null>(null);
 
   const handleDelete = (id: number, name: string) => {
     setDeleteConfirm(id);
@@ -420,6 +424,7 @@ export default function ProductosTab({
               onToggleAvailable={toggleDisponible}
               featuredIds={featuredIds}
               readOnly={readOnly}
+              onView={setViewingItem}
             />
           )}
 
@@ -439,6 +444,7 @@ export default function ProductosTab({
               onToggleAvailable={toggleDisponible}
               featuredIds={featuredIds}
               readOnly={readOnly}
+              onView={setViewingItem}
               menuOpen={openMenuFor === category}
               onMenuToggle={() => setOpenMenuFor((m) => (m === category ? null : category))}
               onDeleteCategory={() => handleDeleteCategory(category, items.length)}
@@ -502,6 +508,8 @@ export default function ProductosTab({
           </>
         }
       />
+
+      {readOnly && <ProductDetailModal item={viewingItem} onClose={() => setViewingItem(null)} />}
 
       <ProductFormModal
         open={showForm}

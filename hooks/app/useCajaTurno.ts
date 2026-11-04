@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import type { CashSession, CashMovementType, Toast } from '@/types';
 import { ApiError } from '@/lib/api/client';
 import {
-  abrirTurno, cerrarTurno, getTurnoActivo, getTurnoActivoSucursal, getResumenTurno, getHistorialTurnos,
+  abrirTurno, cerrarTurno, getTurnoActivoSucursal, getResumenTurno, getHistorialTurnos,
   crearMovimientoCaja, getMovimientosTurno,
   type TurnoCajaDto, type ResumenTurnoDto, type MovimientoCajaDto,
 } from '@/lib/api/turnosCaja';
@@ -58,6 +58,9 @@ export function useCajaTurno(triggerToast: (message: string, type?: Toast['type'
   const token = authSession?.accessToken;
   const cajeroId = authSession?.user?.id ? Number(authSession.user.id) : undefined;
   const sucursalId = authSession?.user?.sucursalId ?? undefined;
+  /* La caja es única por local y solo la operan admin y cajero; mozo/cocinero solo necesitan saber si está abierta. */
+  const rol = authSession?.user?.role;
+  const operaCaja = rol === 'admin' || rol === 'cajero' || rol === 'superadmin';
 
   const [cashSession, setCashSession] = useState<CashSession | null>(null);
   const [cajaHistory, setCajaHistory] = useState<CashSession[]>([]);
@@ -71,17 +74,23 @@ export function useCajaTurno(triggerToast: (message: string, type?: Toast['type'
   const sucursalTurnoStale = !!sucursalTurnoActivo &&
     new Date(sucursalTurnoActivo.abiertoAt).toDateString() !== new Date().toDateString();
 
-  /** Trae el turno activo (si existe) junto con su resumen y movimientos, y arma el CashSession. */
+  /** Arma el CashSession (resumen + movimientos reales) de un turno del backend. */
+  const cargarSesionDeTurno = useCallback(async (turno: TurnoCajaDto) => {
+    if (!token) return;
+    const [resumen, movimientos] = await Promise.all([
+      getResumenTurno(token, turno.id).catch(() => null),
+      getMovimientosTurno(token, turno.id).catch(() => []),
+    ]);
+    setCashSession(mapTurnoToCashSession(turno, resumen, movimientos, previousClosingRef.current));
+  }, [token]);
+
+  /** Trae la caja abierta del LOCAL (la abrió quien la abrió: admin o cajero) y arma el CashSession. */
   const loadActiveTurno = useCallback(async () => {
-    if (!token || !cajeroId) { setCajaLoading(false); return; }
+    if (!token || !operaCaja) { setCajaLoading(false); return; }
     setCajaLoading(true);
     try {
-      const turno = await getTurnoActivo(token, cajeroId);
-      const [resumen, movimientos] = await Promise.all([
-        getResumenTurno(token, turno.id).catch(() => null),
-        getMovimientosTurno(token, turno.id).catch(() => []),
-      ]);
-      setCashSession(mapTurnoToCashSession(turno, resumen, movimientos, previousClosingRef.current));
+      const turno = await getTurnoActivoSucursal(token, sucursalId);
+      await cargarSesionDeTurno(turno);
     } catch (err) {
       if (!(err instanceof ApiError && err.status === 404)) {
         triggerToast('No se pudo cargar el turno de caja.', 'error');
@@ -90,7 +99,7 @@ export function useCajaTurno(triggerToast: (message: string, type?: Toast['type'
     } finally {
       setCajaLoading(false);
     }
-  }, [token, cajeroId]);
+  }, [token, operaCaja, sucursalId, cargarSesionDeTurno]);
 
   useEffect(() => { loadActiveTurno(); }, [loadActiveTurno]);
 
@@ -129,6 +138,17 @@ export function useCajaTurno(triggerToast: (message: string, type?: Toast['type'
       window.removeEventListener('focus', onFocus);
     };
   }, [loadSucursalCajaAbierta]);
+
+  /* Una sola caja por local: si otro usuario la abre o la cierra, esta sesión se actualiza sola. */
+  useEffect(() => {
+    if (!operaCaja) return;
+    if (sucursalTurnoActivo) {
+      if (sucursalTurnoActivo.id !== cashSession?.turnoId) cargarSesionDeTurno(sucursalTurnoActivo).catch(() => {});
+    } else if (cashSession?.status === 'abierta') {
+      setCashSession(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sucursalTurnoActivo?.id, operaCaja]);
 
   /** Confirma contra el backend que la caja del local sigue abierta justo antes de tomar un pedido.
    *  Si no se pudo consultar, se usa el último estado conocido para no bloquear por un fallo de red. */
@@ -174,6 +194,7 @@ export function useCajaTurno(triggerToast: (message: string, type?: Toast['type'
         previousClosingRef.current = previousClosingAmount;
         setCashSession(mapTurnoToCashSession(turno, null, [], previousClosingAmount));
         setSucursalCajaAbierta(true);
+        loadSucursalCajaAbierta();
 
         const openingDifference = previousClosingAmount !== undefined ? openingAmount - previousClosingAmount : undefined;
         if (openingDifference && Math.abs(openingDifference) > 0.001) {
@@ -189,7 +210,7 @@ export function useCajaTurno(triggerToast: (message: string, type?: Toast['type'
         triggerToast(err instanceof ApiError ? err.message : 'No se pudo aperturar la caja.', 'error');
       }
     },
-    [token, cajeroId, cashSession, triggerToast]
+    [token, cajeroId, cashSession, triggerToast, loadSucursalCajaAbierta]
   );
 
   const addCashMovement = useCallback(

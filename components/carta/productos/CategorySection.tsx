@@ -22,6 +22,7 @@ interface CategorySectionProps {
   onDeleteCategory?: () => void;
   onAdd?: () => void;
   readOnly?: boolean;
+  onView?: (item: ProductoDto) => void;
 }
 
 export default function CategorySection({
@@ -42,6 +43,7 @@ export default function CategorySection({
   onDeleteCategory,
   onAdd,
   readOnly = false,
+  onView,
 }: CategorySectionProps) {
   const availableCount = items.filter((i) => i.disponible ?? true).length;
 
@@ -146,6 +148,7 @@ export default function CategorySection({
                   }
                   isFeatured={featuredIds.has(item.id)}
                   readOnly={readOnly}
+                  onView={onView ? () => onView(item) : undefined}
                 />
               ))}
             </div>

@@ -455,10 +455,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
      El backend calcula subtotal/IGV desde los ítems reales del pedido, marca la sesión
      pagada y libera la mesa automáticamente cuando se cubre todo lo pendiente (soporta
      cuentas divididas por ítem) — acá solo se arma el DTO y se refleja el resultado. */
+  /* Turno donde se registra el cobro: la caja única del local (la abrió el admin o un cajero),
+     siempre que sea de hoy; un turno de un día anterior hay que cerrarlo antes de cobrar. */
+  const turnoParaCobrar = useCallback((): number | null => {
+    if (caja.sucursalTurnoStale) return null;
+    const turno = caja.cashSession;
+    if (turno?.status === 'abierta' && turno.turnoId) return turno.turnoId;
+    return caja.sucursalTurnoActivo?.id ?? null;
+  }, [caja.cashSession, caja.sucursalTurnoActivo, caja.sucursalTurnoStale]);
+
   const chargeTable = useCallback(
     async (tableName: string, input: ChargeInput): Promise<SalesHistory | null> => {
-      if (!caja.cashSession || caja.cashSession.status !== 'abierta' || !caja.cashSession.turnoId) {
-        triggerToast('No se puede cobrar: la caja está cerrada.', 'error');
+      const turnoCobro = turnoParaCobrar();
+      if (!turnoCobro) {
+        triggerToast(
+          caja.sucursalTurnoStale
+            ? 'No se puede cobrar: hay una caja abierta desde un día anterior. Ciérrala en Caja → Corte.'
+            : 'No se puede cobrar: la caja está cerrada.',
+          'error',
+        );
         return null;
       }
       if (!token || !cajeroId) {
@@ -487,7 +502,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           sesionMesaId: table.sesionMesaId,
           clienteId: input.clienteId ?? null,
           cajeroId,
-          turnoId: caja.cashSession.turnoId,
+          turnoId: turnoCobro,
           items: input.chargeItems.map(i => ({ pedidoItemId: i.pedidoItemId, cantidad: i.cantidad })),
           descuento: 0,
           propina: 0,
@@ -540,7 +555,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return null;
       }
     },
-    [triggerToast, caja.cashSession, caja.refreshResumen, tables, token, cajeroId, loadMesas]
+    [triggerToast, turnoParaCobrar, caja.sucursalTurnoStale, caja.refreshResumen, tables, token, cajeroId, loadMesas]
   );
 
   /* ── Plano de mesas: reubicar/unir (solo visual, no persiste en backend) ── */
@@ -669,8 +684,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    *  la sesión detrás del pedido (sesionMesaId) no tiene mesa física asociada. */
   const chargeOrder = useCallback(
     async (orderId: string, input: ChargeInput): Promise<SalesHistory | null> => {
-      if (!caja.cashSession || caja.cashSession.status !== 'abierta' || !caja.cashSession.turnoId) {
-        triggerToast('No se puede cobrar: la caja está cerrada.', 'error');
+      const turnoCobro = turnoParaCobrar();
+      if (!turnoCobro) {
+        triggerToast(
+          caja.sucursalTurnoStale
+            ? 'No se puede cobrar: hay una caja abierta desde un día anterior. Ciérrala en Caja → Corte.'
+            : 'No se puede cobrar: la caja está cerrada.',
+          'error',
+        );
         return null;
       }
       if (!token || !cajeroId) {
@@ -699,7 +720,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           sesionMesaId: order.sesionMesaId,
           clienteId: input.clienteId ?? null,
           cajeroId,
-          turnoId: caja.cashSession.turnoId,
+          turnoId: turnoCobro,
           items: input.chargeItems.map(i => ({ pedidoItemId: i.pedidoItemId, cantidad: i.cantidad })),
           descuento: 0,
           propina: 0,
@@ -749,7 +770,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return null;
       }
     },
-    [caja.cashSession, caja.refreshResumen, activeOrders, triggerToast, token, cajeroId, loadActiveOrders]
+    [turnoParaCobrar, caja.sucursalTurnoStale, caja.refreshResumen, activeOrders, triggerToast, token, cajeroId, loadActiveOrders]
   );
 
   const addManualSale = useCallback(

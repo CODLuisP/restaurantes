@@ -11,6 +11,7 @@ export default function ProductCard({
   onToggleAvailable,
   isFeatured,
   readOnly = false,
+  onView,
 }: {
   item: ProductoDto;
   onEdit: () => void;
@@ -20,10 +21,15 @@ export default function ProductCard({
   isFeatured: boolean;
   /** Solo consulta: sin acciones de edición (rol mozo, cocinero, etc.). */
   readOnly?: boolean;
+  /** Solo en lectura: abre la ficha del producto (variantes y extras) al tocar la tarjeta. */
+  onView?: () => void;
 }) {
   const disponible = item.disponible ?? true;
   return (
-    <div className="group card overflow-hidden flex flex-col transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5">
+    <div
+      onClick={readOnly ? onView : undefined}
+      className={`group card overflow-hidden flex flex-col transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5 ${readOnly && onView ? "cursor-pointer" : ""}`}
+    >
       <div className="relative aspect-16/10 w-full bg-slate-100 overflow-hidden">
         {item.imagenUrl ? (
           <img
