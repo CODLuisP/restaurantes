@@ -13,7 +13,7 @@ import { useNegocioConfig, type NegocioConfigErrores, type NegocioTicket } from 
 import type { EmpresaDto } from '@/lib/api/empresas';
 import type { Sucursal } from '@/lib/api/sucursales';
 import type { TicketsConfigDto } from '@/lib/api/ticketsConfig';
-import type { PaperSize, TicketBlock } from '@/components/configuracion/tickets/ticketData';
+import type { PaperSize, TicketBlock, ComprobanteTemplates } from '@/components/configuracion/tickets/ticketData';
 import type { MetodosPago, MetodosEntrega } from '@/lib/config/metodos';
 import { useMesasCatalogo } from '@/hooks/mesas/useMesasCatalogo';
 import { useActiveOrders } from '@/hooks/comandero/useActiveOrders';
@@ -79,8 +79,8 @@ interface AppContextType {
   ticketsConfig: TicketsConfigDto | null;
   /** Datos del negocio para los bloques "Negocio"/"Imagen" de los tickets impresos. */
   negocioTicket: NegocioTicket;
-  /** Plantilla del ticket de cliente (Configuración → Tickets) — se usa al imprimir en Cobrar. */
-  clienteBlocks: TicketBlock[];
+  /** Plantillas de boleta, factura y nota de venta (Configuración → Tickets) — se usan al imprimir en Cobrar. */
+  comprobanteBlocks: ComprobanteTemplates;
   ticketPaperSize: PaperSize;
   negocioConfigLoading: boolean;
   /** Qué parte de la carga central falló, para que cada vista muestre su aviso. */
@@ -194,7 +194,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     metodosPago, metodosEntrega, igvPorcentaje, impresoraCocina, sucursalSincronizada,
     empresa, usarFacturacionElectronica, sucursales, setSucursales,
     sucursalLogo,
-    ticketsConfig, cocinaBlocks, clienteBlocks, ticketPaperSize, negocioTicket,
+    ticketsConfig, cocinaBlocks, comprobanteBlocks, ticketPaperSize, negocioTicket,
     negocioConfigLoading, negocioConfigErrores, refreshNegocioConfig,
   } = useNegocioConfig();
   const ticketBusinessName = negocioTicket.businessName;
@@ -469,7 +469,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           numDoc: input.customerDoc?.number ?? null,
           razonSocial: input.customerDoc?.name ?? null,
         });
-        input.onVentaCreada?.(venta.id);
+        try { input.onVentaCreada?.(venta); } catch (e) { console.error('onVentaCreada falló', e); }
 
         const sale: SalesHistory = {
           id: String(venta.id),
@@ -681,7 +681,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           numDoc: input.customerDoc?.number ?? null,
           razonSocial: input.customerDoc?.name ?? null,
         });
-        input.onVentaCreada?.(venta.id);
+        try { input.onVentaCreada?.(venta); } catch (e) { console.error('onVentaCreada falló', e); }
 
         const sale: SalesHistory = {
           id: String(venta.id),
@@ -747,7 +747,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sucursalLogo,
         ticketsConfig,
         negocioTicket,
-        clienteBlocks,
+        comprobanteBlocks,
         ticketPaperSize,
         negocioConfigLoading,
         negocioConfigErrores,

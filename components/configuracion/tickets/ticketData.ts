@@ -4,7 +4,10 @@ import {
   User, ListOrdered, Sigma, CreditCard, QrCode, FileText, Table, Calculator, Wallet,
 } from 'lucide-react';
 
-export type Side = 'cliente' | 'cocina';
+/** Los tres comprobantes que se imprimen al cobrar, cada uno con su propia plantilla. */
+export type ComprobanteKind = 'boleta' | 'factura' | 'notaVenta';
+export type Side = ComprobanteKind | 'cocina';
+export const COMPROBANTE_KINDS: ComprobanteKind[] = ['boleta', 'factura', 'notaVenta'];
 export type PaperSize = '80mm' | '58mm';
 
 export type BlockType =
@@ -75,10 +78,17 @@ export interface TicketBlock {
   showEnvio?: boolean;
 }
 
-export interface TicketConfig {
-  cliente: TicketBlock[];
-  cocina: TicketBlock[];
-}
+export type TicketConfig = Record<Side, TicketBlock[]>;
+
+/** Lo que cambia entre boleta, factura y nota de venta al imprimir (y en la vista previa). */
+export const DOC_META: Record<ComprobanteKind, {
+  label: string; docLabel: string; sampleNumber: string;
+  clienteDocLabel: string; sampleCustomer: string; sampleDoc: string;
+}> = {
+  boleta:    { label: 'Boleta',        docLabel: 'BOLETA ELECTRÓNICA',  sampleNumber: 'B001-00000017', clienteDocLabel: 'Doc.:', sampleCustomer: 'Clientes varios', sampleDoc: '0' },
+  factura:   { label: 'Factura',       docLabel: 'FACTURA ELECTRÓNICA', sampleNumber: 'F001-00000006', clienteDocLabel: 'RUC:',  sampleCustomer: 'SHALOM EMPRESARIAL S.A.C.', sampleDoc: '20512528458' },
+  notaVenta: { label: 'Nota de venta', docLabel: 'NOTA DE VENTA',       sampleNumber: '00000029',      clienteDocLabel: 'Doc.:', sampleCustomer: 'Clientes varios', sampleDoc: '0' },
+};
 
 /* ── Metadatos por tipo de bloque ── */
 export const BLOCK_META: Record<BlockType, { label: string; icon: LucideIcon; subtitle: (b: TicketBlock) => string }> = {
@@ -185,10 +195,20 @@ export const money = (n: number) =>
   `${SAMPLE.currency} ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /* ── Configuración por defecto ── */
-/** Diseño de comprobante electrónico (boleta/factura) — barras de color, detalle con código,
- *  desglose de IGV, importe en letras, forma de pago y QR. */
-function defaultCliente(): TicketBlock[] {
+/** Diseño de comprobante (mismo formato que el PDF del OSE) — barras de color, detalle con código,
+ *  desglose de IGV, importe en letras y forma de pago. Boleta y factura cierran con el QR SUNAT y
+ *  la leyenda de representación impresa; la nota de venta, que no es electrónica, no lleva QR. */
+export function defaultComprobante(kind: ComprobanteKind): TicketBlock[] {
   const sep = { ...makeBlock('separador'), sepStyle: 'linea' as SepStyle };
+  const cierre: TicketBlock[] = kind === 'notaVenta'
+    ? [
+        { ...makeBlock('texto'), text: 'Documento interno, no válido como comprobante de pago electrónico', size: 'small', bold: false, spaceTop: 1 },
+        { ...makeBlock('texto'), text: '¡Gracias por su preferencia!', size: 'normal', bold: true },
+      ]
+    : [
+        makeBlock('qr'),
+        { ...makeBlock('texto'), text: `Representación impresa de ${DOC_META[kind].docLabel}`, size: 'small', bold: false },
+      ];
   return [
     makeBlock('imagen'),
     { ...makeBlock('negocio'), showAddress: true, fiscalAddress: true, compactName: false },
@@ -196,15 +216,14 @@ function defaultCliente(): TicketBlock[] {
     makeBlock('comprobante-cabecera'),
     { ...sep, id: uid() },
     { ...makeBlock('cliente'), tabular: true, showClientDoc: true, showClientPhone: false, showClientAddress: false, showDeliveryTime: false },
-    { ...makeBlock('datos-pedido'), tabular: true, showFecha: true, showHora: false },
+    { ...makeBlock('datos-pedido'), tabular: true, showFecha: true, showHora: true },
     { ...sep, id: uid() },
     makeBlock('detalle-comprobante'),
     { ...sep, id: uid() },
     makeBlock('totales-comprobante'),
     { ...sep, id: uid() },
     makeBlock('forma-pago'),
-    makeBlock('qr'),
-    { ...makeBlock('texto'), text: 'Representación impresa del comprobante electrónico', size: 'small', bold: false },
+    ...cierre,
   ];
 }
 
@@ -222,5 +241,37 @@ function defaultCocina(): TicketBlock[] {
 }
 
 export function defaultConfig(): TicketConfig {
-  return { cliente: defaultCliente(), cocina: defaultCocina() };
+  return {
+    boleta: defaultComprobante('boleta'),
+    factura: defaultComprobante('factura'),
+    notaVenta: defaultComprobante('notaVenta'),
+    cocina: defaultCocina(),
+  };
+}
+
+export type ComprobanteTemplates = Record<ComprobanteKind, TicketBlock[]>;
+
+/** Lee las plantillas de comprobante guardadas en tickets_config.cliente_json. Hoy se guardan como
+ *  { boleta, factura, notaVenta }; antes era UNA sola lista para todo cobro: si llega en ese formato
+ *  viejo, boleta y factura la heredan (así no se pierde lo que ya se había diseñado) y la nota de
+ *  venta arranca con su plantilla por defecto. JSON vacío o corrupto → plantillas por defecto. */
+export function parseComprobanteTemplates(json?: string | null): ComprobanteTemplates {
+  const def = defaultConfig();
+  const base: ComprobanteTemplates = { boleta: def.boleta, factura: def.factura, notaVenta: def.notaVenta };
+  if (!json) return base;
+  try {
+    const data = JSON.parse(json);
+    if (Array.isArray(data)) return { ...base, boleta: data, factura: data };
+    return {
+      boleta: Array.isArray(data?.boleta) ? data.boleta : base.boleta,
+      factura: Array.isArray(data?.factura) ? data.factura : base.factura,
+      notaVenta: Array.isArray(data?.notaVenta) ? data.notaVenta : base.notaVenta,
+    };
+  } catch {
+    return base;
+  }
+}
+
+export function serializeComprobanteTemplates(t: ComprobanteTemplates): string {
+  return JSON.stringify({ boleta: t.boleta, factura: t.factura, notaVenta: t.notaVenta });
 }

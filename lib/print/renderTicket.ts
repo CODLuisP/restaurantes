@@ -24,6 +24,8 @@ export interface TicketOrderData {
   docLabel?: string;
   docNumber?: string;
   clienteDoc?: string;
+  /** Etiqueta del documento del cliente en formato comprobante: "RUC:" en factura, "Doc.:" en el resto. */
+  clienteDocLabel?: string;
   igv?: number;
   igvPorcentaje?: number;
   pagos?: { metodo: string; monto: number }[];
@@ -116,7 +118,7 @@ function renderBlock(block: TicketBlock, data: TicketOrderData): string {
       const rows: string[] = [];
       if (block.tabular) {
         if (block.showClientName) rows.push(tabRow('Cliente:', data.clienteName || 'Clientes varios'));
-        if (block.showClientDoc) rows.push(tabRow('Doc.:', data.clienteDoc || '0'));
+        if (block.showClientDoc) rows.push(tabRow(data.clienteDocLabel ?? 'Doc.:', data.clienteDoc || '0'));
         inner = rows.length ? `<div style="font-size:${size}">${rows.join('')}</div>` : '';
         break;
       }
@@ -251,7 +253,7 @@ export function renderComandaHtml(blocks: TicketBlock[], paper: PaperSize, data:
     return `<div style="${breakStyle}">${body}</div>`;
   }).join('');
 
-  return `<!DOCTYPE html><html><head><title>Comanda</title><style>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Comanda</title><style>
     ${thermalCss(paper)}
   </style></head><body>
     ${pages}
@@ -266,7 +268,7 @@ export function renderComandaHtml(blocks: TicketBlock[], paper: PaperSize, data:
 export function renderReciboHtml(blocks: TicketBlock[], paper: PaperSize, data: TicketOrderData): string {
   const body = blocks.map(b => renderBlock(b, data)).join('');
 
-  return `<!DOCTYPE html><html><head><title>Comprobante</title><style>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Comprobante</title><style>
     ${thermalCss(paper)}
     .bar, .bar * { color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   </style></head><body>

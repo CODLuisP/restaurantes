@@ -32,7 +32,7 @@ export function imprimirCancelacion({ mesa, mozo, nombre, cantidad }: Cancelacio
   const win = window.open('', '_blank', 'width=380,height=500');
   if (!win) return;
 
-  win.document.write(`<!DOCTYPE html><html><head><title>Cancelación</title><style>
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Cancelación</title><style>
     ${thermalCss(paper)}
     h2 { text-align: center; margin: 0 0 10px; font-size: 22px; letter-spacing: 1px;
          border: 3px solid #000; padding: 4px; }

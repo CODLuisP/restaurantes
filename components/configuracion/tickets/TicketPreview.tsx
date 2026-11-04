@@ -1,8 +1,8 @@
 'use client';
 
 import { QRCodeCanvas } from 'qrcode.react';
-import type { TicketBlock, FontSize, Align } from './ticketData';
-import { SAMPLE, SEP_CHAR, money, COMPROBANTE_COLOR } from './ticketData';
+import type { TicketBlock, FontSize, Align, Side } from './ticketData';
+import { SAMPLE, SEP_CHAR, money, COMPROBANTE_COLOR, DOC_META } from './ticketData';
 
 const SIZE_CLASS: Record<FontSize, string> = {
   small: 'text-[9px]',
@@ -31,7 +31,12 @@ function LogoMark({ size }: { size: string }) {
   );
 }
 
-function BlockView({ block }: { block: TicketBlock }) {
+/** Datos reales del negocio para la vista previa; sin ellos se usa el ejemplo de SAMPLE. */
+export interface PreviewNegocio { name?: string; address?: string; ruc?: string; logoUrl?: string }
+
+function BlockView({ block, side, negocio }: { block: TicketBlock; side: Side; negocio?: PreviewNegocio }) {
+  /* Cada comprobante se previsualiza con sus propios datos (tipo, N°, etiqueta del documento). */
+  const doc = side === 'cocina' ? null : DOC_META[side];
   const align = ALIGN_CLASS[block.align ?? 'left'];
   const sizeCls = SIZE_CLASS[block.size ?? 'normal'];
   const weight = block.bold ? 'font-bold' : '';
@@ -45,6 +50,9 @@ function BlockView({ block }: { block: TicketBlock }) {
             {block.imgSource === 'uploaded' && block.imgUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={block.imgUrl} alt="Logo" className={`${IMG_SIZE[block.imgSize ?? 'mediano']} object-contain mx-auto`} />
+            ) : negocio?.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={negocio.logoUrl} alt="Logo" className={`${IMG_SIZE[block.imgSize ?? 'mediano']} object-contain mx-auto`} />
             ) : (
               <LogoMark size={block.imgSize ?? 'mediano'} />
             )}
@@ -56,10 +64,10 @@ function BlockView({ block }: { block: TicketBlock }) {
           <div className="text-center leading-tight">
             {block.showName && (
               <div className={`${block.compactName ? 'text-[13px]' : 'text-[17px]'} font-black tracking-tight`}>
-                {SAMPLE.businessName}
+                {negocio?.name ?? SAMPLE.businessName}
               </div>
             )}
-            {block.showAddress && <div className="text-[9px]">{block.fiscalAddress ? 'Dir. Fiscal: ' : ''}{SAMPLE.businessAddress}</div>}
+            {block.showAddress && <div className="text-[9px]">{block.fiscalAddress ? 'Dir. Fiscal: ' : ''}{negocio?.address ?? SAMPLE.businessAddress}</div>}
             {block.showPhone && <div className="text-[9px]">{SAMPLE.businessPhone}</div>}
           </div>
         );
@@ -102,8 +110,8 @@ function BlockView({ block }: { block: TicketBlock }) {
         if (block.tabular) {
           return (
             <div className={sizeCls}>
-              {block.showClientName && <div className="flex gap-1.5"><b className="w-[52px] shrink-0">Cliente:</b><span>{SAMPLE.customerName}</span></div>}
-              {block.showClientDoc && <div className="flex gap-1.5"><b className="w-[52px] shrink-0">Doc.:</b><span>{SAMPLE.customerDoc}</span></div>}
+              {block.showClientName && <div className="flex gap-1.5"><b className="w-[52px] shrink-0">Cliente:</b><span>{doc?.sampleCustomer ?? SAMPLE.customerName}</span></div>}
+              {block.showClientDoc && <div className="flex gap-1.5"><b className="w-[52px] shrink-0">{doc?.clienteDocLabel ?? 'Doc.:'}</b><span>{doc?.sampleDoc ?? SAMPLE.customerDoc}</span></div>}
             </div>
           );
         }
@@ -168,9 +176,9 @@ function BlockView({ block }: { block: TicketBlock }) {
       case 'comprobante-cabecera':
         return (
           <div className="text-center">
-            <div className="text-[15px] font-bold py-0.5">RUC: {SAMPLE.ruc}</div>
-            <div className="font-bold text-[14px] text-white py-0.5" style={{ background: COMPROBANTE_COLOR }}>{SAMPLE.docLabel}</div>
-            <div className="text-[14px] font-bold py-1">N° {SAMPLE.docNumber}</div>
+            <div className="text-[15px] font-bold py-0.5">RUC: {negocio?.ruc ?? SAMPLE.ruc}</div>
+            <div className="font-bold text-[14px] text-white py-0.5" style={{ background: COMPROBANTE_COLOR }}>{doc?.docLabel ?? SAMPLE.docLabel}</div>
+            <div className="text-[14px] font-bold py-1">N° {doc?.sampleNumber ?? SAMPLE.docNumber}</div>
           </div>
         );
 
@@ -232,13 +240,14 @@ function BlockView({ block }: { block: TicketBlock }) {
 
 interface TicketPreviewProps {
   blocks: TicketBlock[];
-  side: 'cliente' | 'cocina';
+  side: Side;
   paper: '80mm' | '58mm';
   selectedId: string | null;
   onSelect: (id: string) => void;
+  negocio?: PreviewNegocio;
 }
 
-export default function TicketPreview({ blocks, side, paper, selectedId, onSelect }: TicketPreviewProps) {
+export default function TicketPreview({ blocks, side, paper, selectedId, onSelect, negocio }: TicketPreviewProps) {
   const width = paper === '80mm' ? 300 : 220;
 
   return (
@@ -248,7 +257,7 @@ export default function TicketPreview({ blocks, side, paper, selectedId, onSelec
         <div className="flex items-center justify-between text-white/90">
           <span className="text-[10px] font-bold tracking-wide flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            TICKET DE {side === 'cliente' ? 'CLIENTE' : 'COCINA'}
+            {side === 'cocina' ? 'TICKET DE COCINA' : DOC_META[side].label.toUpperCase()}
           </span>
           <span className="text-[10px] text-white/60">Papel {paper}</span>
         </div>
@@ -280,7 +289,7 @@ export default function TicketPreview({ blocks, side, paper, selectedId, onSelec
                 </span>
               )}
               <div className="px-1 py-0.5">
-                <BlockView block={block} />
+                <BlockView block={block} side={side} negocio={negocio} />
               </div>
             </div>
           );

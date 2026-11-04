@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   Printer, FileText, RotateCcw, Save,
-  ReceiptText, User, ChefHat, SlidersHorizontal,
+  ReceiptText, Receipt, ScrollText, ChefHat, SlidersHorizontal,
 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { updateTicketsConfig } from '@/lib/api/ticketsConfig';
@@ -14,16 +14,24 @@ import BlockListPanel from './BlockListPanel';
 import Inspector from './Inspector';
 import {
   type Side, type PaperSize, type BlockType, type TicketBlock, type TicketConfig,
-  makeBlock, defaultConfig,
+  makeBlock, defaultConfig, parseComprobanteTemplates, serializeComprobanteTemplates, DOC_META,
 } from './ticketData';
+
+/* Pestañas del editor: los tres comprobantes que se imprimen al cobrar + la comanda de cocina. */
+const TABS: { side: Side; label: string; icon: typeof Receipt; active: string }[] = [
+  { side: 'boleta',    label: 'Boleta',        icon: Receipt,    active: 'bg-emerald-500' },
+  { side: 'factura',   label: 'Factura',       icon: FileText,   active: 'bg-sky-500' },
+  { side: 'notaVenta', label: 'Nota de venta', icon: ScrollText, active: 'bg-violet-500' },
+  { side: 'cocina',    label: 'Cocina',        icon: ChefHat,    active: 'bg-orange-500' },
+];
 
 /* ─── Editor ─── */
 export default function TicketEditor() {
   const { data: session } = useSession();
-  const { triggerToast, ticketsConfig, negocioConfigErrores, refreshNegocioConfig } = useApp();
+  const { triggerToast, ticketsConfig, negocioConfigErrores, refreshNegocioConfig, negocioTicket } = useApp();
   const token = session?.accessToken;
   const [config, setConfig] = useState<TicketConfig>(() => defaultConfig());
-  const [side, setSide] = useState<Side>('cliente');
+  const [side, setSide] = useState<Side>('boleta');
   const [paper, setPaper] = useState<PaperSize>('80mm');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -42,8 +50,11 @@ export default function TicketEditor() {
     /* Plantillas guardadas antes del cambio de marca traían "Generado con GoMenu". */
     const migrar = (blocks: TicketBlock[]) =>
       blocks.map(b => (b.type === 'texto' && /gomenu/i.test(b.text ?? '') ? { ...b, text: 'Generado con RestoFly' } : b));
+    const comprobantes = parseComprobanteTemplates(data.clienteJson);
     setConfig(prev => ({
-      cliente: data.clienteJson ? migrar(JSON.parse(data.clienteJson)) : prev.cliente,
+      boleta: migrar(comprobantes.boleta),
+      factura: migrar(comprobantes.factura),
+      notaVenta: migrar(comprobantes.notaVenta),
       cocina: data.cocinaJson ? migrar(JSON.parse(data.cocinaJson)) : prev.cocina,
     }));
     if (data.paperSize === '58mm' || data.paperSize === '80mm') setPaper(data.paperSize);
@@ -121,12 +132,12 @@ export default function TicketEditor() {
     setSaving(true);
     try {
       await updateTicketsConfig(token, {
-        clienteJson: JSON.stringify(config.cliente),
+        clienteJson: serializeComprobanteTemplates(config),
         cocinaJson: JSON.stringify(config.cocina),
         paperSize: paper,
       });
-      triggerToast('Diseño del ticket guardado.', 'success');
-      refreshNegocioConfig(); // las comandas se imprimen con la plantilla del contexto
+      triggerToast('Diseño de los tickets guardado.', 'success');
+      refreshNegocioConfig(); // comandas y comprobantes se imprimen con las plantillas del contexto
     } catch {
       triggerToast('No se pudo guardar el diseño.', 'error');
     } finally {
@@ -138,7 +149,8 @@ export default function TicketEditor() {
     const fresh = defaultConfig();
     setConfig(c => ({ ...c, [side]: fresh[side] }));
     setSelectedId(null);
-    triggerToast(`Ticket de ${side} restaurado a los valores por defecto.`, 'info');
+    const nombre = side === 'cocina' ? 'Ticket de cocina' : DOC_META[side].label;
+    triggerToast(`${nombre} restaurado a los valores por defecto.`, 'info');
   };
 
   /** Imprime el ticket EXACTAMENTE como se ve en la vista previa (captura el DOM real). */
@@ -187,15 +199,16 @@ export default function TicketEditor() {
       }
       win.document.write(`<!DOCTYPE html><html><head><title>Ticket ${side}</title>${styles}
         <style>
-          @page{size:${pageWidthMm}mm auto;margin:0}
+          @page{size:${pageWidthMm}mm auto;margin:4mm 0}
+          @page{@top-left{content:""}@top-center{content:""}@top-right{content:""}@bottom-left{content:""}@bottom-center{content:""}@bottom-right{content:""}}
           body{margin:0;padding:24px;background:#fff;display:flex;justify-content:center}
           @media print{body{padding:0;display:block}}
         </style></head>
         <body>${clone.outerHTML}
         <script>window.onload=function(){setTimeout(function(){
-          var mm=Math.ceil(document.body.firstElementChild.offsetHeight*25.4/96)+2;
+          var mm=Math.ceil(document.body.firstElementChild.offsetHeight*25.4/96)+2+8;
           var s=document.createElement('style');
-          s.textContent='@page{size:${pageWidthMm}mm '+mm+'mm;margin:0}';
+          s.textContent='@page{size:${pageWidthMm}mm '+mm+'mm;margin:4mm 0}';
           document.head.appendChild(s);
           window.print()
         },120)}<\/script>
@@ -221,7 +234,7 @@ export default function TicketEditor() {
   return (
     <div className="flex flex-col h-[calc(100vh-7.5rem)] min-h-[560px] animate-section ">
       {/* ── Cabecera oscura tipo "estudio de diseño" ── */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 px-6 h-16 flex items-center justify-between gap-3 flex-wrap shrink-0">
+      <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 px-6 min-h-16 py-2 flex items-center justify-between gap-3 flex-wrap shrink-0">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-white/90">
             <span className="bg-white/10 p-1.5 rounded-lg flex items-center justify-center">
@@ -230,24 +243,19 @@ export default function TicketEditor() {
             <h3 className="text-sm font-bold leading-none">Diseñador de Tickets</h3>
           </div>
 
-          {/* Selector Cliente / Cocina */}
-          <div className="flex bg-white/5 rounded-xl p-1 gap-1">
-            <button
-              onClick={() => { setSide('cliente'); setSelectedId(null); }}
-              className={`flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-lg leading-none transition-colors ${
-                side === 'cliente' ? 'bg-emerald-500 text-white shadow-sm' : 'text-white/60 hover:text-white/90'
-              }`}
-            >
-              <User className="h-3.5 w-3.5" /> Cliente
-            </button>
-            <button
-              onClick={() => { setSide('cocina'); setSelectedId(null); }}
-              className={`flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-lg leading-none transition-colors ${
-                side === 'cocina' ? 'bg-orange-500 text-white shadow-sm' : 'text-white/60 hover:text-white/90'
-              }`}
-            >
-              <ChefHat className="h-3.5 w-3.5" /> Cocina
-            </button>
+          {/* Selector Boleta / Factura / Nota de venta / Cocina */}
+          <div className="flex bg-white/5 rounded-xl p-1 gap-1 flex-wrap">
+            {TABS.map(({ side: s, label, icon: Icon, active }) => (
+              <button
+                key={s}
+                onClick={() => { setSide(s); setSelectedId(null); }}
+                className={`flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-lg leading-none transition-colors ${
+                  side === s ? `${active} text-white shadow-sm` : 'text-white/60 hover:text-white/90'
+                }`}
+              >
+                <Icon className="h-3.5 w-3.5" /> {label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -307,7 +315,10 @@ export default function TicketEditor() {
               ))}
             </div>
           </div>
-          <TicketPreview blocks={blocks} side={side} paper={paper} selectedId={selectedId} onSelect={setSelectedId} />
+          <TicketPreview
+            blocks={blocks} side={side} paper={paper} selectedId={selectedId} onSelect={setSelectedId}
+            negocio={{ name: negocioTicket.businessName, address: negocioTicket.direccion, ruc: negocioTicket.ruc, logoUrl: negocioTicket.logoUrl }}
+          />
         </div>
 
         {/* Panel derecho: inspector */}

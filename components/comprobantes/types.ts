@@ -53,7 +53,7 @@ export interface Comprobante {
 export const TIPO_COMPROBANTE_LABEL: Record<TipoComprobante, string> = {
   Boleta: 'Boleta',
   Factura: 'Factura',
-  Ticket: 'Ticket',
+  Ticket: 'Nota de Venta',
   NotaCredito: 'Nota de Crédito',
   NotaDebito: 'Nota de Débito',
 };

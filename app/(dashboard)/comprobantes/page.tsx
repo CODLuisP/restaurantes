@@ -40,8 +40,11 @@ const ITEMS_PER_PAGE = 50;
 const BRAND_COLOR = 'FF007542';
 const ES_NOTA = (tipo: TipoComprobante) => tipo === 'NotaCredito' || tipo === 'NotaDebito';
 
-/** Divide "B001-00000024" en { serie: "B001", correlativo: "00000024" }. */
+/** Divide "B001-00000024" en { serie: "B001", correlativo: "00000024" }; las notas de venta
+ *  ("N.Venta #12") usan "N.VENTA" + su correlativo propio, igual que en Ventas del día. */
 function splitNumero(numero: string): { serie: string; correlativo: string } {
+  const notaVenta = /^N\.Venta #(\d+)$/.exec(numero);
+  if (notaVenta) return { serie: 'N.VENTA', correlativo: notaVenta[1] };
   const idx = numero.indexOf('-');
   if (idx === -1) return { serie: numero, correlativo: '' };
   return { serie: numero.slice(0, idx), correlativo: numero.slice(idx + 1) };
@@ -195,7 +198,7 @@ async function exportComprobantesExcel(comprobantes: Comprobante[], usuario: str
 
 export default function ComprobantesPage() {
   const { data: session } = useSession();
-  const { triggerToast, empresa } = useApp();
+  const { triggerToast, empresa, negocioTicket } = useApp();
   const { isSuperAdmin, sucursales, sId, selectSucursal } = useSucursalSelector();
 
   const {
@@ -263,7 +266,7 @@ export default function ComprobantesPage() {
       });
 
       const partesFiltro: string[] = [];
-      partesFiltro.push(filterTipo ? `Tipo: ${filterTipo}` : 'Todos los tipos');
+      partesFiltro.push(filterTipo ? `Tipo: ${filterTipo === 'Ticket' ? 'Nota de Venta' : filterTipo}` : 'Todos los tipos');
       partesFiltro.push(filterEstado ? `SUNAT: ${filterEstado}` : 'SUNAT: Todos');
       if (fechaDesde || fechaHasta) partesFiltro.push(`Del ${fechaDesde || '...'} al ${fechaHasta || '...'}`);
 
@@ -321,7 +324,33 @@ export default function ComprobantesPage() {
     const key = `${ventaId}-${type}`;
     setDescargandoKey(key);
     try {
-      if (type === 'PDF') {
+      if (type === 'PDF' && comprobantes.find(c => c.id === ventaId)?.tipo === 'Ticket') {
+        // La nota de venta no pasa por el OSE: su PDF se arma aquí con el detalle de la venta.
+        const [detalle, { abrirNotaVentaPdf }] = await Promise.all([
+          getComprobanteDetalle(token, id),
+          import('@/lib/print/notaVentaPdf'),
+        ]);
+        await abrirNotaVentaPdf({
+          negocio: {
+            nombre: negocioTicket.businessName ?? 'Mi Empresa',
+            ruc: negocioTicket.ruc,
+            direccion: negocioTicket.direccion,
+            logoUrl: negocioTicket.logoUrl,
+          },
+          numero: detalle.numero,
+          fecha: detalle.fecha,
+          cliente: { tipoDoc: detalle.clienteTipoDoc, numDoc: detalle.clienteNumDoc, nombre: detalle.clienteRazonSocial },
+          metodoPago: detalle.metodoPago,
+          numeroOperacion: detalle.numeroOperacion,
+          entidadBancaria: detalle.entidadBancaria,
+          items: detalle.items.map(i => ({ nombre: nombreItemPedido(i), cantidad: i.cantidad, precio: i.precioUnitario })),
+          subtotal: detalle.subtotal,
+          igv: detalle.igv,
+          igvPorcentaje: detalle.igvPorcentaje,
+          total: detalle.total,
+        }, size);
+        triggerToast(`Abriendo PDF de la nota de venta...`, 'info');
+      } else if (type === 'PDF') {
         await downloadPdfBlob(token, id, formatoATamano(size));
         triggerToast(`Abriendo PDF del comprobante...`, 'info');
       } else if (type === 'XML') {
@@ -435,7 +464,7 @@ export default function ComprobantesPage() {
             <FileText className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-slate-900 leading-tight">Comprobantes Electrónicos</h3>
+            <h3 className="text-lg font-bold text-slate-900 leading-tight">Comprobantes</h3>
             <p className="text-[11px] text-slate-500">
               Total listados: {filteredComprobantes.length} de {totalCount} comprobantes
             </p>
@@ -460,6 +489,7 @@ export default function ComprobantesPage() {
             <option value="Todos">Todos los tipos</option>
             <option value="Factura">Facturas</option>
             <option value="Boleta">Boletas</option>
+            <option value="Ticket">Notas de venta</option>
           </select>
 
           <select

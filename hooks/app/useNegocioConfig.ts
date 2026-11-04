@@ -10,7 +10,10 @@ import {
   DEFAULT_METODOS_PAGO, DEFAULT_METODOS_ENTREGA, parseMetodosPago, parseMetodosEntrega,
   type MetodosPago, type MetodosEntrega,
 } from '@/lib/config/metodos';
-import { defaultConfig, type TicketBlock, type PaperSize } from '@/components/configuracion/tickets/ticketData';
+import {
+  defaultConfig, parseComprobanteTemplates,
+  type TicketBlock, type PaperSize, type ComprobanteTemplates,
+} from '@/components/configuracion/tickets/ticketData';
 
 /** Qué parte de la carga falló — para que cada vista muestre su propio aviso de error. */
 export interface NegocioConfigErrores {
@@ -107,13 +110,12 @@ export function useNegocioConfig() {
     return defaultConfig().cocina;
   }, [ticketsConfig]);
 
-  /** Plantilla del ticket de cliente (el que se imprime al cobrar) — mismo criterio que cocinaBlocks. */
-  const clienteBlocks = useMemo<TicketBlock[]>(() => {
-    if (ticketsConfig?.clienteJson) {
-      try { return JSON.parse(ticketsConfig.clienteJson); } catch { /* plantilla por defecto */ }
-    }
-    return defaultConfig().cliente;
-  }, [ticketsConfig]);
+  /** Plantillas de boleta, factura y nota de venta (lo que se imprime al cobrar). Ya están en
+   *  memoria desde que carga la sesión: cobrar arma el ticket sin pedir nada al backend. */
+  const comprobanteBlocks = useMemo<ComprobanteTemplates>(
+    () => parseComprobanteTemplates(ticketsConfig?.clienteJson),
+    [ticketsConfig],
+  );
 
   /* El tamaño de papel se define en Configuración → Información del negocio → Impresión (empresa);
      el de la plantilla de tickets solo es el respaldo si la empresa no lo tiene. */
@@ -134,7 +136,7 @@ export function useNegocioConfig() {
     empresa, usarFacturacionElectronica,
     sucursales, setSucursales,
     sucursalLogo,
-    ticketsConfig, cocinaBlocks, clienteBlocks, ticketPaperSize, negocioTicket,
+    ticketsConfig, cocinaBlocks, comprobanteBlocks, ticketPaperSize, negocioTicket,
     negocioConfigLoading, negocioConfigErrores, refreshNegocioConfig,
   };
 }

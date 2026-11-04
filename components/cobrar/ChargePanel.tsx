@@ -14,9 +14,22 @@ import { getSeriesFacturacion, type SeriesSucursal } from '@/lib/api/facturacion
 import { ApiError } from '@/lib/api/client';
 import { getClientes } from '@/lib/api/clientes';
 import type { Cliente } from '@/types/clientes';
-import { imprimirReciboCliente, abrirVentanaImpresion } from '@/lib/print/recibo';
+import { imprimirReciboCliente, imprimirReciboAparte, abrirVentanaImpresion } from '@/lib/print/recibo';
+import type { TicketOrderData } from '@/lib/print/renderTicket';
 import { qrToDataUrl } from '@/lib/print/qrDataUrl';
-import { getComprobanteDetalle } from '@/lib/api/comprobantes';
+import { DOC_META, defaultComprobante, type ComprobanteKind } from '@/components/configuracion/tickets/ticketData';
+import { getComprobantes } from '@/lib/api/comprobantes';
+
+/** Siguiente correlativo de nota de venta de la sucursal (el backend asigna MAX + 1): se lee de la
+ *  última nota de venta emitida. null si no se pudo saber — entonces se espera al cobro para imprimir. */
+async function leerSiguienteTicket(token: string): Promise<number | null> {
+  const r = await getComprobantes(token, { tipoComprobante: 'ticket', pageSize: 1, ordenarPorCorrelativo: true });
+  const ultimo = r.items[0];
+  /* Sin notas de venta previas (o un backend que aún no las lista): no se adivina, se espera al cobro. */
+  if (!ultimo) return null;
+  const m = /#(\d+)$/.exec(ultimo.numero);
+  return m ? Number(m[1]) + 1 : null;
+}
 export default function ChargePanel({
   selected, isCajaOpen, cashier, onAddItems, onClosed,
 }: {
@@ -28,7 +41,7 @@ export default function ChargePanel({
 }) {
   const {
     chargeTable, chargeOrder, triggerToast, metodosPago, igvPorcentaje, impresoraCocina,
-    usarFacturacionElectronica, sucursalSincronizada, clienteBlocks, ticketPaperSize, negocioTicket,
+    usarFacturacionElectronica, sucursalSincronizada, comprobanteBlocks, ticketPaperSize, negocioTicket,
   } = useApp();
   const { data: session } = useSession();
 
@@ -61,6 +74,16 @@ export default function ChargePanel({
     };
 
     cargarSeries();
+    return () => { cancelado = true; };
+  }, [session?.accessToken]);
+
+  /* ── Siguiente N° de nota de venta: con esto la nota de venta también se imprime en el mismo clic ── */
+  const [siguienteTicket, setSiguienteTicket] = useState<number | null>(null);
+  useEffect(() => {
+    const token = session?.accessToken;
+    if (!token) return;
+    let cancelado = false;
+    leerSiguienteTicket(token).then(n => { if (!cancelado) setSiguienteTicket(n); }).catch(() => {});
     return () => { cancelado = true; };
   }, [session?.accessToken]);
 
@@ -379,11 +402,12 @@ export default function ChargePanel({
     const err = validate();
     if (err) { triggerToast(err, 'warning'); return; }
     setImprimiendo(imprimir);
-    /* La ventana se abre en el mismo clic: esperar al cobro (varios segundos con la emisión ante
-       SUNAT) hacía que apareciera tarde o que el navegador la bloqueara como popup. */
-    const ventanaImpresion = imprimir ? abrirVentanaImpresion() : null;
-    let detallePromise: ReturnType<typeof getComprobanteDetalle> | null = null;
+    /* Ventana vinculada "Generando comprobante…": solo cuando aún no se sabe el N° y hay que esperar
+       al cobro para imprimir (se abre en el mismo clic para que el navegador no la bloquee). Si el N°
+       ya se conoce, el ticket va en una ventana independiente que no congela esta página. */
+    let ventanaImpresion: Window | null = null;
     const tokenSesion = session?.accessToken;
+    const kind: ComprobanteKind = docType === 'Factura' ? 'factura' : docType === 'Boleta' ? 'boleta' : 'notaVenta';
 
     const customerDoc: CustomerDoc | undefined =
       docType === 'Factura'
@@ -403,6 +427,83 @@ export default function ChargePanel({
       observacion: p.method !== 'Efectivo' && p.observacion.trim() ? p.observacion.trim() : undefined,
     }));
 
+    /* ── Ticket del comprobante, armado 100% en el front ──
+       Plantilla del tipo cobrado (Configuración → Tickets: boleta, factura o nota de venta) + datos
+       que ya están en pantalla. No se espera ni la emisión ante SUNAT ni el refresco de mesas/caja. */
+    const ahora = new Date();
+    let impreso = false;
+    const imprimirComprobante = (numero?: string) => {
+      if (!imprimir || impreso) return;
+      impreso = true;
+      /* Un fallo al armar el ticket nunca debe tumbar el cobro (esto también corre dentro del cobro). */
+      try {
+        escribirTicket(numero);
+      } catch (e) {
+        console.error('No se pudo armar el ticket', e);
+        ventanaImpresion?.close();
+        triggerToast('No se pudo generar el ticket. Puedes reimprimirlo desde Comprobantes.', 'warning');
+      }
+    };
+    const escribirTicket = (numero?: string) => {
+      /* Mismo contenido que el QR oficial de SUNAT: RUC|tipo|serie|correlativo|IGV|total|fecha|tipo doc|doc.
+         Una nota de venta no tiene comprobante electrónico: ahí el QR (si se agrega) lleva al menú digital. */
+      const [serie, correlativo] = (numero ?? '').split('-');
+      const qrValue = kind !== 'notaVenta' && serie && correlativo
+        ? [
+            negocioTicket.ruc ?? '', kind === 'factura' ? '01' : '03', serie, correlativo,
+            igv.toFixed(2), amountDue.toFixed(2), ahora.toLocaleDateString('en-CA'),
+            customerDoc?.type === 'RUC' ? '6' : customerDoc ? '1' : '0', customerDoc?.number ?? '0',
+          ].join('|')
+        : `${window.location.origin}/menu`;
+
+      /* Si la plantilla aún no cargó (o vino vacía), se imprime con la plantilla por defecto. */
+      const plantilla = comprobanteBlocks?.[kind]?.length ? comprobanteBlocks[kind] : defaultComprobante(kind);
+      const datos: TicketOrderData = {
+        businessName: negocioTicket.businessName,
+        businessAddress: negocioTicket.direccion,
+        logoUrl: negocioTicket.logoUrl,
+        ruc: negocioTicket.ruc,
+        docLabel: DOC_META[kind].docLabel,
+        docNumber: numero,
+        clienteDoc: customerDoc?.number,
+        clienteDocLabel: DOC_META[kind].clienteDocLabel,
+        igv,
+        igvPorcentaje,
+        pagos: paymentLines.map(p => ({ metodo: p.method, monto: p.amount })),
+        fecha: ahora.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+        hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
+        mozo: selected.waiter ?? cashier,
+        clienteName: customerDoc?.name ?? selected.customer,
+        clientePhone: selected.phone,
+        clienteAddress: selected.address,
+        items: chargingItems.map((i, idx) => ({
+          cantidad: i.quantity, nombre: i.product.name, precio: i.product.price,
+          codigo: i.product.sku || `P${String(idx + 1).padStart(3, '0')}`,
+        })),
+        subtotal: base,
+        total: amountDue,
+        paymentMethod: paymentLines.map(p => p.method).join(' + '),
+        qrDataUrl: qrToDataUrl(qrValue),
+      };
+      if (ventanaImpresion) imprimirReciboCliente(plantilla, ticketPaperSize, datos, ventanaImpresion);
+      else imprimirReciboAparte(plantilla, ticketPaperSize, datos);
+    };
+
+    /* Boleta/factura: el N° es el siguiente correlativo de la serie — el mismo que el backend usa al
+       emitir (FacturacionAppService.EmitirAsync) — así que se imprime YA, sin esperar a SUNAT. Se
+       reserva en pantalla (+1) para que un segundo cobro seguido no repita el número; al terminar se
+       vuelven a leer las series reales. */
+    const campoCorrelativo = kind === 'factura' ? 'correlativoFactura' : 'correlativoBoleta';
+    const numeroPrevisto = kind !== 'notaVenta'
+      ? (series ? `${kind === 'factura' ? series.serieFactura : series.serieBoleta}-${String(series[campoCorrelativo]).padStart(8, '0')}` : undefined)
+      : (siguienteTicket != null ? String(siguienteTicket).padStart(8, '0') : undefined);
+    if (imprimir && !numeroPrevisto) ventanaImpresion = abrirVentanaImpresion();
+    if (numeroPrevisto) {
+      imprimirComprobante(numeroPrevisto);
+      if (kind === 'notaVenta') setSiguienteTicket(n => (n != null ? n + 1 : n));
+      else setSeries(s => (s ? { ...s, [campoCorrelativo]: s[campoCorrelativo] + 1 } : s));
+    }
+
     try {
       setStage('charging');
       const input: ChargeInput = {
@@ -416,11 +517,29 @@ export default function ChargePanel({
         itemsCount: itemsCountForCharge,
         closeAfter: willCloseAfter,
         chargeItems: chargingItems.map(i => ({ pedidoItemId: Number(i.product.id), cantidad: i.quantity })),
-        /* El detalle (N° real + hash) se pide apenas existe la venta, en paralelo con el refresco
-           de mesas/caja que hace el contexto. */
-        onVentaCreada: imprimir && tokenSesion && docType !== 'Nota de venta'
-          ? ventaId => { detallePromise = getComprobanteDetalle(tokenSesion, ventaId); detallePromise.catch(() => {}); }
-          : undefined,
+        /* Apenas el backend registra la venta (antes de refrescar mesas/caja):
+           - Nota de venta: se imprime aquí con su correlativo real (no pasa por SUNAT, responde rápido).
+           - Boleta/factura sin series cargadas: se imprime con el N° que devolvió la emisión.
+           - Boleta/factura ya impresa: si SUNAT asignó otro N° (o quedó pendiente), se avisa. */
+        onVentaCreada: venta => {
+          if (kind === 'notaVenta') {
+            const real = String(venta.correlativoTicket ?? venta.id).padStart(8, '0');
+            if (!numeroPrevisto) imprimirComprobante(real);
+            else if (imprimir && real !== numeroPrevisto) {
+              triggerToast(`La nota de venta quedó con el N° ${real} (el ticket impreso dice ${numeroPrevisto}). Reimprímela desde Comprobantes.`, 'warning');
+            }
+            setSiguienteTicket((venta.correlativoTicket ?? 0) > 0 ? venta.correlativoTicket! + 1 : null);
+          } else if (!numeroPrevisto) {
+            imprimirComprobante(venta.numeroComprobante ?? undefined);
+          } else if (imprimir && venta.numeroComprobante !== numeroPrevisto) {
+            triggerToast(
+              venta.numeroComprobante
+                ? `SUNAT asignó el N° ${venta.numeroComprobante} (el ticket impreso dice ${numeroPrevisto}). Reimprímelo desde Comprobantes.`
+                : `El comprobante quedó pendiente de SUNAT: el N° ${numeroPrevisto} del ticket puede cambiar al reintentar la emisión.`,
+              'warning',
+            );
+          }
+        },
       };
 
       const sale = selected.kind === 'mesa'
@@ -432,65 +551,8 @@ export default function ChargePanel({
         triggerToast(`Vuelto a entregar: ${money(sale.change)}`, 'info');
       }
 
-      if (imprimir) {
-        const ahora = new Date();
-
-        /* El N° real (serie-correlativo) y el hash los asigna el backend/SUNAT al emitir: se leen
-           del comprobante recién creado en vez de mostrar el N° de pedido. */
-        let numero: string | undefined;
-        let hash: string | undefined;
-        let igvDoc = igv;
-        let totalDoc = amountDue;
-        /* Se asigna dentro del callback onVentaCreada: TS no lo ve desde aquí. */
-        const detalle = detallePromise as ReturnType<typeof getComprobanteDetalle> | null;
-        if (detalle) {
-          try {
-            const det = await detalle;
-            numero = det.numero || undefined;
-            hash = det.hashCpe || undefined;
-            igvDoc = det.igv;
-            totalDoc = det.total;
-          } catch { /* se imprime con los datos locales */ }
-        }
-
-        /* Mismo contenido que el QR oficial de SUNAT: RUC|tipo|serie|correlativo|IGV|total|fecha|tipo doc|doc|hash.
-           Una nota de venta no tiene comprobante electrónico: ahí el QR lleva al menú digital. */
-        const [serie, correlativo] = (numero ?? '').split('-');
-        const qrValue = docType !== 'Nota de venta' && serie && correlativo
-          ? [
-              negocioTicket.ruc ?? '', docType === 'Factura' ? '01' : '03', serie, correlativo,
-              igvDoc.toFixed(2), totalDoc.toFixed(2), ahora.toLocaleDateString('en-CA'),
-              customerDoc?.type === 'RUC' ? '6' : customerDoc ? '1' : '0', customerDoc?.number ?? '0', hash ?? '',
-            ].join('|')
-          : `${window.location.origin}/menu`;
-
-        imprimirReciboCliente(clienteBlocks, ticketPaperSize, {
-          businessName: negocioTicket.businessName,
-          businessAddress: negocioTicket.direccion,
-          logoUrl: negocioTicket.logoUrl,
-          ruc: negocioTicket.ruc,
-          docLabel: docType === 'Factura' ? 'FACTURA ELECTRÓNICA' : docType === 'Boleta' ? 'BOLETA ELECTRÓNICA' : 'NOTA DE VENTA',
-          docNumber: numero,
-          clienteDoc: customerDoc?.number,
-          igv: igvDoc,
-          igvPorcentaje,
-          pagos: paymentLines.map(p => ({ metodo: p.method, monto: p.amount })),
-          fecha: ahora.toLocaleDateString('es-PE'),
-          hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-          mozo: selected.waiter ?? cashier,
-          clienteName: customerDoc?.name ?? selected.customer,
-          clientePhone: selected.phone,
-          clienteAddress: selected.address,
-          items: chargingItems.map((i, idx) => ({
-            cantidad: i.quantity, nombre: i.product.name, precio: i.product.price,
-            codigo: i.product.sku || `P${String(idx + 1).padStart(3, '0')}`,
-          })),
-          subtotal: base,
-          total: totalDoc,
-          paymentMethod: paymentLines.map(p => p.method).join(' + '),
-          qrDataUrl: qrToDataUrl(qrValue),
-        }, ventanaImpresion);
-      }
+      /* Respaldo: si no se imprimió antes (sin series cargadas ni N° de SUNAT), sale igual, sin N°. */
+      imprimirComprobante();
 
       if (willCloseAfter) {
         onClosed();
@@ -515,6 +577,13 @@ export default function ChargePanel({
       throw err;
     } finally {
       setStage('idle');
+      /* Re-sincroniza la serie con la API de facturación: confirma el +1 reservado si se emitió, o lo
+         corrige si el cobro falló o la emisión quedó pendiente (el correlativo no se consumió). */
+      if (kind !== 'notaVenta' && tokenSesion) {
+        getSeriesFacturacion(tokenSesion).then(d => { if (d.length > 0) setSeries(d[0]); }).catch(() => {});
+      } else if (kind === 'notaVenta' && tokenSesion) {
+        leerSiguienteTicket(tokenSesion).then(setSiguienteTicket).catch(() => {});
+      }
     }
   };
 
@@ -616,7 +685,7 @@ export default function ChargePanel({
               {chargedAccounts.map((acc, idx) => (
                 <div key={acc.sale.id ?? idx} className="bg-emerald-50 rounded-lg px-3 py-2 text-[11px] space-y-1">
                   <div className="flex justify-between font-bold text-emerald-800">
-                    <span>Cuenta {idx + 1} · {acc.sale.docType ?? 'Sin comprob.'}</span>
+                    <span>Cuenta {idx + 1} · {acc.sale.docType ?? 'Nota de venta'}</span>
                     <span className="font-mono">{money(acc.sale.total)}</span>
                   </div>
                   {acc.sale.comprobante && (
@@ -671,7 +740,7 @@ export default function ChargePanel({
           {([
             { id: 'Boleta' as const,        label: 'Boleta',        icon: <Receipt className="h-3.5 w-3.5" />,  serie: series ? `${series.serieBoleta}-${String(series.correlativoBoleta).padStart(8,'0')}` : null },
             { id: 'Factura' as const,       label: 'Factura',       icon: <FileText className="h-3.5 w-3.5" />, serie: series ? `${series.serieFactura}-${String(series.correlativoFactura).padStart(8,'0')}` : null },
-            { id: 'Nota de venta' as const, label: 'Sin comprob.',  icon: <Ban className="h-3.5 w-3.5" />,      serie: null },
+            { id: 'Nota de venta' as const, label: 'Nota de venta', icon: <Ban className="h-3.5 w-3.5" />,      serie: null },
           ])
             .filter(d => comprobantesElectronicosDisponibles || d.id === 'Nota de venta')
             .map(d => (

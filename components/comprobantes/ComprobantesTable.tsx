@@ -192,7 +192,7 @@ export default function ComprobantesTable({
                                   ? 'text-slate-300 cursor-not-allowed'
                                   : 'text-emerald-600 hover:bg-emerald-50 hover:border-emerald-100'
                               }`}
-                              title={esTicket ? 'No disponible para tickets' : 'Descargar XML'}
+                              title={esTicket ? 'No disponible para notas de venta' : 'Descargar XML'}
                             >
                               <RefreshCw className={`h-4 w-4 ${descargando ? 'animate-spin' : ''}`} />
                             </button>
@@ -213,7 +213,7 @@ export default function ComprobantesTable({
                                   ? 'text-slate-300 cursor-not-allowed'
                                   : 'text-indigo-600 hover:bg-indigo-50 hover:border-indigo-100'
                               }`}
-                              title={esTicket ? 'No disponible para tickets' : 'Descargar CDR'}
+                              title={esTicket ? 'No disponible para notas de venta' : 'Descargar CDR'}
                             >
                               <RefreshCw className={`h-4 w-4 ${descargando ? 'animate-spin' : ''}`} />
                             </button>
@@ -283,7 +283,8 @@ export default function ComprobantesTable({
 
                       {/* Opciones Avanzadas de fila — ocultas si la facturación electrónica está desactivada */}
                       <td className="px-3 py-3.5 text-right relative">
-                        {!usarFacturacionElectronica ? (
+                        {/* Una nota de venta no tiene acciones SUNAT (emitir/reenviar/notas): el menú quedaría vacío. */}
+                        {!usarFacturacionElectronica || esTicket ? (
                           <span className="text-slate-300">—</span>
                         ) : (
                           <button

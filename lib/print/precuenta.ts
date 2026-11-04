@@ -29,7 +29,7 @@ export function imprimirPreCuenta(data: PreCuentaData, paper: '58mm' | '80mm' = 
       <span class="amount">S/. ${money(i.cantidad * i.precioUnitario)}</span>
     </div>`).join('');
 
-  const html = `<!DOCTYPE html><html><head><title>Pre-cuenta</title><style>
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Pre-cuenta</title><style>
     ${thermalCss(paper, paper === '58mm' ? 12 : 13)}
     .center { text-align: center; }
     .sep { border-top: 2px dashed #000; margin: 6px 0; }

@@ -150,7 +150,7 @@ export default function TopBar() {
             return (
               <div key={idx} className="flex items-center gap-1.5">
                 {idx > 0 && (
-                  <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0 stroke-[2]" />
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0 stroke-2" />
                 )}
                 {isLast || !crumb.href ? (
                   <span className="text-slate-800 font-semibold">{crumb.label}</span>

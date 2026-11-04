@@ -30,6 +30,9 @@ export default function ComprobanteDetailModal({
     || '-';
   const tipoLabel = selectedComprobante ? TIPO_COMPROBANTE_LABEL[selectedComprobante.tipo] : '';
   const esNota = selectedComprobante?.tipo === 'NotaCredito' || selectedComprobante?.tipo === 'NotaDebito';
+  /* La nota de venta es un comprobante interno: no es electrónico, no lleva QR/hash SUNAT ni PDF del OSE. */
+  const esTicket = selectedComprobante?.tipo === 'Ticket';
+  const tituloDoc = esTicket ? tipoLabel.toUpperCase() : `${tipoLabel.toUpperCase()} ELECTRÓNICA`;
   const notasRelacionadas = selectedComprobante?.notasRelacionadas ?? [];
   const igvPorcentaje = selectedComprobante?.igvPorcentaje ?? 18;
   const igvFactor = 1 + igvPorcentaje / 100;
@@ -54,7 +57,7 @@ export default function ComprobanteDetailModal({
         open={!!selectedComprobante}
         onClose={() => setSelectedComprobante(null)}
         title={`Visualizar Comprobante: ${selectedComprobante?.numero}`}
-        subtitle={`${tipoLabel} Electrónica · S/ ${selectedComprobante?.monto.toFixed(2)}`}
+        subtitle={`${esTicket ? tipoLabel : `${tipoLabel} Electrónica`} · S/ ${selectedComprobante?.monto.toFixed(2)}`}
         size="lg"
         fullHeight={true}
         footer={
@@ -138,7 +141,7 @@ export default function ComprobanteDetailModal({
                 {/* Info Comprobante */}
                 <div className="space-y-1 mb-3">
                   <div className="font-bold text-center text-xs tracking-wider">
-                    {tipoLabel.toUpperCase()} ELECTRÓNICA
+                    {tituloDoc}
                   </div>
                   <div className="font-bold text-center text-xs">{selectedComprobante.numero}</div>
                   <div className="border-b border-dashed border-slate-400 py-1"></div>
@@ -195,6 +198,11 @@ export default function ComprobanteDetailModal({
                 </div>
 
                 {/* Firma Digital y QR */}
+                {esTicket ? (
+                  <div className="pt-3 text-center text-[9px] text-slate-400 font-sans font-semibold">
+                    Nota de venta interna. No es un comprobante de pago electrónico.
+                  </div>
+                ) : (
                 <div className="flex flex-col items-center justify-center pt-3 text-center space-y-2">
                   <div className="bg-white p-1 border border-slate-200 rounded">
                     <QRCodeSVG
@@ -210,6 +218,7 @@ export default function ComprobanteDetailModal({
                     Representación impresa de la {tipoLabel} Electrónica. Autorizado mediante resolución de SUNAT.
                   </div>
                 </div>
+                )}
               </div>
             ) : (
               /* Formato Documento (A4 o A5) */
@@ -223,7 +232,7 @@ export default function ComprobanteDetailModal({
                   <div className="border-2 border-brand p-3 rounded-lg text-center bg-slate-50 flex flex-col justify-center">
                     <div className="text-xs font-bold text-brand font-mono">R.U.C. {ruc}</div>
                     <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wide mt-1">
-                      {tipoLabel.toUpperCase()} ELECTRÓNICA
+                      {tituloDoc}
                     </div>
                     <div className="text-sm font-extrabold text-slate-900 font-mono mt-1">
                       {selectedComprobante.numero}
@@ -283,6 +292,12 @@ export default function ComprobanteDetailModal({
                 {/* Pie y Resumen de Totales A4 */}
                 <div className="grid grid-cols-12 gap-4 border-t border-slate-200 pt-4">
                   <div className="col-span-8 flex gap-4 items-center">
+                    {esTicket ? (
+                      <div className="text-[9px] font-mono text-slate-500">
+                        Nota de venta interna. No es un comprobante de pago electrónico.
+                      </div>
+                    ) : (
+                    <>
                     <div className="bg-white p-1.5 border border-slate-200 rounded shrink-0">
                       <QRCodeSVG
                         value={`${ruc}|${selectedComprobante.tipo === 'Boleta' ? '03' : '01'}|${selectedComprobante.numero.split('-')[0]}|${selectedComprobante.numero.split('-')[1]}|${selectedComprobante.igv.toFixed(2)}|${selectedComprobante.monto.toFixed(2)}|${selectedComprobante.fecha.split(' ')[0]}|${selectedComprobante.clienteDoc.type === 'RUC' ? '6' : '1'}|${selectedComprobante.clienteDoc.number}`}
@@ -295,6 +310,8 @@ export default function ComprobanteDetailModal({
                         Representación impresa de la {tipoLabel} Electrónica.<br />
                       </div>
                     </div>
+                    </>
+                    )}
                   </div>
                   <div className="col-span-4 space-y-1.5 text-right font-medium">
                     <div className="flex justify-between">
