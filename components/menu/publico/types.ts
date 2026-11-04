@@ -21,6 +21,24 @@ export const LIBRARIES: ('places' | 'geometry')[] = ['places'];
 export { cartLineId, parseCartLineId } from '@/lib/cart/cartLineId';
 import { cartLineId } from '@/lib/cart/cartLineId';
 
+/** Plato del menú público con la forma del catálogo del Comandero, para reutilizar sus tarjetas
+ *  y el modal de personalización (variantes + extras). */
+export function productoMenuToProduct(p: ProductoMenu): Product {
+  return {
+    id: String(p.id),
+    name: p.nombre,
+    price: p.precio,
+    category: p.categoriaNombre,
+    image: p.imagenUrl ?? '',
+    status: 'available',
+    stock: 99,
+    sku: '',
+    unit: 'unidades',
+    variants: p.variantes?.map(v => ({ id: v.id, name: v.nombre, price: v.precio })),
+    extras: p.extras?.map(e => ({ id: e.id, name: e.nombre, price: e.precio })),
+  };
+}
+
 /** Adapta un plato del menú público (y, si eligió, su variante y extras) al producto que usa el carrito. */
 export function productoToCartItem(p: ProductoMenu, varianteId?: number | null, extraIds?: number[]): Product {
   const variante = varianteId ? p.variantes?.find(v => v.id === varianteId) : undefined;

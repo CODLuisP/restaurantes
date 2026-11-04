@@ -120,8 +120,11 @@ export default function CheckoutModal({
                   key={i.product.id}
                   className="py-2 flex justify-between items-center gap-2 text-xs"
                 >
-                  <span className="text-slate-700 font-semibold flex-1 min-w-0 truncate">
-                    {i.product.name}
+                  <span className="text-slate-700 font-semibold flex-1 min-w-0">
+                    <span className="block truncate">{i.product.name}</span>
+                    {i.notas?.trim() && (
+                      <span className="block text-[10px] font-medium text-amber-700 truncate">Nota: {i.notas.trim()}</span>
+                    )}
                   </span>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button

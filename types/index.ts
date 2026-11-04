@@ -183,6 +183,9 @@ export interface ChargeInput {
   closeAfter?: boolean;
   /** Ítems reales (id de pedido_item del backend + cantidad) que cubre este cobro — obligatorio para registrar la venta real. */
   chargeItems: { pedidoItemId: number; cantidad: number }[];
+  /** Se llama apenas el backend registra la venta, ANTES de refrescar mesas/caja — permite
+   *  pedir el detalle del comprobante (N°, hash) en paralelo para imprimir sin esperar. */
+  onVentaCreada?: (ventaId: number) => void;
 }
 
 /* Canal / tipo de pedido */

@@ -7,7 +7,6 @@ import {
   Phone,
   ChevronLeft,
   ChevronRight,
-  Star,
   Clock,
   ShoppingCart,
   Search,
@@ -29,9 +28,9 @@ import { useCheckoutForm } from "@/hooks/menu/useCheckoutForm";
 import { usePlaceOrder } from "@/hooks/menu/usePlaceOrder";
 import CheckoutModal from "@/components/menu/publico/CheckoutModal";
 import OrderSuccessModal from "@/components/menu/publico/OrderSuccessModal";
-import PublicCategory from "@/components/menu/publico/PublicCategory";
+import PublicCatalog, { type GrupoCatalogo } from "@/components/menu/publico/PublicCatalog";
+import PublicOrderPanel from "@/components/menu/publico/PublicOrderPanel";
 import {
-  CATEGORY_ICON_BG,
   productoToCartItem,
   cartLineId,
   type ProductoMenu,
@@ -90,7 +89,6 @@ export default function PublicMenu({
   >([]);
   const [metodosEntrega, setMetodosEntrega] = useState<MetodosEntrega>(DEFAULT_METODOS_ENTREGA);
   const [bannerIndex, setBannerIndex] = useState(0);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [activeTab, setActiveTab] = useState("todos");
   const [time, setTime] = useState("");
 
@@ -98,6 +96,8 @@ export default function PublicMenu({
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [showCheckout, setShowCheckout] = useState(false);
+  /* En móvil el pedido vive en un cajón inferior; en escritorio es la barra lateral derecha. */
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const [isOrderSuccess, setIsOrderSuccess] = useState(false);
   const [lastPlacedOrderId, setLastPlacedOrderId] = useState("");
 
@@ -209,8 +209,6 @@ export default function PublicMenu({
     }))
     .filter((g) => g.items.length > 0);
 
-  const toggle = (key: string) =>
-    setCollapsed((s) => ({ ...s, [key]: !s[key] }));
   const bizNameDisplay = bizName?.trim() || "Carta del Día";
 
   /* Pestañas: Todos + Destacados + cada categoría con platos */
@@ -236,6 +234,14 @@ export default function PublicMenu({
         ? []
         : groupedCategories.filter((g) => g.category === tab);
 
+  /* Grupos que dibuja el catálogo: "Destacados" primero y luego cada categoría visible. */
+  const catalogGroups: GrupoCatalogo[] = [
+    ...(showFeatured
+      ? [{ id: "destacados", titulo: "Destacados", items: featuredItems, destacado: true }]
+      : []),
+    ...visibleGroups.map(({ category, items }) => ({ id: category, titulo: category, items })),
+  ];
+
   const addToCart = (product: ProductoMenu, varianteId?: number | null, extraIds?: number[]) => {
     setCart((prev) => {
       const lineId = cartLineId(product.id, varianteId, extraIds);
@@ -260,6 +266,12 @@ export default function PublicMenu({
             : i,
         )
         .filter((i) => i.quantity > 0),
+    );
+  };
+
+  const updateCartNotas = (productId: string, notas: string) => {
+    setCart((prev) =>
+      prev.map((i) => (i.product.id === productId ? { ...i, notas } : i)),
     );
   };
 
@@ -411,7 +423,7 @@ export default function PublicMenu({
   );
 
   return (
-    <div className="min-h-screen bg-[#f9fafb] selection:bg-brand selection:text-white pb-20 overflow-x-hidden">
+    <div className="min-h-screen bg-[#f9fafb] selection:bg-brand selection:text-white pb-24 lg:pb-0 overflow-x-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-0 pb-6">
         <ProfileHeader
           cover={cover}
@@ -449,71 +461,50 @@ export default function PublicMenu({
             </p>
           </div>
         ) : (
-        <>
-        {/* ── Buscador de Platos ── */}
-        <div className="relative mt-6 max-w-md">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por plato, bebida o ingrediente..."
-            className="input w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 focus:border-brand"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-650"
-              aria-label="Limpiar"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-
-        {/* ── Platos ── */}
-        <div id="carta-platos" className="space-y-3 mt-6">
-          {showFeatured && (
-            <PublicCategory
-              title="Destacados"
-              items={featuredItems}
-              cart={cart}
-              onAdd={addToCart}
-              onUpdateQty={updateCartQty}
-              collapsed={!!collapsed.destacados}
-              onToggle={() => toggle("destacados")}
-              highlight
-              icon={<Star className="h-4 w-4 text-white fill-white" />}
-              iconBg="bg-gradient-to-br from-amber-400 to-fuchsia-500"
-              disabled={!!cierreActivo}
-            />
-          )}
-
-          {visibleGroups.map(({ category, items }) => (
-            <PublicCategory
-              key={category}
-              title={category}
-              items={items}
-              cart={cart}
-              onAdd={addToCart}
-              onUpdateQty={updateCartQty}
-              collapsed={!!collapsed[category]}
-              onToggle={() => toggle(category)}
-              icon={<Utensils className="h-4 w-4" />}
-              iconBg={CATEGORY_ICON_BG[category] ?? "bg-gray-100 text-gray-600"}
-              disabled={!!cierreActivo}
-            />
-          ))}
-
-          {!showFeatured && visibleGroups.length === 0 && (
-            <div className="border border-dashed border-slate-300 rounded-xl py-12 text-center bg-white">
-              <Utensils className="h-6 w-6 text-slate-300 mx-auto mb-2" />
-              <p className="text-sm text-slate-450">
-                No se encontraron platos que coincidan con la búsqueda.
-              </p>
+        <div className="mt-6 lg:flex lg:items-start lg:gap-6">
+          {/* ── Carta: buscador + platos (columna izquierda, como el catálogo del Comandero) ── */}
+          <div className="flex-1 min-w-0">
+            <div className="relative mb-5 max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por plato, bebida o ingrediente..."
+                className="input w-full pl-10 pr-10 py-2.5 bg-white border border-slate-200 focus:border-brand"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-650"
+                  aria-label="Limpiar"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
-          )}
+
+            <div id="carta-platos">
+              <PublicCatalog
+                grupos={catalogGroups}
+                onAdd={addToCart}
+                disabled={!!cierreActivo}
+              />
+            </div>
+          </div>
+
+          {/* ── Pedido (barra lateral derecha en escritorio) ── */}
+          <aside className="hidden lg:block w-96 shrink-0 sticky top-4 h-[calc(100vh-2rem)] rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <PublicOrderPanel
+              cart={cart}
+              cartTotal={cartTotal}
+              onUpdateQty={updateCartQty}
+              onUpdateNotas={updateCartNotas}
+              onClear={() => setCart([])}
+              onCheckout={() => setShowCheckout(true)}
+              disabled={!!cierreActivo}
+            />
+          </aside>
         </div>
-        </>
         )}
 
         {/* Footer */}
@@ -528,23 +519,43 @@ export default function PublicMenu({
         </div>
       </div>
 
-      {/* ── Botón Flotante del Carrito ── */}
+      {/* ── Móvil: barra inferior que abre el pedido en un cajón ── */}
       {cartCount > 0 && cartaActiva && !cierreActivo && (
-        <button
-          onClick={() => setShowCheckout(true)}
-          className="fixed bottom-6 right-6 bg-brand hover:bg-brand-hover text-white px-5 py-4 rounded-full shadow-xl flex items-center gap-3 transition-transform hover:scale-105 active:scale-95 z-45 font-bold cursor-pointer"
-        >
-          <div className="relative">
-            <ShoppingCart className="h-5 w-5" />
-            <span className="absolute -top-2.5 -right-2.5 bg-red-500 text-white text-[9px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2 border-brand font-mono leading-none">
-              {cartCount}
+        <div className="lg:hidden fixed bottom-0 inset-x-0 z-45 p-3 bg-gradient-to-t from-[#f9fafb] via-[#f9fafb]/95 to-transparent">
+          <button
+            onClick={() => setMobileCartOpen(true)}
+            className="w-full bg-brand hover:bg-brand-hover text-white px-5 py-3.5 rounded-2xl shadow-xl flex items-center gap-3 font-bold cursor-pointer"
+          >
+            <div className="relative">
+              <ShoppingCart className="h-5 w-5" />
+              <span className="absolute -top-2.5 -right-2.5 bg-red-500 text-white text-[9px] font-bold h-5 w-5 rounded-full flex items-center justify-center border-2 border-brand font-mono leading-none">
+                {cartCount}
+              </span>
+            </div>
+            <span className="text-sm flex-1 text-left pl-2">Ver pedido</span>
+            <span className="pl-2 border-l border-white/20 text-sm font-mono font-bold">
+              S/. {cartTotal.toFixed(2)}
             </span>
+          </button>
+        </div>
+      )}
+
+      {mobileCartOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setMobileCartOpen(false)} />
+          <div className="relative h-[85vh] rounded-t-3xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom duration-200">
+            <PublicOrderPanel
+              cart={cart}
+              cartTotal={cartTotal}
+              onUpdateQty={updateCartQty}
+              onUpdateNotas={updateCartNotas}
+              onClear={() => { setCart([]); setMobileCartOpen(false); }}
+              onCheckout={() => { setMobileCartOpen(false); setShowCheckout(true); }}
+              disabled={!!cierreActivo}
+              onClose={() => setMobileCartOpen(false)}
+            />
           </div>
-          <span className="text-sm">Ver Pedido</span>
-          <span className="pl-2 border-l border-white/20 text-sm font-mono font-bold">
-            S/. {cartTotal.toFixed(2)}
-          </span>
-        </button>
+        </div>
       )}
 
       <CheckoutModal

@@ -1,6 +1,6 @@
 import { AppProvider } from '@/context/AppContext';
-import { GastosProvider } from '@/context/GastosContext';
 import { SidebarProvider } from '@/context/SidebarContext';
+import { CocinaPedidosProvider } from '@/context/CocinaPedidosContext';
 import Sidebar from '@/components/layout/Sidebar';
 import TopBar from '@/components/layout/TopBar';
 import MainAreaClient from '@/components/layout/MainAreaClient';
@@ -10,7 +10,7 @@ import ToastContainer from '@/components/ui/Toast';
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <AppProvider>
-      <GastosProvider>
+      <CocinaPedidosProvider>
         <SidebarProvider>
           <div className="min-h-screen font-sans bg-brand-medium/3 text-slate-800">
             <Sidebar />
@@ -23,7 +23,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <ToastContainer />
           </div>
         </SidebarProvider>
-      </GastosProvider>
+      </CocinaPedidosProvider>
     </AppProvider>
   );
 }

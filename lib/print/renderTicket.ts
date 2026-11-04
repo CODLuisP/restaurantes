@@ -18,7 +18,7 @@ export interface TicketOrderData {
   clientePhone?: string;
   clienteAddress?: string;
   deliveryTime?: string;
-  items: { cantidad: number; nombre: string; precio?: number; codigo?: string }[];
+  items: { cantidad: number; nombre: string; precio?: number; codigo?: string; extras?: string[]; notas?: string }[];
   /** Formato de comprobante electrónico (bloques "comprobante-cabecera", "totales-comprobante", etc.). */
   ruc?: string;
   docLabel?: string;
@@ -133,7 +133,9 @@ function renderBlock(block: TicketBlock, data: TicketOrderData): string {
         <div style="display:flex;justify-content:space-between;gap:6px;font-weight:bold;padding:2px 0">
           <span style="flex:1;min-width:0;word-break:break-word">${it.cantidad}&nbsp;&nbsp;${esc(it.nombre)}</span>
           ${block.showPrices && it.precio != null ? `<span style="white-space:nowrap">S/. ${it.precio.toFixed(2)}</span>` : ''}
-        </div>`).join('');
+        </div>
+        ${it.extras?.length ? `<div style="padding-left:1.6em;font-size:0.9em;word-break:break-word">+ ${esc(it.extras.join(', '))}</div>` : ''}
+        ${it.notas ? `<div style="padding-left:1.6em;font-size:0.9em;font-weight:bold;word-break:break-word">NOTA: ${esc(it.notas)}</div>` : ''}`).join('');
       inner = `<div style="font-size:${SIZE_PX[block.size ?? 'normal']}">
         <div style="display:flex;justify-content:space-between;font-weight:bold;border-bottom:1px solid #000;padding-bottom:2px;margin-bottom:4px">
           <span>Cant. Producto</span>${block.showPrices ? '<span>Total</span>' : ''}

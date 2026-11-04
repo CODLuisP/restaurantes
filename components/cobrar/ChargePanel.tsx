@@ -14,7 +14,7 @@ import { getSeriesFacturacion, type SeriesSucursal } from '@/lib/api/facturacion
 import { ApiError } from '@/lib/api/client';
 import { getClientes } from '@/lib/api/clientes';
 import type { Cliente } from '@/types/clientes';
-import { imprimirReciboCliente } from '@/lib/print/recibo';
+import { imprimirReciboCliente, abrirVentanaImpresion } from '@/lib/print/recibo';
 import { qrToDataUrl } from '@/lib/print/qrDataUrl';
 import { getComprobanteDetalle } from '@/lib/api/comprobantes';
 export default function ChargePanel({
@@ -379,6 +379,11 @@ export default function ChargePanel({
     const err = validate();
     if (err) { triggerToast(err, 'warning'); return; }
     setImprimiendo(imprimir);
+    /* La ventana se abre en el mismo clic: esperar al cobro (varios segundos con la emisión ante
+       SUNAT) hacía que apareciera tarde o que el navegador la bloqueara como popup. */
+    const ventanaImpresion = imprimir ? abrirVentanaImpresion() : null;
+    let detallePromise: ReturnType<typeof getComprobanteDetalle> | null = null;
+    const tokenSesion = session?.accessToken;
 
     const customerDoc: CustomerDoc | undefined =
       docType === 'Factura'
@@ -411,12 +416,17 @@ export default function ChargePanel({
         itemsCount: itemsCountForCharge,
         closeAfter: willCloseAfter,
         chargeItems: chargingItems.map(i => ({ pedidoItemId: Number(i.product.id), cantidad: i.quantity })),
+        /* El detalle (N° real + hash) se pide apenas existe la venta, en paralelo con el refresco
+           de mesas/caja que hace el contexto. */
+        onVentaCreada: imprimir && tokenSesion && docType !== 'Nota de venta'
+          ? ventaId => { detallePromise = getComprobanteDetalle(tokenSesion, ventaId); detallePromise.catch(() => {}); }
+          : undefined,
       };
 
       const sale = selected.kind === 'mesa'
         ? await chargeTable(selected.ref, input)
         : await chargeOrder(selected.ref, input);
-      if (!sale) return;
+      if (!sale) { ventanaImpresion?.close(); return; }
 
       if (sale.change != null && sale.change > 0) {
         triggerToast(`Vuelto a entregar: ${money(sale.change)}`, 'info');
@@ -431,10 +441,11 @@ export default function ChargePanel({
         let hash: string | undefined;
         let igvDoc = igv;
         let totalDoc = amountDue;
-        const token = session?.accessToken;
-        if (token) {
+        /* Se asigna dentro del callback onVentaCreada: TS no lo ve desde aquí. */
+        const detalle = detallePromise as ReturnType<typeof getComprobanteDetalle> | null;
+        if (detalle) {
           try {
-            const det = await getComprobanteDetalle(token, Number(sale.id));
+            const det = await detalle;
             numero = det.numero || undefined;
             hash = det.hashCpe || undefined;
             igvDoc = det.igv;
@@ -478,7 +489,7 @@ export default function ChargePanel({
           total: totalDoc,
           paymentMethod: paymentLines.map(p => p.method).join(' + '),
           qrDataUrl: qrToDataUrl(qrValue),
-        });
+        }, ventanaImpresion);
       }
 
       if (willCloseAfter) {
@@ -499,6 +510,9 @@ export default function ChargePanel({
       setDocNumber('');
       setDocName('');
       clearCliente();
+    } catch (err) {
+      ventanaImpresion?.close();
+      throw err;
     } finally {
       setStage('idle');
     }

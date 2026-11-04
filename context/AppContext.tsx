@@ -25,6 +25,7 @@ import type { PedidoDto } from '@/lib/api/pedidos';
 import { crearVenta } from '@/lib/api/ventas';
 import { ApiError } from '@/lib/api/client';
 import { imprimirComanda, imprimirCancelacion } from '@/lib/print/comanda';
+import { itemsComandaDePedido, itemsComandaDeCarrito } from '@/lib/print/itemsComanda';
 
 /** Boleta/Factura/Nota de venta (UI) → ticket/boleta/factura (backend). */
 const DOC_TYPE_TO_BACKEND: Record<DocType, string> = {
@@ -221,16 +222,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (ok && impresoraCocina) {
         const ahora = new Date();
         const itemsAImprimir = eraPendienteConfirmacion && pedido
-          ? pedido.items.map(i => ({
-              nombre: [
-                i.productoNombre ?? i.comboNombre ?? 'Producto',
-                i.varianteNombre ? `(${i.varianteNombre})` : '',
-                i.extras.length > 0 ? `+ ${i.extras.map(e => e.nombre).join(', ')}` : '',
-              ].filter(Boolean).join(' '),
-              cantidad: i.cantidad,
-              precio: i.precioUnitario,
-            }))
-          : items.map(i => ({ nombre: i.product.name, cantidad: i.quantity, precio: i.product.price }));
+          ? itemsComandaDePedido(pedido.items)
+          : itemsComandaDeCarrito(items);
 
         imprimirComanda(cocinaBlocks, ticketPaperSize, {
           businessName: ticketBusinessName,
@@ -268,15 +261,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           clienteName: pedido.nombreCliente ?? undefined,
           fecha: ahora.toLocaleDateString('es-PE'),
           hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-          items: pedido.items.map(i => ({
-            nombre: [
-              i.productoNombre ?? i.comboNombre ?? 'Producto',
-              i.varianteNombre ? `(${i.varianteNombre})` : '',
-              i.extras.length > 0 ? `+ ${i.extras.map(e => e.nombre).join(', ')}` : '',
-            ].filter(Boolean).join(' '),
-            cantidad: i.cantidad,
-            precio: i.precioUnitario,
-          })),
+          items: itemsComandaDePedido(pedido.items),
         });
       }
     },
@@ -341,15 +326,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           clienteName: pedido.nombreCliente ?? undefined,
           fecha: ahora.toLocaleDateString('es-PE'),
           hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-          items: pedido.items.map(i => ({
-            nombre: [
-              i.productoNombre ?? i.comboNombre ?? 'Producto',
-              i.varianteNombre ? `(${i.varianteNombre})` : '',
-              i.extras.length > 0 ? `+ ${i.extras.map(e => e.nombre).join(', ')}` : '',
-            ].filter(Boolean).join(' '),
-            cantidad: i.cantidad,
-            precio: i.precioUnitario,
-          })),
+          items: itemsComandaDePedido(pedido.items),
         });
       }
     },
@@ -490,6 +467,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           numDoc: input.customerDoc?.number ?? null,
           razonSocial: input.customerDoc?.name ?? null,
         });
+        input.onVentaCreada?.(venta.id);
 
         const sale: SalesHistory = {
           id: String(venta.id),
@@ -609,7 +587,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           clienteName: info.customer,
           fecha: ahora.toLocaleDateString('es-PE'),
           hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-          items: items.map(i => ({ nombre: i.product.name, cantidad: i.quantity, precio: i.product.price })),
+          items: itemsComandaDeCarrito(items),
         });
       }
       return order;
@@ -631,16 +609,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const order = activeOrders.find(o => o.id === orderId);
         const ahora = new Date();
         const itemsAImprimir = eraPendienteConfirmacion && pedido
-          ? pedido.items.map(i => ({
-              nombre: [
-                i.productoNombre ?? i.comboNombre ?? 'Producto',
-                i.varianteNombre ? `(${i.varianteNombre})` : '',
-                i.extras.length > 0 ? `+ ${i.extras.map(e => e.nombre).join(', ')}` : '',
-              ].filter(Boolean).join(' '),
-              cantidad: i.cantidad,
-              precio: i.precioUnitario,
-            }))
-          : items.map(i => ({ nombre: i.product.name, cantidad: i.quantity, precio: i.product.price }));
+          ? itemsComandaDePedido(pedido.items)
+          : itemsComandaDeCarrito(items);
 
         imprimirComanda(cocinaBlocks, ticketPaperSize, {
           businessName: ticketBusinessName,
@@ -709,6 +679,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           numDoc: input.customerDoc?.number ?? null,
           razonSocial: input.customerDoc?.name ?? null,
         });
+        input.onVentaCreada?.(venta.id);
 
         const sale: SalesHistory = {
           id: String(venta.id),

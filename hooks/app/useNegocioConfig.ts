@@ -54,6 +54,7 @@ export function useNegocioConfig() {
   const [metodosEntrega, setMetodosEntrega] = useState<MetodosEntrega>(DEFAULT_METODOS_ENTREGA);
   const [igvPorcentaje, setIgvPorcentaje] = useState(18);
   const [impresoraCocina, setImpresoraCocina] = useState(false);
+  const [logoMenu, setLogoMenu] = useState<string | undefined>(undefined);
   const [sucursalSincronizada, setSucursalSincronizada] = useState<boolean | null>(null);
   const [empresa, setEmpresa] = useState<EmpresaDto | null>(null);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
@@ -78,6 +79,7 @@ export function useNegocioConfig() {
       setMetodosEntrega(parseMetodosEntrega(c.metodosEntregaJson));
       setImpresoraCocina(c.impresoraCocina ?? false);
       setSucursalSincronizada(c.sincronizadoFacturacion ?? null);
+      setLogoMenu(c.logoUrl?.trim() || undefined);
     }
     if (emp.status === 'fulfilled') setEmpresa(emp.value);
     if (sucs.status === 'fulfilled') setSucursales(sucs.value);
@@ -120,10 +122,10 @@ export function useNegocioConfig() {
 
   const negocioTicket = useMemo<NegocioTicket>(() => ({
     businessName: empresa ? (empresa.razonSocial || empresa.nombreComercial || empresa.nombre || undefined) : undefined,
-    logoUrl: empresa?.logoUrl ?? undefined,
+    logoUrl: logoMenu, // el logo del Menú Digital de la sucursal
     ruc: empresa?.ruc || undefined,
     direccion: empresa ? (empresa.direccionCompleta || empresa.direccion || undefined) : undefined,
-  }), [empresa]);
+  }), [empresa, logoMenu]);
 
   return {
     metodosPago, metodosEntrega, igvPorcentaje, impresoraCocina, sucursalSincronizada,

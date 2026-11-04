@@ -2,12 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSession } from 'next-auth/react';
-import { ImagePlus, Pencil, Printer, Search, Loader2, KeyRound, ShieldAlert } from 'lucide-react';
+import { Pencil, Printer, Search, Loader2, KeyRound, ShieldAlert } from 'lucide-react';
 import { Input, Toggle, Button, Spinner, Modal, Alert } from '@/components/ui';
 import { useApp } from '@/context/AppContext';
 import { updateEmpresa } from '@/lib/api/empresas';
-import { resizeImageToBlob, subirImagenProducto, extractCloudflareImageId, eliminarImagenProductoCloudflare } from '@/lib/uploadImagen';
-import LogoCropModal from './LogoCropModal';
 
 type PaperSize = '58mm' | '80mm';
 const PAPER_SIZES: { id: PaperSize; label: string }[] = [
@@ -42,16 +40,12 @@ export default function DatosTab() {
   const [condicion, setCondicion] = useState('');
   const [estadoContribuyente, setEstadoContribuyente] = useState('');
   const [direccionCompleta, setDireccionCompleta] = useState('');
-  const [logoUrl, setLogoUrl] = useState('');
   const [paperSize, setPaperSize] = useState<PaperSize>('80mm');
   const [autoAceptar, setAutoAceptar] = useState(false);
   const [usarFacturacionElectronica, setUsarFacturacionElectronica] = useState(false);
   const [consultando, setConsultando] = useState(false);
   const [saving, setSaving] = useState(false);
   const loading = negocioConfigLoading && !empresa;
-  const logoInputRef = useRef<HTMLInputElement>(null);
-  const [logoSource, setLogoSource] = useState<string | null>(null);
-  const [cropOpen, setCropOpen] = useState(false);
 
   /* La empresa viene de AppContext; el formulario se llena una sola vez al abrir la pestaña
      (los refrescos posteriores del contexto no pisan lo que el usuario está editando). */
@@ -63,7 +57,7 @@ export default function DatosTab() {
     setRuc(e.ruc); setRazonSocial(e.razonSocial); setNombreComercial(e.nombreComercial);
     setDireccion(e.direccion || ''); setDepartamento(e.departamento); setProvincia(e.provincia); setDistrito(e.distrito);
     setCondicion(e.condicion || ''); setEstadoContribuyente(e.estadoContribuyente || '');
-    setDireccionCompleta(e.direccionCompleta || ''); setLogoUrl(e.logoUrl || '');
+    setDireccionCompleta(e.direccionCompleta || '');
     setPaperSize((e.paperSize as PaperSize) || '80mm'); setAutoAceptar(e.autoAceptarPedidos);
     setUsarFacturacionElectronica(e.usarFacturacionElectronica);
   }, [empresa]);
@@ -98,7 +92,8 @@ export default function DatosTab() {
     try {
       await updateEmpresa(token, empresa.id, {
         nombre: nombreComercial || razonSocial || empresa.nombre, ruc,
-        direccion: direccion || null, logoUrl: logoUrl || null, activo: empresa.activo,
+        direccion: direccion || null, logoUrl: empresa.logoUrl, // el logo ya no se edita aquí (se usa el de Menú Digital); el PUT no debe borrarlo
+        activo: empresa.activo,
         razonSocial: razonSocial || null, nombreComercial: nombreComercial || null,
         departamento: departamento || null, provincia: provincia || null, distrito: distrito || null,
         direccionCompleta: direccionCompleta || null, condicion: condicion || null,
@@ -136,18 +131,6 @@ export default function DatosTab() {
     finally { setSavingApiKey(false); }
   };
 
-  const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; setLogoSource(URL.createObjectURL(file)); setCropOpen(true); e.target.value = ''; };
-  const handleCropApply = async (dataUrl: string) => {
-    try {
-      const blob = await (await fetch(dataUrl)).blob();
-      const resized = await resizeImageToBlob(new File([blob], 'logo.jpg', { type: 'image/jpeg' }), 400, 400, 0.8);
-      const subida = await subirImagenProducto(resized);
-      if (logoUrl) { const id = extractCloudflareImageId(logoUrl); if (id) eliminarImagenProductoCloudflare(id); }
-      setLogoUrl(subida.url); triggerToast('Logo actualizado.', 'success');
-    } catch { triggerToast('Error al subir el logo.', 'error'); }
-    setCropOpen(false);
-  };
-
   if (loading) {
     return (
       <div className="py-16 flex flex-col items-center justify-center gap-3">
@@ -159,15 +142,7 @@ export default function DatosTab() {
 
   return (
     <div className="space-y-2">
-      <SectionHeader icon={<ImagePlus className="h-3.5 w-3.5 text-slate-400" />} title="Logo para comprobantes" description="PNG cuadrado, se imprimirá en boletas y facturas." noBorder />
-      <div className="flex items-center gap-4">
-        <button type="button" onClick={() => logoInputRef.current?.click()} className="group/logo relative h-20 w-20 shrink-0 rounded-xl overflow-hidden border-2 border-dashed border-slate-200 hover:border-brand bg-slate-50 flex items-center justify-center transition-colors">
-          {logoUrl ? <img src={logoUrl} alt="Logo" className="h-full w-full object-contain p-1.5 rounded-lg" referrerPolicy="no-referrer" /> : <ImagePlus className="h-5 w-5 text-slate-300" />}
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/logo:opacity-100 flex items-center justify-center transition-opacity rounded-lg"><Pencil className="h-4 w-4 text-white" /></div>
-        </button>
-        <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoSelect} className="hidden" />
-      </div>
-      <SectionHeader icon={<Search className="h-3.5 w-3.5 text-slate-400" />} title="Datos fiscales" description="Obtenidos de SUNAT vía RUC." />
+      <SectionHeader icon={<Search className="h-3.5 w-3.5 text-slate-400" />} title="Datos fiscales" description="Obtenidos de SUNAT vía RUC." noBorder />
       <div className="flex gap-2 items-end">
         <div className="flex-1"><Input label="RUC" value={ruc} onChange={e => setRuc(e.target.value.replace(/\D/g, '').slice(0, 11))} placeholder="20512528458" /></div>
         <Button onClick={handleConsultarRuc} disabled={consultando || ruc.length !== 11} className="shrink-0">{consultando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Consultar</Button>
@@ -237,7 +212,6 @@ export default function DatosTab() {
       )}
 
       <div className="flex justify-end pt-4"><Button onClick={handleSave} disabled={saving}>{saving ? 'Guardando...' : 'Guardar cambios'}</Button></div>
-      <LogoCropModal open={cropOpen} onClose={() => setCropOpen(false)} source={logoSource} onApply={handleCropApply} />
 
       <Modal
         open={apiKeyConfirmOpen}
