@@ -10,6 +10,7 @@ export default function ProductCard({
   onToggleFeatured,
   onToggleAvailable,
   isFeatured,
+  readOnly = false,
 }: {
   item: ProductoDto;
   onEdit: () => void;
@@ -17,6 +18,8 @@ export default function ProductCard({
   onToggleFeatured: () => void;
   onToggleAvailable: () => void;
   isFeatured: boolean;
+  /** Solo consulta: sin acciones de edición (rol mozo, cocinero, etc.). */
+  readOnly?: boolean;
 }) {
   const disponible = item.disponible ?? true;
   return (
@@ -53,8 +56,9 @@ export default function ProductCard({
         {isFeatured && disponible && (
           <button
             onClick={onToggleFeatured}
-            className="absolute top-1.5 left-1.5 h-5.5 w-5.5 bg-amber-400 text-white rounded-full font-bold flex items-center justify-center shadow-xs hover:bg-amber-500 transition-colors"
-            title="Quitar de destacados"
+            disabled={readOnly}
+            className="absolute top-1.5 left-1.5 h-5.5 w-5.5 bg-amber-400 text-white rounded-full font-bold flex items-center justify-center shadow-xs hover:bg-amber-500 transition-colors disabled:cursor-default disabled:hover:bg-amber-400"
+            title={readOnly ? "Destacado" : "Quitar de destacados"}
           >
             <Star className="h-3 w-3 fill-white" />
           </button>
@@ -65,7 +69,7 @@ export default function ProductCard({
         </span>
 
         {/* En pantallas táctiles no hay "hover": las acciones quedan siempre visibles. */}
-        <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
+        {!readOnly && <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity">
           <button
             onClick={onEdit}
             className="h-6.5 w-6.5 rounded-md bg-white/95 text-slate-600 hover:text-brand flex items-center justify-center shadow-xs"
@@ -91,7 +95,7 @@ export default function ProductCard({
           >
             <Trash2 className="w-3 h-3" />
           </button>
-        </div>
+        </div>}
       </div>
 
       <div className="p-2.5 flex-1 flex flex-col justify-between">
@@ -111,7 +115,7 @@ export default function ProductCard({
           >
             {disponible ? "Disponible" : "Agotado"}
           </span>
-          <Toggle checked={disponible} onChange={() => onToggleAvailable()} />
+          {!readOnly && <Toggle checked={disponible} onChange={() => onToggleAvailable()} />}
         </div>
       </div>
     </div>

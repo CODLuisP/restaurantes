@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { AppProvider } from '@/context/AppContext';
 import { SidebarProvider } from '@/context/SidebarContext';
 import { CocinaPedidosProvider } from '@/context/CocinaPedidosContext';
@@ -15,7 +16,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="min-h-screen font-sans bg-brand-medium/3 text-slate-800">
             <Sidebar />
             <MainAreaClient>
-              <TopBar />
+              {/* TopBar lee los query params (useSearchParams): requiere Suspense para el build estático. */}
+              <Suspense fallback={<div className="h-16 bg-white border-b border-border-card" />}>
+                <TopBar />
+              </Suspense>
               <main className="flex-1 p-4">
                 <AuthGuard>{children}</AuthGuard>
               </main>

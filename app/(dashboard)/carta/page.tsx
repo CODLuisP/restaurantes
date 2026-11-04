@@ -93,8 +93,9 @@ export default function CartaPage() {
       </div>
 
       {/* Content */}
-      {/* `inert` (no solo pointer-events) para que tampoco se pueda editar con teclado (Tab + Enter). */}
-      <div className={`mt-4 ${readOnly ? 'select-none' : ''}`} inert={readOnly}>
+      {/* En solo lectura los controles de edición no se renderizan (ProductosTab/readOnly), así que
+          la carta sigue navegable: buscar, cambiar de categoría, expandir y ver la vista previa. */}
+      <div className="mt-4">
         {(tab === 'carta' || readOnly) && (
           <ProductosTab
             onGoToImportar={() => changeTab('importar')}

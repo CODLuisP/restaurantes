@@ -26,6 +26,8 @@ interface MenuHeaderSectionProps {
   catTabs: ProfileTab[];
   activeTab: string;
   onTabChange: (id: string) => void;
+  /** Solo consulta (mozo, cocinero…): sin edición de logo, nombre, banners ni contacto. */
+  readOnly?: boolean;
 }
 
 /** Un horariosJson corrupto no debe impedir que cargue el resto de la cabecera. */
@@ -37,7 +39,7 @@ function parseHorarios(json?: string | null) {
 /** Cabecera del menú digital: banners/cover, datos del negocio, redes sociales y horarios. */
 export default function MenuHeaderSection({
   sucursalId, onGoToBanners,
-  catTabs, activeTab, onTabChange,
+  catTabs, activeTab, onTabChange, readOnly = false,
 }: MenuHeaderSectionProps) {
   const router = useRouter();
   const { data: session } = useSession();
@@ -239,6 +241,10 @@ export default function MenuHeaderSection({
             </>
           )}
         </>
+      ) : readOnly ? (
+        <div className="absolute inset-0 flex items-center justify-center text-white/50">
+          <ImageIcon className="h-6 w-6" />
+        </div>
       ) : (
         <button
           type="button"
@@ -251,18 +257,34 @@ export default function MenuHeaderSection({
           </span>
         </button>
       )}
-      <button
-        type="button"
-        onClick={onGoToBanners}
-        className="absolute top-3 right-3 flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-white/90 text-slate-700 hover:bg-white transition-colors shadow-sm cursor-pointer"
-      >
-        <ImageIcon className="h-3.5 w-3.5" /> Banners
-      </button>
+      {!readOnly && (
+        <button
+          type="button"
+          onClick={onGoToBanners}
+          className="absolute top-3 right-3 flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-white/90 text-slate-700 hover:bg-white transition-colors shadow-sm cursor-pointer"
+        >
+          <ImageIcon className="h-3.5 w-3.5" /> Banners
+        </button>
+      )}
     </>
   );
 
   const headerSubtitle = (
     <div className="space-y-0.5">
+      {readOnly ? (
+        <div className="flex items-center gap-3 flex-wrap text-xs text-slate-500">
+          {sucursalDireccion && (
+            <span className="flex items-center gap-1.5 truncate">
+              <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" /> {sucursalDireccion}
+            </span>
+          )}
+          {sucursalTelefono && (
+            <span className="flex items-center gap-1">
+              <Phone className="h-3 w-3 text-slate-400" /> {sucursalTelefono}
+            </span>
+          )}
+        </div>
+      ) : (
       <div className="flex items-center gap-1.5 flex-wrap truncate">
         {sucursalDireccion ? (
           <button
@@ -315,6 +337,7 @@ export default function MenuHeaderSection({
           )}
         </button>
       </div>
+      )}
     </div>
   );
 
@@ -339,12 +362,12 @@ export default function MenuHeaderSection({
       <ProfileHeader
         cover={cover}
         logo={sucursalLogo}
-        avatarEditable
-        onAvatarClick={() => logoInputRef.current?.click()}
+        avatarEditable={!readOnly}
+        onAvatarClick={readOnly ? undefined : () => logoInputRef.current?.click()}
         name={sucursalNombre || "Configura el nombre de tu negocio"}
         nameMuted={!sucursalNombre}
-        nameEditable
-        onNameClick={openBusinessForm}
+        nameEditable={!readOnly}
+        onNameClick={readOnly ? undefined : openBusinessForm}
         subtitle={headerSubtitle}
         headerActions={headerActions}
         tabs={catTabs}

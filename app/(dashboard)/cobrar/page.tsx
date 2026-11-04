@@ -15,7 +15,7 @@ import { getVentas } from '@/lib/api/ventas';
 import { toFechaParam } from '@/lib/api/reportes';
 
 export default function CobrarPage() {
-  const { tables, activeOrders, sucursalCajaAbierta: isCajaOpen, metodosEntrega, cobrosEnCurso } = useApp();
+  const { tables, activeOrders, sucursalCajaAbierta: isCajaOpen, metodosEntrega, cobrosEnCurso, impresoraCocina } = useApp();
   const { currentUser } = useAuth();
   const { data: authSession } = useSession();
   const router = useRouter();
@@ -221,7 +221,7 @@ export default function CobrarPage() {
                     </div>
                     <p className="text-sm font-bold text-slate-800 mt-1.5">{c.kind === 'mesa' ? `Mesa ${c.label}` : c.customer}</p>
                     <p className="text-[10px] text-slate-400 font-mono">{c.kind === 'mesa' ? `Mozo: ${c.waiter ?? '—'}` : `Pedido #${c.ref}`}</p>
-                    {c.kind === 'mesa' && c.pedidoEstado && c.pedidoEstado !== 'entregado' && (
+                    {!impresoraCocina && c.kind === 'mesa' && c.pedidoEstado && c.pedidoEstado !== 'entregado' && (
                       <span className="mt-1.5 inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full uppercase">
                         Esperando entrega
                       </span>

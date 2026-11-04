@@ -351,6 +351,7 @@ export default function ProductosTab({
         catTabs={catTabs}
         activeTab={effectiveCat}
         onTabChange={setCatTab}
+        readOnly={readOnly}
       />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
@@ -392,14 +393,14 @@ export default function ProductosTab({
             Agrega tu primer plato para empezar a construir el menú digital.
             También puedes importarlos desde una lista.
           </p>
-          <div className="flex items-center gap-2 mt-1">
+          {!readOnly && <div className="flex items-center gap-2 mt-1">
             <button onClick={onGoToImportar} className="btn-secondary">
               <Upload className="h-3.5 w-3.5" /> Importar
             </button>
             <button onClick={() => openAdd()} className="btn-primary">
               <Plus className="h-3.5 w-3.5" /> Agregar producto
             </button>
-          </div>
+          </div>}
         </div>
       ) : (
         <div className="space-y-3">
@@ -418,6 +419,7 @@ export default function ProductosTab({
               onToggleFeatured={toggleFeatured}
               onToggleAvailable={toggleDisponible}
               featuredIds={featuredIds}
+              readOnly={readOnly}
             />
           )}
 
@@ -436,6 +438,7 @@ export default function ProductosTab({
               onToggleFeatured={toggleFeatured}
               onToggleAvailable={toggleDisponible}
               featuredIds={featuredIds}
+              readOnly={readOnly}
               menuOpen={openMenuFor === category}
               onMenuToggle={() => setOpenMenuFor((m) => (m === category ? null : category))}
               onDeleteCategory={() => handleDeleteCategory(category, items.length)}

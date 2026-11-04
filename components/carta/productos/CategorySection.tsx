@@ -21,6 +21,7 @@ interface CategorySectionProps {
   onMenuToggle?: () => void;
   onDeleteCategory?: () => void;
   onAdd?: () => void;
+  readOnly?: boolean;
 }
 
 export default function CategorySection({
@@ -40,6 +41,7 @@ export default function CategorySection({
   onMenuToggle,
   onDeleteCategory,
   onAdd,
+  readOnly = false,
 }: CategorySectionProps) {
   const availableCount = items.filter((i) => i.disponible ?? true).length;
 
@@ -80,7 +82,7 @@ export default function CategorySection({
               ` · ${availableCount} disponibles`}
           </span>
         </button>
-        {onAdd && (
+        {!readOnly && onAdd && (
           <button
             type="button"
             onClick={onAdd}
@@ -91,7 +93,7 @@ export default function CategorySection({
             <Plus className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Producto</span>
           </button>
         )}
-        {onMenuToggle && (
+        {!readOnly && onMenuToggle && (
           <div className="relative shrink-0" ref={menuRef}>
             <button
               type="button"
@@ -143,6 +145,7 @@ export default function CategorySection({
                     onToggleAvailable(item.id, !item.disponible)
                   }
                   isFeatured={featuredIds.has(item.id)}
+                  readOnly={readOnly}
                 />
               ))}
             </div>
