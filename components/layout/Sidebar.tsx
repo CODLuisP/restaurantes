@@ -131,8 +131,8 @@ export default function Sidebar() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/33.png" alt="" className="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none" />
           <div className="absolute inset-0 bg-brand-dark/60 pointer-events-none" />
-          {/* Logo: campana blanca sobre verde muy oscuro, para que resalte sobre el verde del menú. */}
-          <div className={`relative rounded-xl bg-[#052A18] ring-1 ring-white/25 shadow-md shadow-black/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-all ${isCollapsed ? 'w-11 h-11' : 'w-12 h-12'}`}>
+          {/* Logo: campana blanca sin fondo, directamente sobre el header. */}
+          <div className={`relative flex items-center justify-center shrink-0 group-hover:scale-105 transition-all ${isCollapsed ? 'w-11 h-11' : 'w-12 h-12'}`}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/campana-blanco-transparente.png" alt="RestoFly" className={isCollapsed ? 'w-8 h-8' : 'w-9 h-9'} />
           </div>

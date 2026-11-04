@@ -30,6 +30,19 @@ async function leerSiguienteTicket(token: string): Promise<number | null> {
   const m = /#(\d+)$/.exec(ultimo.numero);
   return m ? Number(m[1]) + 1 : null;
 }
+
+/* Próximo N° ya "gastado" en tickets impresos cuyo cobro sigue en la cola de segundo plano. Vive a
+   nivel de módulo porque el panel se desmonta al pasar a otra mesa: así el siguiente cobro no repite
+   el número aunque la API de facturación todavía no lo haya consumido. Se limpia al vaciarse la cola. */
+const reservas = { correlativoBoleta: 0, correlativoFactura: 0, ticket: 0 };
+const conReservas = (s: SeriesSucursal): SeriesSucursal => ({
+  ...s,
+  correlativoBoleta: Math.max(s.correlativoBoleta, reservas.correlativoBoleta),
+  correlativoFactura: Math.max(s.correlativoFactura, reservas.correlativoFactura),
+});
+const ticketConReserva = (n: number | null): number | null =>
+  n == null ? (reservas.ticket || null) : Math.max(n, reservas.ticket);
+
 export default function ChargePanel({
   selected, isCajaOpen, cashier, onAddItems, onClosed,
 }: {
@@ -40,7 +53,7 @@ export default function ChargePanel({
   onClosed: () => void;
 }) {
   const {
-    chargeTable, chargeOrder, triggerToast, metodosPago, igvPorcentaje, impresoraCocina,
+    chargeTable, chargeOrder, encolarCobro, hayCobrosEnCurso, triggerToast, metodosPago, igvPorcentaje, impresoraCocina,
     usarFacturacionElectronica, sucursalSincronizada, comprobanteBlocks, ticketPaperSize, negocioTicket,
   } = useApp();
   const { data: session } = useSession();
@@ -59,7 +72,7 @@ export default function ChargePanel({
         try {
           const data = await getSeriesFacturacion(token);
           if (cancelado) return;
-          if (data.length > 0) setSeries(data[0]);
+          if (data.length > 0) setSeries(conReservas(data[0]));
           return;
         } catch (err) {
           // 4xx = problema de configuración (ej. empresa sin API key de facturación): reintentar no
@@ -83,7 +96,7 @@ export default function ChargePanel({
     const token = session?.accessToken;
     if (!token) return;
     let cancelado = false;
-    leerSiguienteTicket(token).then(n => { if (!cancelado) setSiguienteTicket(n); }).catch(() => {});
+    leerSiguienteTicket(token).then(n => { if (!cancelado) setSiguienteTicket(ticketConReserva(n)); }).catch(() => {});
     return () => { cancelado = true; };
   }, [session?.accessToken]);
 
@@ -113,7 +126,8 @@ export default function ChargePanel({
 
   /* Cuentas ya cobradas en esta sesión de división (se muestran en un desplegable para no
      ocupar espacio). Solo tiene sentido mientras la mesa sigue abierta con cuentas pendientes. */
-  const [chargedAccounts, setChargedAccounts] = useState<{ sale: SalesHistory; itemLabels: string[] }[]>([]);
+  /* pendiente=true: la cuenta ya se cobró en pantalla pero la venta aún se registra en segundo plano. */
+  const [chargedAccounts, setChargedAccounts] = useState<{ sale: SalesHistory; itemLabels: string[]; pendiente?: boolean }[]>([]);
   const [showChargedAccounts, setShowChargedAccounts] = useState(false);
 
   /* ── Comprobante ── */
@@ -302,9 +316,6 @@ export default function ChargePanel({
     });
   };
 
-  const [stage, setStage] = useState<'idle' | 'charging'>('idle');
-  const [imprimiendo, setImprimiendo] = useState(false);
-  const submitting = stage !== 'idle';
 
   /* Si algún método usado se deshabilita (o carga la config después del primer render), vuelve a
      una sola línea con el primero disponible en vez de dejar seleccionado algo que ya no se acepta. */
@@ -383,9 +394,9 @@ export default function ChargePanel({
     if (payments.length === 1) {
       for (let i = 0; i < payments.length; i++) {
         if (payments[i].method !== 'Efectivo') continue;
+        // Vacío = pagó exacto (es lo que muestra el campo por defecto).
         const rec = payments[i].received === '' ? null : Number(payments[i].received);
-        if (rec == null) return 'Ingresa el monto recibido en efectivo.';
-        if (rec < lineAmount(i)) return 'El efectivo recibido es menor al monto de esa línea.';
+        if (rec != null && rec < lineAmount(i)) return 'El efectivo recibido es menor al monto de esa línea.';
       }
     }
     if (!selected.sesionMesaId) {
@@ -401,7 +412,6 @@ export default function ChargePanel({
   const doCharge = async (imprimir: boolean) => {
     const err = validate();
     if (err) { triggerToast(err, 'warning'); return; }
-    setImprimiendo(imprimir);
     /* Ventana vinculada "Generando comprobante…": solo cuando aún no se sabe el N° y hay que esperar
        al cobro para imprimir (se abre en el mismo clic para que el navegador no la bloquee). Si el N°
        ya se conoce, el ticket va en una ventana independiente que no congela esta página. */
@@ -421,7 +431,8 @@ export default function ChargePanel({
     const paymentLines: PaymentLine[] = payments.map((p, i) => ({
       method: p.method,
       amount: lineAmount(i),
-      received: p.method === 'Efectivo' && p.received !== '' ? Number(p.received) : undefined,
+      // Efectivo sin monto escrito = pagó exacto.
+      received: p.method !== 'Efectivo' ? undefined : p.received !== '' ? Number(p.received) : lineAmount(i),
       numeroOperacion: p.method !== 'Efectivo' && p.numeroOperacion.trim() ? p.numeroOperacion.trim() : undefined,
       entidadBancaria: p.method !== 'Efectivo' && p.entidadBancaria.trim() ? p.entidadBancaria.trim() : undefined,
       observacion: p.method !== 'Efectivo' && p.observacion.trim() ? p.observacion.trim() : undefined,
@@ -500,12 +511,28 @@ export default function ChargePanel({
     if (imprimir && !numeroPrevisto) ventanaImpresion = abrirVentanaImpresion();
     if (numeroPrevisto) {
       imprimirComprobante(numeroPrevisto);
-      if (kind === 'notaVenta') setSiguienteTicket(n => (n != null ? n + 1 : n));
-      else setSeries(s => (s ? { ...s, [campoCorrelativo]: s[campoCorrelativo] + 1 } : s));
+      const siguiente = Number(numeroPrevisto.split('-').pop()) + 1;
+      if (kind === 'notaVenta') {
+        reservas.ticket = Math.max(reservas.ticket, siguiente);
+        setSiguienteTicket(siguiente);
+      } else {
+        reservas[campoCorrelativo] = Math.max(reservas[campoCorrelativo], siguiente);
+        setSeries(s => (s ? { ...s, [campoCorrelativo]: siguiente } : s));
+      }
     }
 
-    try {
-      setStage('charging');
+    /* Re-sincroniza con la API la serie / el N° de nota de venta: confirma el +1 reservado si se
+       emitió, o lo corrige si el cobro falló o la emisión quedó pendiente (el N° no se consumió). */
+    const resincronizar = () => {
+      if (!tokenSesion) return;
+      if (kind !== 'notaVenta') {
+        getSeriesFacturacion(tokenSesion).then(d => { if (d.length > 0) setSeries(conReservas(d[0])); }).catch(() => {});
+      } else {
+        leerSiguienteTicket(tokenSesion).then(n => setSiguienteTicket(ticketConReserva(n))).catch(() => {});
+      }
+    };
+
+    {
       const input: ChargeInput = {
         payments: paymentLines,
         docType,
@@ -522,6 +549,12 @@ export default function ChargePanel({
            - Boleta/factura sin series cargadas: se imprime con el N° que devolvió la emisión.
            - Boleta/factura ya impresa: si SUNAT asignó otro N° (o quedó pendiente), se avisa. */
         onVentaCreada: venta => {
+          /* El N° real ya quedó consumido: ningún cobro posterior puede reusarlo. */
+          const nReal = kind === 'notaVenta' ? venta.correlativoTicket : Number(venta.numeroComprobante?.split('-').pop());
+          if (nReal && Number.isFinite(nReal)) {
+            if (kind === 'notaVenta') reservas.ticket = Math.max(reservas.ticket, nReal + 1);
+            else reservas[campoCorrelativo] = Math.max(reservas[campoCorrelativo], nReal + 1);
+          }
           if (kind === 'notaVenta') {
             const real = String(venta.correlativoTicket ?? venta.id).padStart(8, '0');
             if (!numeroPrevisto) imprimirComprobante(real);
@@ -541,49 +574,87 @@ export default function ChargePanel({
           }
         },
       };
+      const cobrar = () => (selected.kind === 'mesa' ? chargeTable(selected.ref, input) : chargeOrder(selected.ref, input));
 
-      const sale = selected.kind === 'mesa'
-        ? await chargeTable(selected.ref, input)
-        : await chargeOrder(selected.ref, input);
-      if (!sale) { ventanaImpresion?.close(); return; }
-
-      if (sale.change != null && sale.change > 0) {
-        triggerToast(`Vuelto a entregar: ${money(sale.change)}`, 'info');
-      }
-
-      /* Respaldo: si no se imprimió antes (sin series cargadas ni N° de SUNAT), sale igual, sin N°. */
-      imprimirComprobante();
-
+      /* ── Cobro completo: va a la cola de segundo plano ──
+         El ticket ya salió; el panel se libera YA y la cuenta desaparece de la lista para seguir
+         cobrando otras mesas. La venta (y la emisión ante SUNAT) se registra detrás; si falla, la
+         cuenta vuelve a aparecer con un aviso. Las cuentas separadas (cobro parcial) siguen esperando
+         la respuesta: necesitan el resultado para mostrar el avance. */
       if (willCloseAfter) {
+        const etiqueta = selected.kind === 'mesa' ? `Mesa ${selected.label}` : `Pedido #${selected.ref}`;
+        const vuelto = round2(paymentLines.reduce(
+          (s, p) => s + (p.method === 'Efectivo' && p.received != null ? Math.max(0, p.received - p.amount) : 0), 0,
+        ));
+        if (vuelto > 0) triggerToast(`Vuelto a entregar: ${money(vuelto)}`, 'info');
+
+        encolarCobro(selected.key, async () => {
+          const sale = await cobrar();
+          if (!sale) {
+            ventanaImpresion?.close();
+            triggerToast(`${etiqueta}: el cobro no se registró. Volvió a la lista para cobrarla de nuevo.`, 'error');
+            return;
+          }
+          imprimirComprobante(); // respaldo sin N° (solo si no se pudo imprimir antes)
+        }).then(() => {
+          if (!hayCobrosEnCurso()) { reservas.correlativoBoleta = 0; reservas.correlativoFactura = 0; reservas.ticket = 0; }
+          resincronizar();
+        });
         onClosed();
         return;
       }
 
-      /* Cuenta parcial: registrar avance y limpiar el formulario para la siguiente. */
-      if (splitMode === 'items') {
-        setPaidItemIds(prev => new Set([...prev, ...pickedItems.map(i => i.product.id)]));
-        setPickItemIds(new Set());
-        setChargedAccounts(prev => [
-          ...prev,
-          { sale, itemLabels: chargingItems.map(i => `${i.quantity}× ${i.product.name}`) },
-        ]);
-      }
+      /* ── Cuenta parcial (dividir cuenta): también va a la cola ──
+         Los ítems quedan como pagados y la cuenta aparece en "Cuentas cobradas" (Registrando…) al
+         instante, así se puede cobrar la siguiente parte sin esperar. Si el backend la rechaza, los
+         ítems vuelven a quedar pendientes y se avisa. */
+      const idProvisional = `pend-${Date.now()}`;
+      const itemIds = pickedItems.map(i => i.product.id);
+      const provisional: SalesHistory = {
+        id: idProvisional,
+        time: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+        itemsCount: itemsCountForCharge,
+        paymentMethod: paymentLines.map(p => p.method).join(' + '),
+        total: amountDue,
+        table: selected.label,
+        docType,
+        comprobante: kind !== 'notaVenta' ? numeroPrevisto : undefined,
+        cashier,
+        customerDoc,
+      };
+      const vueltoParcial = round2(paymentLines.reduce(
+        (s, p) => s + (p.method === 'Efectivo' && p.received != null ? Math.max(0, p.received - p.amount) : 0), 0,
+      ));
+      if (vueltoParcial > 0) triggerToast(`Vuelto a entregar: ${money(vueltoParcial)}`, 'info');
+
+      setPaidItemIds(prev => new Set([...prev, ...itemIds]));
+      setPickItemIds(new Set());
+      setChargedAccounts(prev => [
+        ...prev,
+        { sale: provisional, itemLabels: chargingItems.map(i => `${i.quantity}× ${i.product.name}`), pendiente: true },
+      ]);
       setPayments([blankLine(payments[0].method)]);
       setDocNumber('');
       setDocName('');
       clearCliente();
-    } catch (err) {
-      ventanaImpresion?.close();
-      throw err;
-    } finally {
-      setStage('idle');
-      /* Re-sincroniza la serie con la API de facturación: confirma el +1 reservado si se emitió, o lo
-         corrige si el cobro falló o la emisión quedó pendiente (el correlativo no se consumió). */
-      if (kind !== 'notaVenta' && tokenSesion) {
-        getSeriesFacturacion(tokenSesion).then(d => { if (d.length > 0) setSeries(d[0]); }).catch(() => {});
-      } else if (kind === 'notaVenta' && tokenSesion) {
-        leerSiguienteTicket(tokenSesion).then(setSiguienteTicket).catch(() => {});
-      }
+
+      encolarCobro(`${selected.key}#${idProvisional}`, async () => {
+        const sale = await cobrar();
+        if (!sale) {
+          ventanaImpresion?.close();
+          setPaidItemIds(prev => new Set([...prev].filter(id => !itemIds.includes(id))));
+          setChargedAccounts(prev => prev.filter(a => a.sale.id !== idProvisional));
+          triggerToast('Una cuenta separada no se registró: sus ítems volvieron a quedar pendientes.', 'error');
+          return;
+        }
+        imprimirComprobante(); // respaldo sin N° (solo si no se pudo imprimir antes)
+        setChargedAccounts(prev => prev.map(a => (a.sale.id === idProvisional
+          ? { ...a, sale: { ...sale, comprobante: sale.comprobante ?? provisional.comprobante }, pendiente: false }
+          : a)));
+      }).then(() => {
+        if (!hayCobrosEnCurso()) { reservas.correlativoBoleta = 0; reservas.correlativoFactura = 0; reservas.ticket = 0; }
+        resincronizar();
+      });
     }
   };
 
@@ -606,14 +677,15 @@ export default function ChargePanel({
   const remaining = round2(total - paidAmount);
 
   return (
-    <div className="card-lg p-5 space-y-4 sticky top-20">
-      {/* Encabezado */}
-      <div className="flex justify-between items-center pb-3 border-b border-slate-200">
-        <div className="flex items-center gap-2">
-          <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase inline-flex items-center gap-1 ${TYPE_META[selected.kind].badge}`}>
+    <div className="card-lg p-4 space-y-3 sticky top-20">
+      {/* Encabezado (con el mozo en la misma fila) */}
+      <div className="flex justify-between items-center gap-2 pb-2 border-b border-slate-200">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase inline-flex items-center gap-1 shrink-0 ${TYPE_META[selected.kind].badge}`}>
             {TYPE_META[selected.kind].icon} {TYPE_META[selected.kind].label}
           </span>
-          <h4 className="text-sm font-bold text-slate-800">{selected.kind === 'mesa' ? `Mesa ${selected.label}` : `Pedido #${selected.ref}`}</h4>
+          <h4 className="text-sm font-bold text-slate-800 shrink-0">{selected.kind === 'mesa' ? `Mesa ${selected.label}` : `Pedido #${selected.ref}`}</h4>
+          <span className="text-[10px] text-slate-400 truncate">· Mozo: {selected.waiter ?? '—'}</span>
         </div>
         {selected.kind === 'mesa' && !started && (
           <button onClick={onAddItems} className="text-[11px] font-medium text-brand hover:underline inline-flex items-center gap-1">
@@ -623,22 +695,23 @@ export default function ChargePanel({
       </div>
 
       {esperandoEntrega && (
-        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-2.5 text-xs font-bold">
+        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-2 text-xs font-bold">
           <Loader2 className="h-4 w-4 shrink-0" />
           {ESTADO_PEDIDO_LABEL[selected.pedidoEstado!] ?? 'Pedido en curso'} — no se puede cobrar hasta que se entreguen todos los platos.
         </div>
       )}
 
-      {/* Cliente / mozo */}
-      <div className="text-xs text-slate-600 space-y-1">
-        {selected.customer && <p className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5 text-slate-400" /> {selected.customer}</p>}
-        {selected.phone && <p className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-slate-400" /> {selected.phone}</p>}
-        {selected.address && <p className="flex items-start gap-1.5"><MapPin className="h-3.5 w-3.5 text-slate-400 mt-0.5" /> {selected.address}</p>}
-        <p className="text-[10px] text-slate-400">Mozo: {selected.waiter ?? '—'}</p>
-      </div>
+      {/* Cliente (pedidos para llevar / delivery) */}
+      {(selected.customer || selected.phone || selected.address) && (
+        <div className="text-xs text-slate-600 flex flex-wrap gap-x-3 gap-y-1">
+          {selected.customer && <p className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5 text-slate-400" /> {selected.customer}</p>}
+          {selected.phone && <p className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 text-slate-400" /> {selected.phone}</p>}
+          {selected.address && <p className="flex items-start gap-1.5"><MapPin className="h-3.5 w-3.5 text-slate-400 mt-0.5" /> {selected.address}</p>}
+        </div>
+      )}
 
       {/* Detalle de ítems (con selección en modo "por ítems") */}
-      <div className="space-y-1.5 max-h-40 overflow-y-auto border-t border-slate-200 pt-3">
+      <div className="space-y-0.5 max-h-36 overflow-y-auto">
         {selected.items.map(i => {
           const isPaid = paidItemIds.has(i.product.id);
           const selectable = splitMode === 'items' && !isPaid;
@@ -649,7 +722,7 @@ export default function ChargePanel({
               type="button"
               disabled={!selectable}
               onClick={() => selectable && toggleItem(i.product.id)}
-              className={`w-full flex justify-between items-center text-xs rounded-lg px-2 py-1 transition-colors ${
+              className={`w-full flex justify-between items-center text-xs rounded-lg px-2 py-0.5 transition-colors ${
                 selectable ? 'cursor-pointer hover:bg-slate-50' : 'cursor-default'
               } ${picked ? 'bg-brand/5 ring-1 ring-brand/30' : ''} ${isPaid ? 'opacity-40 line-through' : ''}`}
             >
@@ -669,7 +742,7 @@ export default function ChargePanel({
 
       {/* Cuentas ya cobradas (desplegable) */}
       {chargedAccounts.length > 0 && (
-        <div className="border-t border-slate-200 pt-3">
+        <div className="border-t border-slate-200 pt-2">
           <button
             type="button"
             onClick={() => setShowChargedAccounts(v => !v)}
@@ -685,7 +758,14 @@ export default function ChargePanel({
               {chargedAccounts.map((acc, idx) => (
                 <div key={acc.sale.id ?? idx} className="bg-emerald-50 rounded-lg px-3 py-2 text-[11px] space-y-1">
                   <div className="flex justify-between font-bold text-emerald-800">
-                    <span>Cuenta {idx + 1} · {acc.sale.docType ?? 'Nota de venta'}</span>
+                    <span className="inline-flex items-center gap-1.5">
+                      Cuenta {idx + 1} · {acc.sale.docType ?? 'Nota de venta'}
+                      {acc.pendiente && (
+                        <span className="inline-flex items-center gap-1 font-medium text-sky-700">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Registrando…
+                        </span>
+                      )}
+                    </span>
                     <span className="font-mono">{money(acc.sale.total)}</span>
                   </div>
                   {acc.sale.comprobante && (
@@ -703,11 +783,12 @@ export default function ChargePanel({
       )}
 
       {/* Cuentas separadas */}
-      <div className="border-t border-slate-200 pt-3 space-y-2">
-        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+      <div className="border-t border-slate-200 pt-2 space-y-2">
+        <div className="flex items-center gap-2">
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 shrink-0">
           <Divide className="h-3.5 w-3.5" /> Forma de cobro
         </p>
-        <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl">
+        <div className="grid grid-cols-2 gap-1 bg-slate-100 p-0.5 rounded-xl flex-1">
           {([
             { id: 'full' as const,  label: 'Pago único' },
             { id: 'items' as const, label: 'Dividir cuenta' },
@@ -716,7 +797,7 @@ export default function ChargePanel({
               key={m.id}
               onClick={() => changeSplitMode(m.id)}
               disabled={splitLocked && splitMode !== m.id}
-              className={`py-1.5 text-[10px] font-bold rounded-lg transition-all ${
+              className={`py-1 text-[10px] font-bold rounded-lg transition-all ${
                 splitMode === m.id ? 'bg-white text-brand shadow-sm' : 'text-slate-500 hover:text-slate-800 disabled:opacity-40'
               }`}
             >
@@ -724,9 +805,10 @@ export default function ChargePanel({
             </button>
           ))}
         </div>
+        </div>
 
         {splitMode === 'items' && (
-          <div className="text-[11px] text-slate-500 flex justify-between bg-emerald-50 rounded-lg px-3 py-1.5">
+          <div className="text-[11px] text-slate-500 flex justify-between bg-emerald-50 rounded-lg px-3 py-1">
             <span>Cuenta en curso</span>
             <span className="font-mono">Abonado {money(paidAmount)} · Falta {money(remaining)}</span>
           </div>
@@ -734,7 +816,7 @@ export default function ChargePanel({
       </div>
 
       {/* Comprobante */}
-      <div className="border-t border-slate-200 pt-3 space-y-2">
+      <div className="border-t border-slate-200 pt-2 space-y-2">
         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Comprobante</p>
         <div className={`grid gap-1.5 ${comprobantesElectronicosDisponibles ? 'grid-cols-3' : 'grid-cols-1'}`}>
           {([
@@ -747,18 +829,19 @@ export default function ChargePanel({
             <button
               key={d.id}
               onClick={() => { setDocType(d.id); setDocNumber(''); setDocName(''); clearCliente(); }}
-              className={`py-2 text-[10px] font-bold rounded-lg border transition-all flex flex-col items-center gap-1 ${
+              className={`py-1.5 text-[10px] font-bold rounded-lg border transition-all flex flex-col items-center justify-center gap-0.5 ${
                 docType === d.id ? 'bg-brand/10 border-brand text-brand' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
               }`}
             >
-              {d.icon} {d.label}
-              {d.serie && <span className="text-[8px] font-mono opacity-70">{d.serie}</span>}
+              <span className="inline-flex items-center gap-1">{d.icon} {d.label}</span>
+              {d.serie && <span className="text-[8px] font-mono opacity-70 leading-none">{d.serie}</span>}
             </button>
           ))}
         </div>
 
         {docType === 'Boleta' && (
-          <div className="space-y-2">
+          <div className="space-y-1">
+            <div className="grid grid-cols-2 gap-1.5">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               <input
@@ -766,8 +849,8 @@ export default function ChargePanel({
                 onChange={e => handlePersonInput(e.target.value)}
                 onFocus={() => setShowClienteResults(true)}
                 onBlur={() => setTimeout(() => setShowClienteResults(false), 150)}
-                placeholder="DNI o nombre del cliente (opcional)"
-                className="input w-full pl-8 pr-16 py-2 text-xs"
+                placeholder="DNI o nombre (opcional)"
+                className="input w-full pl-8 pr-14 py-1.5 text-xs"
               />
               {consultandoDoc && (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 absolute right-8 top-1/2 -translate-y-1/2" />
@@ -778,7 +861,7 @@ export default function ChargePanel({
                 </span>
               )}
               {showClienteResults && clienteMatches.length > 0 && (
-                <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                <div className="absolute z-10 mt-1 w-full min-w-[260px] bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
                   {clienteMatches.map(c => (
                     <button
                       key={c.id}
@@ -797,16 +880,17 @@ export default function ChargePanel({
               value={docName}
               onChange={e => setDocName(e.target.value)}
               placeholder="Nombre del cliente (opcional)"
-              className="input w-full px-3 py-2 text-xs"
+              className="input w-full px-3 py-1.5 text-xs"
             />
-            <p className="text-[10px] text-slate-400 flex items-center gap-1">
-              <Users className="h-3 w-3" /> Sin DNI se emite como <strong>&nbsp;Cliente varios</strong> (público general). Escribe el DNI o busca por nombre — primero en tu CRM local, y si no está, en RENIEC.
+            </div>
+            <p className="text-[10px] text-slate-400 flex items-center gap-1 truncate" title="Escribe el DNI o busca por nombre: primero en tu CRM local y, si no está, en RENIEC.">
+              <Users className="h-3 w-3 shrink-0" /> Sin DNI se emite como <strong>Cliente varios</strong> · busca en tu CRM o RENIEC.
             </p>
           </div>
         )}
 
         {docType === 'Factura' && (
-          <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-1.5">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               <input
@@ -814,8 +898,8 @@ export default function ChargePanel({
                 onChange={e => handlePersonInput(e.target.value)}
                 onFocus={() => setShowClienteResults(true)}
                 onBlur={() => setTimeout(() => setShowClienteResults(false), 150)}
-                placeholder="RUC (11 dígitos) o razón social *"
-                className="input w-full pl-8 pr-16 py-2 text-xs"
+                placeholder="RUC o razón social *"
+                className="input w-full pl-8 pr-14 py-1.5 text-xs"
               />
               {consultandoDoc && (
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 absolute right-8 top-1/2 -translate-y-1/2" />
@@ -826,7 +910,7 @@ export default function ChargePanel({
                 </span>
               )}
               {showClienteResults && clienteMatches.length > 0 && (
-                <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                <div className="absolute z-10 mt-1 w-full min-w-[260px] bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
                   {clienteMatches.map(c => (
                     <button
                       key={c.id}
@@ -845,33 +929,36 @@ export default function ChargePanel({
               value={docName}
               onChange={e => setDocName(e.target.value)}
               placeholder="Razón social *"
-              className="input w-full px-3 py-2 text-xs"
+              className="input w-full px-3 py-1.5 text-xs"
             />
           </div>
         )}
 
         {docType === 'Nota de venta' && comprobantesElectronicosDisponibles && (
-          <p className="text-[11px] text-amber-700 bg-amber-50 rounded-lg px-3 py-2 flex items-center gap-1.5">
+          <p className="text-[11px] text-amber-700 bg-amber-50 rounded-lg px-3 py-1.5 flex items-center gap-1.5">
             <Ban className="h-3.5 w-3.5 shrink-0" /> No se emitirá boleta ni factura electrónica (venta interna).
           </p>
         )}
       </div>
 
       {/* Totales de la cuenta a cobrar — nota de venta no desglosa IGV, es venta interna sin comprobante */}
-      <div className="space-y-1 text-xs border-t border-slate-200 pt-3">
-        {docType !== 'Nota de venta' && (
-          <>
-            <div className="flex justify-between font-mono text-slate-500"><span>Op. gravada</span><span>{money(base)}</span></div>
-            <div className="flex justify-between font-mono text-slate-500"><span>IGV ({igvPorcentaje}%)</span><span>{money(igv)}</span></div>
-          </>
-        )}
-        <div className="flex justify-between font-mono font-bold text-base text-slate-800 pt-1">
-          <span>{splitMode === 'full' ? 'Total' : 'A cobrar ahora'}</span><span>{money(amountDue)}</span>
+      <div className="flex items-end justify-between gap-3 text-xs border-t border-slate-200 pt-2">
+        <div className="font-mono text-[10px] text-slate-500 leading-tight">
+          {docType !== 'Nota de venta' && (
+            <>
+              <p>Op. gravada {money(base)}</p>
+              <p>IGV ({igvPorcentaje}%) {money(igv)}</p>
+            </>
+          )}
+        </div>
+        <div className="flex items-baseline gap-2 font-mono font-bold text-slate-800">
+          <span className="text-xs">{splitMode === 'full' ? 'Total' : 'A cobrar ahora'}</span>
+          <span className="text-base">{money(amountDue)}</span>
         </div>
       </div>
 
       {/* Método de pago */}
-      <div className="space-y-2 border-t border-slate-200 pt-3">
+      <div className="space-y-2 border-t border-slate-200 pt-2">
         <div className="flex items-center justify-between">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Método de pago</p>
           {payments.length > 1 && (
@@ -886,13 +973,14 @@ export default function ChargePanel({
         {payments.map((p, idx) => {
           const isLast = idx === payments.length - 1;
           const amount = lineAmount(idx);
-          const receivedNum = p.received === '' ? null : Number(p.received);
+          /* Sin monto escrito = pago exacto: el campo lo muestra así y el vuelto sale 0. */
+          const receivedNum = p.method !== 'Efectivo' ? null : p.received === '' ? amount : Number(p.received);
           const change = p.method === 'Efectivo' && receivedNum != null ? round2(receivedNum - amount) : null;
           const usadoEnOtraLinea = new Set(payments.filter((_, i) => i !== idx).map(pp => pp.method));
           const quickCashLinea = [amount, 20, 50, 100, 200];
 
           return (
-            <div key={idx} className="space-y-2 bg-slate-50 rounded-xl p-3">
+            <div key={idx} className="space-y-2 bg-slate-50 rounded-xl p-2">
               <div className="flex items-center gap-1.5">
                 <div className="grid grid-cols-3 gap-1.5 flex-1">
                   {visiblePayments.map(vp => (
@@ -901,7 +989,7 @@ export default function ChargePanel({
                       type="button"
                       disabled={usadoEnOtraLinea.has(vp.id)}
                       onClick={() => updateLineMethod(idx, vp.id)}
-                      className={`py-2 text-[10px] font-bold rounded-lg border transition-all flex flex-col items-center gap-1 ${
+                      className={`py-1.5 text-[10px] font-bold rounded-lg border transition-all flex items-center justify-center gap-1.5 ${
                         p.method === vp.id
                           ? 'bg-brand/10 border-brand text-brand'
                           : 'border-slate-200 text-slate-500 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent'
@@ -940,18 +1028,22 @@ export default function ChargePanel({
 
               {p.method === 'Efectivo' ? (
                 payments.length === 1 && (
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 shrink-0">
                       <Wallet className="h-3.5 w-3.5" /> ¿Con cuánto paga?
                     </label>
                     <input
-                      value={p.received}
+                      value={p.received === '' ? amount.toFixed(2) : p.received}
                       onChange={e => updateLineField(idx, 'received', onlyDigits(e.target.value.replace('.', '')) ? e.target.value.replace(/[^\d.]/g, '') : '')}
+                      /* Por defecto muestra el monto exacto; al entrar se selecciona todo para escribir encima. */
+                      onFocus={e => e.target.select()}
                       inputMode="decimal"
                       placeholder={money(amount)}
-                      className="input w-full px-3 py-2 text-sm font-mono"
+                      className="input flex-1 min-w-0 px-3 py-1.5 text-sm font-mono"
                     />
-                    <div className="flex flex-wrap gap-1.5">
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
                       {quickCashLinea.map((v, i2) => (
                         <button
                           key={i2}
@@ -962,13 +1054,14 @@ export default function ChargePanel({
                           {i2 === 0 ? 'Exacto' : money(v)}
                         </button>
                       ))}
+                      {/* Vuelto en la misma fila que los billetes rápidos */}
+                      {receivedNum != null && (
+                        <div className={`ml-auto flex items-center gap-2 text-sm font-bold ${change != null && change >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                          <span className="text-[10px] uppercase tracking-wide">Vuelto</span>
+                          <span className="font-mono">{change != null ? money(Math.max(0, change)) : money(0)}</span>
+                        </div>
+                      )}
                     </div>
-                    {receivedNum != null && (
-                      <div className={`flex justify-between items-center text-sm font-bold px-1 ${change != null && change >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                        <span className="text-[11px] uppercase tracking-wide">Vuelto</span>
-                        <span className="font-mono">{change != null ? money(Math.max(0, change)) : money(0)}</span>
-                      </div>
-                    )}
                     {receivedNum != null && change != null && change < 0 && (
                       <p className="text-[10px] text-rose-600">Falta {money(Math.abs(change))} para cubrir esta línea.</p>
                     )}
@@ -984,19 +1077,19 @@ export default function ChargePanel({
                       value={p.numeroOperacion}
                       onChange={e => updateLineField(idx, 'numeroOperacion', e.target.value)}
                       placeholder="N° operación"
-                      className="input w-[26%] min-w-0 px-2 py-2 text-xs text-right"
+                      className="input w-[26%] min-w-0 px-2 py-1.5 text-xs text-right"
                     />
                     <input
                       value={p.entidadBancaria}
                       onChange={e => updateLineField(idx, 'entidadBancaria', e.target.value)}
                       placeholder="Entidad bancaria"
-                      className="input w-[32%] min-w-0 px-2 py-2 text-xs text-right"
+                      className="input w-[32%] min-w-0 px-2 py-1.5 text-xs text-right"
                     />
                     <input
                       value={p.observacion}
                       onChange={e => updateLineField(idx, 'observacion', e.target.value)}
                       placeholder="Observación"
-                      className="input w-[42%] min-w-0 px-2 py-2 text-xs text-right"
+                      className="input w-[42%] min-w-0 px-2 py-1.5 text-xs text-right"
                     />
                   </div>
                 </div>
@@ -1025,25 +1118,17 @@ export default function ChargePanel({
       <div className="flex gap-2 items-stretch">
         <button
           onClick={() => doCharge(true)}
-          disabled={!isCajaOpen || submitting || !!validationError}
-          className="flex-1 bg-brand hover:bg-brand-hover text-white text-sm font-bold py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:cursor-not-allowed"
+          disabled={!isCajaOpen || !!validationError}
+          className="flex-1 bg-brand hover:bg-brand-hover text-white text-sm font-bold py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 disabled:bg-slate-300 disabled:cursor-not-allowed"
         >
-          {stage === 'charging' && imprimiendo ? (
-            <><Loader2 className="h-4 w-4 animate-spin" /> {docType !== 'Nota de venta' ? 'Emitiendo y registrando…' : 'Registrando cobro…'}</>
-          ) : (
-            <><Printer className="h-4 w-4" /> Cobrar e imprimir {money(amountDue)}{docType !== 'Nota de venta' ? ` · ${docType}` : ''}</>
-          )}
+          <Printer className="h-4 w-4" /> Cobrar e imprimir {money(amountDue)}{docType !== 'Nota de venta' ? ` · ${docType}` : ''}
         </button>
         <button
           onClick={() => doCharge(false)}
-          disabled={!isCajaOpen || submitting || !!validationError}
+          disabled={!isCajaOpen || !!validationError}
           className="shrink-0 bg-[#1f2d4d] hover:bg-[#18233c] text-white text-xs font-bold px-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 disabled:bg-slate-300 disabled:cursor-not-allowed"
         >
-          {stage === 'charging' && !imprimiendo ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <CheckCircle2 className="h-3.5 w-3.5" />
-          )}
+          <CheckCircle2 className="h-3.5 w-3.5" />
           Solo cobrar
         </button>
       </div>

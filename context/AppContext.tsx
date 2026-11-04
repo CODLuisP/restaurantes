@@ -150,6 +150,13 @@ interface AppContextType {
   chargeOrder: (orderId: string, input: ChargeInput) => Promise<SalesHistory | null>;
   /** Cajero: cobra el consumo de una mesa (o una parte, en cuentas separadas) registrando la venta real en el backend. */
   chargeTable: (tableName: string, input: ChargeInput) => Promise<SalesHistory | null>;
+  /** Claves de las cuentas (Chargeable.key) que se están cobrando en segundo plano: Cobrar las oculta. */
+  cobrosEnCurso: string[];
+  /** Encola un cobro en segundo plano. Corren UNO POR UNO en orden de llegada: el backend toma el
+   *  correlativo de la serie al emitir, y dos emisiones simultáneas pedirían el mismo número. */
+  encolarCobro: (key: string, job: () => Promise<unknown>) => Promise<void>;
+  /** true mientras quede algún cobro en la cola (lectura al momento, sin esperar a un render). */
+  hayCobrosEnCurso: () => boolean;
   /** Reserva o libera una mesa disponible (no toca consumo). */
   setTableStatus: (tableId: string, status: 'disponible' | 'reservada') => Promise<void>;
   /* ── Caja ── */
@@ -189,6 +196,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [salesHistory, setSalesHistory] = useState<SalesHistory[]>(INITIAL_SALES_HISTORY);
 
   const { toasts, triggerToast, dismissToast } = useToasts();
+
+  /* ── Cola de cobros en segundo plano (ver encolarCobro en el tipo del contexto) ── */
+  const [cobrosEnCurso, setCobrosEnCurso] = useState<string[]>([]);
+  const colaCobros = useRef<Promise<unknown>>(Promise.resolve());
+  const cobrosPendientes = useRef(0);
+  const encolarCobro = useCallback((key: string, job: () => Promise<unknown>): Promise<void> => {
+    cobrosPendientes.current++;
+    setCobrosEnCurso(prev => [...prev, key]);
+    const turno = colaCobros.current.then(job).catch(err => {
+      console.error('Cobro en segundo plano falló', err);
+      triggerToast('No se pudo registrar un cobro. Revisa la cuenta y vuelve a cobrarla.', 'error');
+    });
+    colaCobros.current = turno;
+    return turno.then(() => undefined).finally(() => {
+      cobrosPendientes.current--;
+      setCobrosEnCurso(prev => {
+        const i = prev.indexOf(key);
+        return i < 0 ? prev : [...prev.slice(0, i), ...prev.slice(i + 1)];
+      });
+    });
+  }, [triggerToast]);
+  const hayCobrosEnCurso = useCallback(() => cobrosPendientes.current > 0, []);
   const caja = useCajaTurno(triggerToast);
   const {
     metodosPago, metodosEntrega, igvPorcentaje, impresoraCocina, sucursalSincronizada,
@@ -791,6 +820,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         marcarItemActiveOrderEntregado,
         chargeOrder,
         chargeTable,
+        cobrosEnCurso,
+        encolarCobro,
+        hayCobrosEnCurso,
         setTableStatus,
         cashSession: caja.cashSession,
         cajaHistory: caja.cajaHistory,

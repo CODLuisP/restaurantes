@@ -10,22 +10,14 @@ export type ThermalPaper = '58mm' | '80mm';
 
 const PRINTABLE_MM: Record<ThermalPaper, number> = { '58mm': 48, '80mm': 72 };
 
-/** Script de impresión para tickets térmicos. Chrome ignora "@page { size: 80mm auto }" y cae a
- *  A4, así que se mide el contenido y se fija el tamaño exacto (ancho del rollo x alto del ticket)
- *  justo antes de imprimir.
- *  perPage=true: cada <div> hijo del body es un ticket aparte (salto de página entre ellos), así
- *  que el alto es el del más alto; si no, es el alto de todo el contenido. */
-export function thermalPrintScript(paper: ThermalPaper = '80mm', perPage = false): string {
-  const paperMm = paper === '58mm' ? 58 : 80;
+/** Script de impresión para tickets térmicos: imprime al cargar y cierra la ventana al terminar.
+ *  NO se fija el alto de la página: la impresora térmica ya tiene su propio papel (ej. RP58 con
+ *  58 x 210 mm) y si la página CSS es más corta, Chrome la encaja CENTRADA en ese papel → quedaba
+ *  mucho blanco arriba y abajo. Sin tamaño fijo, el ticket arranca arriba de la hoja de la impresora.
+ *  (Los parámetros se conservan por compatibilidad con quienes lo llaman.) */
+export function thermalPrintScript(_paper: ThermalPaper = '80mm', _perPage = false): string {
   return `<script>
     window.onload=function(){
-      var px=${perPage}
-        ? Math.max.apply(null,[].map.call(document.querySelectorAll('body > div'),function(d){return d.offsetHeight}))+16
-        : document.body.offsetHeight;
-      var mm=Math.ceil(px*25.4/96)+2+2*${MARGEN_V_MM};
-      var s=document.createElement('style');
-      s.textContent='@page{size:${paperMm}mm '+mm+'mm;margin:${MARGEN_V_MM}mm 0}';
-      document.head.appendChild(s);
       /* La ventana se cierra cuando termina la impresión (imprimir o cancelar). En una ventana
          independiente (noopener) Chrome no bloquea en print(): un close() inmediato cancelaba el diálogo. */
       window.onafterprint=function(){window.close()};
@@ -49,10 +41,9 @@ const SIN_ENCABEZADOS_CHROME = `@page {
     }`;
 
 export function thermalCss(paper: ThermalPaper = '80mm', baseFontPx = 13): string {
-  const paperMm = paper === '58mm' ? 58 : 80;
   const contentMm = PRINTABLE_MM[paper];
   return `
-    @page { size: ${paperMm}mm auto; margin: ${MARGEN_V_MM}mm 0; }
+    @page { margin: ${MARGEN_V_MM}mm 0; }
     ${SIN_ENCABEZADOS_CHROME}
     * { box-sizing: border-box; color: #000 !important; }
     html, body { margin: 0; padding: 0; background: #fff; }

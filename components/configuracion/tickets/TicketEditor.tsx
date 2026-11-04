@@ -185,11 +185,9 @@ export default function TicketEditor() {
       const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
         .map(el => el.outerHTML).join('');
 
-      /* El papel real (58mm/80mm) debe declararse en @page: si no, el navegador
-         imprime en el tamaño de página por defecto (Carta/A4) y recorta o reescala
-         el ticket al forzarlo a la impresora térmica. margin:0 además evita que
-         Chrome reserve espacio para su encabezado/pie ("about:blank", "1/1"). */
-      const pageWidthMm = paper === '80mm' ? 80 : 58;
+      /* Sin tamaño de página fijo: se usa el papel de la impresora térmica y el ticket arranca
+         arriba (un alto fijo más corto que ese papel hacía que Chrome lo centrara, con blanco arriba
+         y abajo). Las cajas de margen vacías evitan el encabezado/pie de Chrome (lib/print/thermal.ts). */
 
       const win = window.open('', '_blank', 'width=420,height=680');
       if (!win) {
@@ -199,17 +197,13 @@ export default function TicketEditor() {
       }
       win.document.write(`<!DOCTYPE html><html><head><title>Ticket ${side}</title>${styles}
         <style>
-          @page{size:${pageWidthMm}mm auto;margin:4mm 0}
+          @page{margin:4mm 0}
           @page{@top-left{content:""}@top-center{content:""}@top-right{content:""}@bottom-left{content:""}@bottom-center{content:""}@bottom-right{content:""}}
           body{margin:0;padding:24px;background:#fff;display:flex;justify-content:center}
           @media print{body{padding:0;display:block}}
         </style></head>
         <body>${clone.outerHTML}
         <script>window.onload=function(){setTimeout(function(){
-          var mm=Math.ceil(document.body.firstElementChild.offsetHeight*25.4/96)+2+8;
-          var s=document.createElement('style');
-          s.textContent='@page{size:${pageWidthMm}mm '+mm+'mm;margin:4mm 0}';
-          document.head.appendChild(s);
           window.print()
         },120)}<\/script>
         </body></html>`);
