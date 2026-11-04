@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import {
-  ArrowLeft, Bike, ChefHat, ChevronRight, Clock, ClipboardList, Grid, Lock, MapPin, Pencil, Plus, Receipt,
+  ArrowLeft, Bike, ChefHat, ChevronRight, Clock, ClipboardList, Grid, Loader2, Lock, MapPin, Pencil, Plus, Receipt,
   ShoppingBag, Trash2, Utensils,
 } from 'lucide-react';
 import { Modal, Spinner } from '@/components/ui';
+import { useApp } from '@/context/AppContext';
 import type { ActiveOrder, OrderType, Table } from '@/types';
 import MesasPanel from './MesasPanel';
 import OrderDetailDrawer from './OrderDetailDrawer';
@@ -52,6 +53,8 @@ export default function OrdersListView({
   isCajaOpen, canEdit, busyTables, inProgressCount, onTableCardClick, onOrderCardClick, onStartNewOrder, mozoName,
   onEditTable, onEditOrder, onCancelTable, onCancelOrder, onConfirmTable, onConfirmOrder,
 }: OrdersListViewProps) {
+  /** Comandas ya impresas que aún se están registrando en la API (segundo plano). */
+  const { comandasEnCurso } = useApp();
   /** Selector del tipo de pedido al crear uno nuevo desde la pestaña "Todas". */
   const [showNewOrderPicker, setShowNewOrderPicker] = useState(false);
   /** 1) elegir el tipo de pedido · 2) (solo en mesa) elegir la mesa, en el mismo cuadro. */
@@ -97,7 +100,15 @@ export default function OrdersListView({
           <div className="flex items-center gap-2">
             <ChefHat className="h-5 w-5 text-brand" />
             <div>
-              <h3 className="text-sm font-bold text-slate-800">Comandero — Toma de Pedidos</h3>
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                Comandero — Toma de Pedidos
+                {comandasEnCurso > 0 && (
+                  <span className="text-[11px] px-2.5 py-0.5 rounded-full font-semibold bg-sky-50 border border-sky-200 text-sky-700 inline-flex items-center gap-1.5">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    {comandasEnCurso === 1 ? 'Enviando comanda a cocina…' : `Enviando ${comandasEnCurso} comandas a cocina…`}
+                  </span>
+                )}
+              </h3>
               <p className="text-[11px] text-slate-500">
                 Mozo: {mozoName ?? '—'}. Elige el tipo de pedido y arma la comanda.
               </p>
