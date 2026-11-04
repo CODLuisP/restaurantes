@@ -6,14 +6,16 @@ import type { TicketBlock, PaperSize } from '@/components/configuracion/tickets/
 import { renderComandaHtml, type TicketOrderData } from './renderTicket';
 import { thermalCss, thermalPrintScript } from './thermal';
 
+/** Se abre como ventana INDEPENDIENTE (Blob + noopener): mientras Chrome muestra el diálogo de
+ *  impresión, la pantalla del comandero sigue viva y el envío a cocina continúa en segundo plano
+ *  (con una ventana enlazada, Chrome pausa la página que la abrió hasta cerrar el diálogo). */
 export function imprimirComanda(blocks: TicketBlock[], paper: PaperSize, data: TicketOrderData) {
   if (typeof window === 'undefined' || data.items.length === 0) return;
 
-  const win = window.open('', '_blank', 'width=380,height=600');
-  if (!win) return;
-
-  win.document.write(renderComandaHtml(blocks, paper, data));
-  win.document.close();
+  const html = renderComandaHtml(blocks, paper, data);
+  const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+  window.open(url, '_blank', 'noopener,width=380,height=600');
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export interface CancelacionData {

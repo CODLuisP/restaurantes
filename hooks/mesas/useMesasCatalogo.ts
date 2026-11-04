@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import type { Table, OrderItem, Toast } from '@/types';
 import { ApiError } from '@/lib/api/client';
@@ -83,7 +83,9 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
   const sucursalId = authSession?.user?.sucursalId ?? undefined;
 
   const [tables, setTables] = useState<Table[]>([]);
-  const [mesasEstado, setMesasEstado] = useState<MesaTableroDto[]>([]);
+  /** Copia síncrona del tablero: los envíos a cocina corren en segundo plano y en cola; el segundo
+   *  envío a una misma mesa debe ver la sesión que creó el primero aunque React aún no re-renderice. */
+  const mesasEstadoRef = useRef<MesaTableroDto[]>([]);
   const [mesasLoading, setMesasLoading] = useState(true);
 
   /** `silent`: recarga en segundo plano (disparada por el WebSocket) sin mostrar de nuevo el
@@ -98,7 +100,7 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
     if (!opts?.silent) setMesasLoading(true);
     try {
       const tablero = await getMesasTablero(token, sucursalId);
-      setMesasEstado(tablero);
+      mesasEstadoRef.current = tablero;
       setTables(prev => {
         const prevById = new Map(prev.map(t => [t.id, t]));
         return tablero.map(m => {
@@ -179,7 +181,7 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
       if (!token || !mozoId) { triggerToast('Sesión expirada.', 'error'); return { ok: false }; }
       if (items.length === 0) { triggerToast('La comanda está vacía. Agregue platos antes de enviar.', 'warning'); return { ok: false }; }
 
-      const mesa = mesasEstado.find(m => String(m.numero) === tableName);
+      const mesa = mesasEstadoRef.current.find(m => String(m.numero) === tableName);
       if (!mesa) { triggerToast('La mesa ya no existe.', 'error'); return { ok: false }; }
 
       try {
@@ -207,7 +209,8 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
           ? await agregarItemsPedido(token, pedidoId, itemsDto)
           : await crearPedido(token, { sesionMesaId: sesionId, mozoId, origen: 'mozo', items: itemsDto });
 
-        await loadMesas();
+        // silent: corre en segundo plano, no debe mostrar el spinner de carga completa del plano.
+        await loadMesas({ silent: true });
         triggerToast(`Comanda de Mesa ${tableName} enviada a cocina.`, 'success');
         return { ok: true, pedido, eraPendienteConfirmacion };
       } catch (err) {
@@ -215,7 +218,7 @@ export function useMesasCatalogo(triggerToast: (message: string, type?: Toast['t
         return { ok: false };
       }
     },
-    [token, mozoId, mesasEstado, triggerToast, loadMesas]
+    [token, mozoId, triggerToast, loadMesas]
   );
 
   const updateTableItemQty = useCallback(

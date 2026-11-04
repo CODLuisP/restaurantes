@@ -152,6 +152,8 @@ interface AppContextType {
   chargeTable: (tableName: string, input: ChargeInput) => Promise<SalesHistory | null>;
   /** Claves de las cuentas (Chargeable.key) que se están cobrando en segundo plano: Cobrar las oculta. */
   cobrosEnCurso: string[];
+  /** Comandas ya impresas que se siguen registrando en la API en segundo plano (Comandero las muestra). */
+  comandasEnCurso: number;
   /** Encola un cobro en segundo plano. Corren UNO POR UNO en orden de llegada: el backend toma el
    *  correlativo de la serie al emitir, y dos emisiones simultáneas pedirían el mismo número. */
   encolarCobro: (key: string, job: () => Promise<unknown>) => Promise<void>;
@@ -243,33 +245,61 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
      explícitamente), agregar un ítem lo saca de ese estado como efecto secundario en el backend —
      así que acá se imprime el pedido COMPLETO devuelto (platos originales + el nuevo), no solo lo
      que el mozo acaba de agregar; si no, los platos del cliente nunca salían impresos. */
+  /* Envíos a cocina en segundo plano: la comanda se imprime AL INSTANTE (se arma en el front con lo
+     que el mozo ya tiene en pantalla) y el registro en la API corre detrás, en cola — así dos envíos
+     seguidos a la misma mesa no crean dos sesiones. `comandasEnCurso` alimenta el aviso en pantalla. */
+  const [comandasEnCurso, setComandasEnCurso] = useState(0);
+  const colaComandas = useRef<Promise<unknown>>(Promise.resolve());
+  const encolarComanda = useCallback((job: () => Promise<unknown>) => {
+    setComandasEnCurso(n => n + 1);
+    const turno = colaComandas.current.then(job).catch(err => {
+      console.error('Envío a cocina en segundo plano falló', err);
+      triggerToast('No se pudo registrar una comanda. Revisa el pedido y vuelve a enviarla.', 'error');
+    });
+    colaComandas.current = turno;
+    turno.finally(() => setComandasEnCurso(n => n - 1));
+  }, [triggerToast]);
+
   const sendOrderToKitchen = useCallback(
     async (tableName: string, nombreComensal: string | undefined, items: OrderItem[]) => {
-      if (!(await caja.verificarCajaAbierta())) {
+      // Chequeo instantáneo con el estado ya cargado; la verificación contra la API va en segundo plano.
+      if (!caja.sucursalCajaAbierta) {
         triggerToast(CAJA_CERRADA_MSG, 'error');
         return false;
       }
-      const { ok, pedido, eraPendienteConfirmacion } = await sendOrderToKitchenBackend(tableName, nombreComensal, items);
-      if (ok && impresoraCocina) {
-        const ahora = new Date();
-        const itemsAImprimir = eraPendienteConfirmacion && pedido
-          ? itemsComandaDePedido(pedido.items)
-          : itemsComandaDeCarrito(items);
 
+      if (impresoraCocina) {
+        // Pedido armado por el cliente (QR) sin confirmar: al agregarle platos el backend lo confirma,
+        // así que la comanda debe llevar también sus platos originales (ya están en pantalla).
+        const mesa = tables.find(t => t.name === tableName);
+        const eraPendienteConfirmacion = mesa?.pedidoEstado === 'pendiente_confirmacion';
+        const ahora = new Date();
         imprimirComanda(cocinaBlocks, ticketPaperSize, {
           businessName: ticketBusinessName,
           logoUrl: ticketLogoUrl,
           mesa: tableName,
           mozo: authSession?.user?.name ?? undefined,
-          clienteName: nombreComensal ?? pedido?.nombreCliente ?? undefined,
+          clienteName: nombreComensal || mesa?.nombreCliente || undefined,
           fecha: ahora.toLocaleDateString('es-PE'),
           hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-          items: itemsAImprimir,
+          items: eraPendienteConfirmacion
+            ? [...itemsComandaDeCarrito(mesa?.items ?? []), ...itemsComandaDeCarrito(items)]
+            : itemsComandaDeCarrito(items),
         });
       }
-      return ok;
+
+      encolarComanda(async () => {
+        const avisoImpresa = impresoraCocina ? ' La comanda ya salió impresa: avisa a cocina.' : '';
+        if (!(await caja.verificarCajaAbierta())) {
+          triggerToast(`${CAJA_CERRADA_MSG} La comanda de Mesa ${tableName} no se registró.${avisoImpresa}`, 'error');
+          return;
+        }
+        const { ok } = await sendOrderToKitchenBackend(tableName, nombreComensal, items);
+        if (!ok) triggerToast(`La comanda de Mesa ${tableName} no se registró. Vuelve a enviarla.${avisoImpresa}`, 'error');
+      });
+      return true;
     },
-    [caja.verificarCajaAbierta, triggerToast, sendOrderToKitchenBackend, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
+    [caja.sucursalCajaAbierta, caja.verificarCajaAbierta, triggerToast, sendOrderToKitchenBackend, encolarComanda, tables, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
   );
 
   /* El pedido que arma el cliente por QR (/menu) recién se manda a cocina cuando el mozo lo
@@ -652,32 +682,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
      imprime completo (platos originales del cliente + el nuevo) en vez de solo lo agregado. */
   const addItemsToActiveOrder = useCallback(
     async (orderId: string, items: OrderItem[]) => {
-      if (!(await caja.verificarCajaAbierta())) {
+      // Igual que sendOrderToKitchen: imprime al instante y registra en la API en segundo plano.
+      if (!caja.sucursalCajaAbierta) {
         triggerToast(CAJA_CERRADA_MSG, 'error');
         return false;
       }
-      const { ok, pedido, eraPendienteConfirmacion } = await addItemsToActiveOrderBackend(orderId, items);
-      if (ok && impresoraCocina) {
-        const order = activeOrders.find(o => o.id === orderId);
-        const ahora = new Date();
-        const itemsAImprimir = eraPendienteConfirmacion && pedido
-          ? itemsComandaDePedido(pedido.items)
-          : itemsComandaDeCarrito(items);
 
+      if (impresoraCocina) {
+        const order = activeOrders.find(o => o.id === orderId);
+        const eraPendienteConfirmacion = order?.pedidoEstado === 'pendiente_confirmacion';
+        const ahora = new Date();
         imprimirComanda(cocinaBlocks, ticketPaperSize, {
           businessName: ticketBusinessName,
           logoUrl: ticketLogoUrl,
           orderNumber: orderId,
           mozo: authSession?.user?.name ?? undefined,
-          clienteName: order?.customer ?? pedido?.nombreCliente ?? undefined,
+          clienteName: order?.customer || undefined,
           fecha: ahora.toLocaleDateString('es-PE'),
           hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-          items: itemsAImprimir,
+          items: eraPendienteConfirmacion
+            ? [...itemsComandaDeCarrito(order?.items ?? []), ...itemsComandaDeCarrito(items)]
+            : itemsComandaDeCarrito(items),
         });
       }
-      return ok;
+
+      encolarComanda(async () => {
+        const avisoImpresa = impresoraCocina ? ' La comanda ya salió impresa: avisa a cocina.' : '';
+        if (!(await caja.verificarCajaAbierta())) {
+          triggerToast(`${CAJA_CERRADA_MSG} La comanda del pedido #${orderId} no se registró.${avisoImpresa}`, 'error');
+          return;
+        }
+        const { ok } = await addItemsToActiveOrderBackend(orderId, items);
+        if (!ok) triggerToast(`La comanda del pedido #${orderId} no se registró. Vuelve a enviarla.${avisoImpresa}`, 'error');
+      });
+      return true;
     },
-    [caja.verificarCajaAbierta, triggerToast, addItemsToActiveOrderBackend, activeOrders, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
+    [caja.sucursalCajaAbierta, caja.verificarCajaAbierta, triggerToast, addItemsToActiveOrderBackend, encolarComanda, activeOrders, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
   );
 
   /** Igual que chargeTable pero para pedidos llevar/delivery — misma venta real de backend,
@@ -842,6 +882,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         chargeOrder,
         chargeTable,
         cobrosEnCurso,
+        comandasEnCurso,
         encolarCobro,
         hayCobrosEnCurso,
         setTableStatus,

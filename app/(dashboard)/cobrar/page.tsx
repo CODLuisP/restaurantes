@@ -117,6 +117,13 @@ export default function CobrarPage() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2 pb-2 border-b border-slate-200">
         <h3 className="text-lg font-bold text-slate-800 tracking-tight flex items-center gap-2">
           <Receipt className="h-5 w-5 text-brand" /> Cobrar / Facturación
+          {/* Cobros que se están registrando en segundo plano (API/SUNAT): se ve que siguen en curso */}
+          {cobrosEnCurso.length > 0 && (
+            <span className="ml-1 text-[11px] px-2.5 py-1 rounded-full font-semibold bg-sky-50 border border-sky-200 text-sky-700 inline-flex items-center gap-1.5">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {cobrosEnCurso.length === 1 ? 'Registrando cobro…' : `Registrando ${cobrosEnCurso.length} cobros…`}
+            </span>
+          )}
         </h3>
         <div className="flex flex-wrap items-center gap-2">
           {([
@@ -141,13 +148,6 @@ export default function CobrarPage() {
       {!isCajaOpen && (
         <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-2.5 text-xs text-rose-700 flex items-center gap-2.5">
           <Lock className="h-4 w-4 shrink-0" /> La caja está cerrada. Aperture la caja para poder cobrar.
-        </div>
-      )}
-
-      {cobrosEnCurso.length > 0 && (
-        <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-2.5 text-xs text-sky-800 flex items-center gap-2.5">
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-          Registrando {cobrosEnCurso.length === 1 ? '1 cobro' : `${cobrosEnCurso.length} cobros`} en segundo plano — puedes seguir cobrando.
         </div>
       )}
 
