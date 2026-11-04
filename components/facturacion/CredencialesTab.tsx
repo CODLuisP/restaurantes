@@ -375,6 +375,15 @@ export default function CredencialesTab({ empresa: empresaLocal, isSuperAdmin, o
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input label="RUC" value={empresa?.ruc ?? ''} disabled hint="El RUC no puede modificarse." />
         <Input label="Razón social" value={empresa?.razonSocial ?? ''} disabled hint="Se obtiene de SUNAT." />
+        <div className="sm:col-span-2">
+          <Input
+            label="Dirección fiscal"
+            value={[empresa?.direccion, empresa?.urbanizacion, empresa?.distrito, empresa?.provincia, empresa?.departamento]
+              .map(p => p?.trim()).filter(Boolean).join(', ')}
+            disabled
+            hint="Domicilio fiscal registrado en SUNAT; es el que aparece en tus comprobantes."
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

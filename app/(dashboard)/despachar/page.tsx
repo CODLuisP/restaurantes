@@ -12,7 +12,11 @@ export default function DespacharPage() {
   const { pedidos, loading, avanzarEstado } = useCocinaPedidos(triggerToast);
 
   /* Cualquier mozo puede recoger y entregar un pedido listo, sin importar quién lo tomó. */
-  const ready = pedidos.filter(p => p.estado === 'listo');
+  /* Un card por pedido (mesa) con al menos un plato listo: se actualiza solo a medida que cocina
+     termina más platos, sin esperar al resto. Solo se muestran y entregan los platos listos. */
+  const ready = pedidos
+    .map(p => ({ ...p, items: p.items.filter(it => it.estado === 'listo') }))
+    .filter(p => p.items.length > 0);
 
   return (
     <div className="space-y-6 animate-section">
@@ -66,7 +70,7 @@ export default function DespacharPage() {
               </div>
 
               <div className="space-y-1 border-t border-slate-100 pt-2">
-                {order.items.filter(it => it.estado !== 'cancelado').map(it => (
+                {order.items.map(it => (
                   <div key={it.id} className="flex justify-between text-xs font-medium text-slate-700">
                     <span>{nombreItemPedido(it)}</span>
                     <span className="font-mono">x{it.cantidad}</span>
@@ -82,7 +86,7 @@ export default function DespacharPage() {
                 onClick={() => avanzarEstado(order.id, 'listo', 'entregado')}
                 className="w-full mt-auto bg-brand hover:bg-brand-hover text-white text-xs font-bold py-2 rounded-xl transition-colors flex items-center justify-center gap-2"
               >
-                <Check className="h-4 w-4" /> Marcar entregado
+                <Check className="h-4 w-4" /> Marcar {order.items.length > 1 ? 'entregados' : 'entregado'}
               </button>
             </div>
           ))}
