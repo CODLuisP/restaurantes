@@ -32,6 +32,7 @@ export interface ComprobanteDetail extends ComprobanteListItem {
   igvPorcentaje: number;
   descuento: number;
   propina: number;
+  esPorConsumo: boolean;
   /** Detalle opcional de pago (Yape/Plin/Tarjeta) — null si no se registró número de operación. */
   numeroOperacion: string | null;
   entidadBancaria: string | null;

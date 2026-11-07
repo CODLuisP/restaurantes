@@ -105,6 +105,7 @@ async function exportVentasExcel(ventas: VentaDto[], fecha: Date, usuario: strin
 
   // ── Filas de datos ──
   ventas.forEach((v, idx) => {
+    const anulada = !!v.tiempoEliminacion;
     const row = sheet.addRow({
       codigo: codigoVenta(v),
       hora: new Date(v.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
@@ -122,7 +123,11 @@ async function exportVentasExcel(ventas: VentaDto[], fecha: Date, usuario: strin
     row.getCell('total').numFmt = '"S/." #,##0.00';
     row.getCell('total').alignment = { horizontal: 'right' };
 
-    if (idx % 2 === 1) {
+    if (anulada) {
+      for (let c = 1; c <= columnas.length; c++)
+        row.getCell(c).font = { color: { argb: 'FFEF4444' } };
+      row.getCell('total').font = { bold: false, color: { argb: 'FFEF4444' } };
+    } else if (idx % 2 === 1) {
       columnas.forEach((_, i) => {
         row.getCell(i + 1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
       });
@@ -570,33 +575,39 @@ export default function DashboardPage() {
                   <td colSpan={7} className="p-6 text-center text-slate-400">Todavía no hay ventas cobradas {esHoy ? 'hoy' : 'ese día'}.</td>
                 </tr>
               )}
-              {ventasRecientes.map(v => (
-                <tr key={v.id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="p-3 font-mono font-semibold text-gray-800 whitespace-nowrap">{codigoVenta(v)}</td>
-                  <td className="p-3 text-gray-500">
-                    {new Date(v.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}
-                  </td>
-                  <td className="p-3">
-                    <span className="bg-gray-100 px-2 py-0.5 rounded font-medium">
-                      {v.mesaNumero ? `Mesa ${v.mesaNumero}` : 'Para llevar'}
-                    </span>
-                  </td>
-                  <td className="p-3">
-                    {v.numeroComprobante ? (
-                      <span className="font-mono text-[11px] text-slate-600">{v.numeroComprobante}</span>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
-                  </td>
-                  <td className="p-3 font-mono">{v.items.reduce((acc, i) => acc + i.cantidad, 0)}</td>
-                  <td className="p-3">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${METODO_BADGE[v.metodoPago] ?? 'bg-slate-100 text-slate-700'}`}>
-                      {formatMetodoPago(v.metodoPago)}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right font-mono font-bold text-gray-900">{money(v.total)}</td>
-                </tr>
-              ))}
+              {ventasRecientes.map(v => {
+                const anulada = !!v.tiempoEliminacion;
+                return (
+                  <tr key={v.id} className={`hover:bg-gray-50/50 transition-colors ${anulada ? 'opacity-60' : ''}`}>
+                    <td className="p-3 font-mono font-semibold whitespace-nowrap">
+                      <span className={anulada ? 'text-rose-500 line-through' : 'text-gray-800'}>{codigoVenta(v)}</span>
+                      {anulada && <span className="ml-1.5 text-[9px] font-bold text-rose-400 uppercase tracking-wide">Anulada</span>}
+                    </td>
+                    <td className="p-3 text-gray-500">
+                      {new Date(v.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                    <td className="p-3">
+                      <span className="bg-gray-100 px-2 py-0.5 rounded font-medium">
+                        {v.mesaNumero ? `Mesa ${v.mesaNumero}` : 'Para llevar'}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      {v.numeroComprobante ? (
+                        <span className="font-mono text-[11px] text-slate-600">{v.numeroComprobante}</span>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
+                    <td className="p-3 font-mono">{v.items.reduce((acc, i) => acc + i.cantidad, 0)}</td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${METODO_BADGE[v.metodoPago] ?? 'bg-slate-100 text-slate-700'}`}>
+                        {formatMetodoPago(v.metodoPago)}
+                      </span>
+                    </td>
+                    <td className={`p-3 text-right font-mono font-bold ${anulada ? 'text-rose-400 line-through' : 'text-gray-900'}`}>{money(v.total)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

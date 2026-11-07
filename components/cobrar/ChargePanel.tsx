@@ -132,6 +132,7 @@ export default function ChargePanel({
 
   /* ── Comprobante ── */
   const [docType, setDocType] = useState<DocType>('Boleta');
+  const [esPorConsumo, setEsPorConsumo] = useState(false);
   const [docNumber, setDocNumber] = useState('');
   const [docName, setDocName] = useState('');
   const [consultandoDoc, setConsultandoDoc] = useState(false);
@@ -544,6 +545,7 @@ export default function ChargePanel({
         itemsCount: itemsCountForCharge,
         closeAfter: willCloseAfter,
         chargeItems: chargingItems.map(i => ({ pedidoItemId: Number(i.product.id), cantidad: i.quantity })),
+        esPorConsumo: (docType === 'Boleta' || docType === 'Nota de venta') ? esPorConsumo : false,
         /* Apenas el backend registra la venta (antes de refrescar mesas/caja):
            - Nota de venta: se imprime aquí con su correlativo real (no pasa por SUNAT, responde rápido).
            - Boleta/factura sin series cargadas: se imprime con el N° que devolvió la emisión.
@@ -688,7 +690,7 @@ export default function ChargePanel({
           <span className="text-[10px] text-slate-400 truncate">· Mozo: {selected.waiter ?? '—'}</span>
         </div>
         {selected.kind === 'mesa' && !started && (
-          <button onClick={onAddItems} className="text-[11px] font-medium text-brand hover:underline inline-flex items-center gap-1">
+          <button onClick={onAddItems} disabled={esPorConsumo} className="text-[11px] font-medium text-brand hover:underline inline-flex items-center gap-1 disabled:opacity-30 disabled:no-underline disabled:cursor-not-allowed">
             <Pencil className="h-3 w-3" /> Agregar platos
           </button>
         )}
@@ -711,33 +713,59 @@ export default function ChargePanel({
       )}
 
       {/* Detalle de ítems (con selección en modo "por ítems") */}
-      <div className="space-y-0.5 max-h-36 overflow-y-auto">
-        {selected.items.map(i => {
-          const isPaid = paidItemIds.has(i.product.id);
-          const selectable = splitMode === 'items' && !isPaid;
-          const picked = pickItemIds.has(i.product.id);
-          return (
-            <button
-              key={i.product.id}
-              type="button"
-              disabled={!selectable}
-              onClick={() => selectable && toggleItem(i.product.id)}
-              className={`w-full flex justify-between items-center text-xs rounded-lg px-2 py-0.5 transition-colors ${
-                selectable ? 'cursor-pointer hover:bg-slate-50' : 'cursor-default'
-              } ${picked ? 'bg-brand/5 ring-1 ring-brand/30' : ''} ${isPaid ? 'opacity-40 line-through' : ''}`}
-            >
-              <span className="text-slate-600 flex items-center gap-1.5">
-                {splitMode === 'items' && !isPaid && (
-                  <span className={`h-3 w-3 rounded border ${picked ? 'bg-brand border-brand' : 'border-slate-300'} inline-flex items-center justify-center`}>
-                    {picked && <CheckCircle2 className="h-2.5 w-2.5 text-white" />}
-                  </span>
-                )}
-                {i.quantity}× {i.product.name}{isPaid && ' (pagado)'}
+      <div className="space-y-0.5">
+        {/* Cabecera con switch Por consumo (solo Boleta / Nota de venta) */}
+        {(docType === 'Boleta' || docType === 'Nota de venta') && (
+          <button
+            type="button"
+            onClick={() => { setEsPorConsumo(v => !v); if (!esPorConsumo) setSplitMode('full'); }}
+            className="w-full flex items-center justify-end px-2 py-1 text-[11px] font-semibold"
+          >
+            <span className={`flex items-center gap-2 px-2 py-0.5 rounded-lg transition-all ${esPorConsumo ? 'bg-brand/10 text-brand' : 'text-slate-400 hover:text-slate-600'}`}>
+              Por consumo
+              {/* Switch visual */}
+              <span className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${esPorConsumo ? 'bg-brand' : 'bg-slate-200'}`}>
+                <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${esPorConsumo ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
               </span>
-              <span className="font-mono text-slate-700">{money(i.product.price * i.quantity)}</span>
-            </button>
-          );
-        })}
+            </span>
+          </button>
+        )}
+
+        <div className="max-h-36 overflow-y-auto space-y-0.5">
+          {esPorConsumo ? (
+            <div className="w-full flex justify-between items-center text-xs rounded-lg px-2 py-0.5">
+              <span className="text-slate-600 font-semibold">1× Consumo</span>
+              <span className="font-mono text-slate-700">{money(total)}</span>
+            </div>
+          ) : (
+            selected.items.map(i => {
+              const isPaid = paidItemIds.has(i.product.id);
+              const selectable = splitMode === 'items' && !isPaid;
+              const picked = pickItemIds.has(i.product.id);
+              return (
+                <button
+                  key={i.product.id}
+                  type="button"
+                  disabled={!selectable}
+                  onClick={() => selectable && toggleItem(i.product.id)}
+                  className={`w-full flex justify-between items-center text-xs rounded-lg px-2 py-0.5 transition-colors ${
+                    selectable ? 'cursor-pointer hover:bg-slate-50' : 'cursor-default'
+                  } ${picked ? 'bg-brand/5 ring-1 ring-brand/30' : ''} ${isPaid ? 'opacity-40 line-through' : ''}`}
+                >
+                  <span className="text-slate-600 flex items-center gap-1.5">
+                    {splitMode === 'items' && !isPaid && (
+                      <span className={`h-3 w-3 rounded border ${picked ? 'bg-brand border-brand' : 'border-slate-300'} inline-flex items-center justify-center`}>
+                        {picked && <CheckCircle2 className="h-2.5 w-2.5 text-white" />}
+                      </span>
+                    )}
+                    {i.quantity}× {i.product.name}{isPaid && ' (pagado)'}
+                  </span>
+                  <span className="font-mono text-slate-700">{money(i.product.price * i.quantity)}</span>
+                </button>
+              );
+            })
+          )}
+        </div>
       </div>
 
       {/* Cuentas ya cobradas (desplegable) */}
@@ -796,7 +824,7 @@ export default function ChargePanel({
             <button
               key={m.id}
               onClick={() => changeSplitMode(m.id)}
-              disabled={splitLocked && splitMode !== m.id}
+              disabled={(splitLocked && splitMode !== m.id) || (esPorConsumo && m.id === 'items')}
               className={`py-1 text-[10px] font-bold rounded-lg transition-all ${
                 splitMode === m.id ? 'bg-white text-brand shadow-sm' : 'text-slate-500 hover:text-slate-800 disabled:opacity-40'
               }`}
@@ -828,7 +856,8 @@ export default function ChargePanel({
             .map(d => (
             <button
               key={d.id}
-              onClick={() => { setDocType(d.id); setDocNumber(''); setDocName(''); clearCliente(); }}
+              onClick={() => { setDocType(d.id); setDocNumber(''); setDocName(''); clearCliente(); if (d.id === 'Factura') setEsPorConsumo(false); }}
+              disabled={esPorConsumo && d.id === 'Factura'}
               className={`py-1.5 text-[10px] font-bold rounded-lg border transition-all flex flex-col items-center justify-center gap-0.5 ${
                 docType === d.id ? 'bg-brand/10 border-brand text-brand' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
               }`}
@@ -939,6 +968,7 @@ export default function ChargePanel({
             <Ban className="h-3.5 w-3.5 shrink-0" /> No se emitirá boleta ni factura electrónica (venta interna).
           </p>
         )}
+
       </div>
 
       {/* Totales de la cuenta a cobrar — nota de venta no desglosa IGV, es venta interna sin comprobante */}

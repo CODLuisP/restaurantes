@@ -105,8 +105,13 @@ export async function exportVentasDetalladas(ventas: VentaDto[], kpi: KpiVentasD
     (['base', 'igv', 'total'] as const).forEach(k => { row.getCell(k).numFmt = MONEY; });
     row.getCell('total').font = { bold: true };
     row.getCell('correlativo').alignment = { horizontal: 'center' };
-    const fondo = v.tipoComprobante === 'nota_credito' ? 'FFE2E8F0' : v.tipoComprobante === 'nota_debito' ? 'FFFFF3E0' : idx % 2 === 1 ? 'FFF8FAFC' : null;
-    if (fondo) for (let c = 1; c <= columnas.length; c++) row.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fondo } };
+    if (v.tiempoEliminacion) {
+      for (let c = 1; c <= columnas.length; c++) row.getCell(c).font = { color: { argb: 'FFEF4444' } };
+      row.getCell('total').font = { bold: true, color: { argb: 'FFEF4444' } };
+    } else {
+      const fondo = v.tipoComprobante === 'nota_credito' ? 'FFE2E8F0' : v.tipoComprobante === 'nota_debito' ? 'FFFFF3E0' : idx % 2 === 1 ? 'FFF8FAFC' : null;
+      if (fondo) for (let c = 1; c <= columnas.length; c++) row.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fondo } };
+    }
   });
 
   if (ventas.length > 0) {
@@ -141,6 +146,16 @@ export async function exportVentasDetalladas(ventas: VentaDto[], kpi: KpiVentasD
     linea('VENTAS NETAS', kpi.totalVentas, kpi.totalIgv, 'neto');
     if (kpi.ncAnteriores > 0) linea('NC de documentos anteriores (no restan)', -kpi.ncAnteriores, 0, 'nota');
     if (kpi.ndAnteriores > 0) linea('ND de documentos anteriores (no suman)', kpi.ndAnteriores, 0, 'nota');
+
+    const nAnuladas = ventas.filter(v => v.tiempoEliminacion).length;
+    if (nAnuladas > 0) {
+      const leyenda = sheet.addRow({});
+      sheet.mergeCells(leyenda.number, 1, leyenda.number, columnas.length);
+      const c = leyenda.getCell(1);
+      c.value = `* Registros en rojo = ventas anuladas (${nAnuladas}), no incluidas en los totales.`;
+      c.font = { italic: true, size: 9, color: { argb: 'FFEF4444' } };
+      c.alignment = { horizontal: 'left' };
+    }
   }
 
   sheet.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: columnas.length } };

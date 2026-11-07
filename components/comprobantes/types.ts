@@ -1,7 +1,7 @@
 import type { PaymentMethod } from '@/types';
 import type { ComprobanteListItem } from '@/lib/api/comprobantes';
 
-export type EstadoSunat = 'Aceptado' | 'Rechazado' | 'Pendiente' | 'De Baja';
+export type EstadoSunat = 'Aceptado' | 'Rechazado' | 'Pendiente' | 'De Baja' | 'Anulada';
 export type TipoComprobante = 'Boleta' | 'Factura' | 'Ticket' | 'NotaCredito' | 'NotaDebito';
 export type EnvioStatus = 'Enviado' | 'Pendiente';
 export type FormatoImpresion = 'A4' | 'Ticket 80mm' | 'Ticket 58mm' | 'A5';
@@ -42,6 +42,7 @@ export interface Comprobante {
   hash: string;
   comprobanteIdExterno?: string | null;
   tieneSunat: boolean;
+  esPorConsumo?: boolean;
   ventaAfectadaId?: number | null;
   numeroVentaAfectada?: string | null;
   codMotivo?: string | null;
@@ -63,6 +64,7 @@ export const SUNAT_BADGE_COLOR: Record<EstadoSunat, string> = {
   Pendiente: 'bg-amber-50 text-amber-700 border-amber-200',
   Rechazado: 'bg-rose-50 text-rose-700 border-rose-200',
   'De Baja': 'bg-slate-100 text-slate-600 border-slate-200',
+  Anulada: 'bg-red-50 text-red-600 border-red-200',
 };
 
 /** Siguiente correlativo disponible para la serie del tipo indicado (B001 / F001). */
@@ -101,6 +103,7 @@ export function normalizeEstadoSunat(raw: string | null | undefined): EstadoSuna
   const upper = (raw ?? '').toUpperCase();
   if (upper.startsWith('ACEPTADO')) return 'Aceptado';
   if (upper === 'RECHAZADO') return 'Rechazado';
+  if (upper === 'ANULADA') return 'Anulada';
   if (upper === 'ANULADO' || upper === 'DE BAJA' || upper === 'DE_BAJA') return 'De Baja';
   return 'Pendiente';
 }
@@ -165,7 +168,9 @@ export function mapApiToComprobante(item: {
     // reemplaza por el valor exacto (igvPorcentaje) al abrir el detalle del comprobante.
     igvPorcentaje: item.subtotal > 0 ? Math.round((item.igv / item.subtotal) * 100) : 18,
     subtotal: item.subtotal,
-    estadoSunat: item.tieneSunat ? normalizeEstadoSunat(item.estadoSunat) : null,
+    estadoSunat: item.estadoSunat?.toUpperCase() === 'ANULADA'
+      ? 'Anulada'
+      : item.tieneSunat ? normalizeEstadoSunat(item.estadoSunat) : null,
     correoStatus: 'Pendiente',
     whatsappStatus: 'Pendiente',
     items: [],

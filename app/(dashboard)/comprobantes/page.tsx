@@ -133,22 +133,28 @@ async function exportComprobantesExcel(comprobantes: Comprobante[], usuario: str
     row.getCell('correlativo').alignment = { horizontal: 'center' };
     row.getCell('serieAfectada').alignment = { horizontal: 'center' };
 
-    // Resalta toda la línea según el tipo: nota de crédito en gris, nota de débito en un tono
-    // igual de discreto (ámbar claro) — sin tocar el color de letra, solo el fondo.
-    const fondoFila = c.tipo === 'NotaCredito'
-      ? 'FFE2E8F0'
-      : c.tipo === 'NotaDebito'
-      ? 'FFFFF3E0'
-      : idx % 2 === 1
-      ? 'FFF8FAFC'
-      : null;
-    const colorTexto = c.tipo === 'NotaCredito' ? 'FF475569' : null;
+    const esAnulada = c.estadoSunat === 'Anulada';
 
-    if (fondoFila) {
-      for (let col = 1; col <= columnas.length; col++) {
-        const cell = row.getCell(col);
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fondoFila } };
-        if (colorTexto) cell.font = { ...cell.font, color: { argb: colorTexto } };
+    if (esAnulada) {
+      for (let col = 1; col <= columnas.length; col++)
+        row.getCell(col).font = { color: { argb: 'FFEF4444' } };
+      row.getCell('total').font = { bold: true, color: { argb: 'FFEF4444' } };
+    } else {
+      row.getCell('total').font = { bold: true };
+      const fondoFila = c.tipo === 'NotaCredito'
+        ? 'FFE2E8F0'
+        : c.tipo === 'NotaDebito'
+        ? 'FFFFF3E0'
+        : idx % 2 === 1
+        ? 'FFF8FAFC'
+        : null;
+      const colorTexto = c.tipo === 'NotaCredito' ? 'FF475569' : null;
+      if (fondoFila) {
+        for (let col = 1; col <= columnas.length; col++) {
+          const cell = row.getCell(col);
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fondoFila } };
+          if (colorTexto) cell.font = { ...cell.font, color: { argb: colorTexto } };
+        }
       }
     }
   });
@@ -157,9 +163,10 @@ async function exportComprobantesExcel(comprobantes: Comprobante[], usuario: str
   // (intereses/penalidades que se cobran de más) y las notas de crédito lo DISMINUYEN
   // (descuentos/anulaciones), igual que en la contabilidad real.
   const signo = (tipo: TipoComprobante) => (tipo === 'NotaCredito' ? -1 : 1);
-  const netoBase = comprobantes.reduce((acc, c) => acc + signo(c.tipo) * c.subtotal, 0);
-  const netoIgv = comprobantes.reduce((acc, c) => acc + signo(c.tipo) * c.igv, 0);
-  const netoTotal = comprobantes.reduce((acc, c) => acc + signo(c.tipo) * c.monto, 0);
+  const activos = comprobantes.filter(c => c.estadoSunat !== 'Anulada');
+  const netoBase = activos.reduce((acc, c) => acc + signo(c.tipo) * c.subtotal, 0);
+  const netoIgv = activos.reduce((acc, c) => acc + signo(c.tipo) * c.igv, 0);
+  const netoTotal = activos.reduce((acc, c) => acc + signo(c.tipo) * c.monto, 0);
 
   if (comprobantes.length > 0) {
     const totalRow = sheet.addRow({});
@@ -182,6 +189,17 @@ async function exportComprobantesExcel(comprobantes: Comprobante[], usuario: str
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E8C45' } };
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     }
+  }
+
+  // Leyenda de anuladas al pie, solo si las hay.
+  const anuladas = comprobantes.filter(c => c.estadoSunat === 'Anulada');
+  if (anuladas.length > 0) {
+    const leyenda = sheet.addRow({});
+    sheet.mergeCells(leyenda.number, 1, leyenda.number, columnas.length);
+    const cLey = leyenda.getCell(1);
+    cLey.value = `* Registros en rojo = comprobantes anulados (${anuladas.length}), no incluidos en el total neto.`;
+    cLey.font = { italic: true, size: 9, color: { argb: 'FFEF4444' } };
+    cLey.alignment = { horizontal: 'left' };
   }
 
   sheet.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: columnas.length } };
@@ -432,14 +450,17 @@ export default function ComprobantesPage() {
         getComprobanteDetalle(token, parseInt(comp.id)),
         puedeTenerNotas ? getNotasDeVenta(token, parseInt(comp.id)) : Promise.resolve([]),
       ]);
-      const itemsMapped = detalle.items.map(i => ({
-        name: nombreItemPedido(i),
-        quantity: i.cantidad,
-        price: i.precioUnitario,
-      }));
+      const itemsMapped = detalle.esPorConsumo
+        ? [{ name: 'Por consumo', quantity: 1, price: detalle.total }]
+        : detalle.items.map(i => ({
+            name: nombreItemPedido(i),
+            quantity: i.cantidad,
+            price: i.precioUnitario,
+          }));
       setSelectedComprobante({
         ...comp,
         items: itemsMapped,
+        esPorConsumo: detalle.esPorConsumo,
         igvPorcentaje: detalle.igvPorcentaje,
         numeroVentaAfectada: detalle.numeroVentaAfectada,
         codMotivo: detalle.codMotivo,

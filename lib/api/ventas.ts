@@ -21,6 +21,7 @@ export interface VentaDto {
   turnoId?: number | null;
   /** "normal" (cubre todo lo pendiente de la sesión) o "split" (cuenta dividida por ítems). */
   tipo: string;
+  esPorConsumo?: boolean;
   subtotal: number;
   igvPorcentaje: number;
   igvMonto: number;
@@ -34,6 +35,8 @@ export interface VentaDto {
   /** Desglose real del cobro — una línea por método usado (pago combinado). */
   pagos: VentaPagoDto[];
   pagadoAt: string;
+  tiempoEliminacion?: string | null;
+  motivoAnulacion?: string | null;
   tipoComprobante: string;
   /** Correlativo interno del ticket (venta interna sin serie SUNAT), corrido por sucursal. Null para boleta/factura/notas. */
   correlativoTicket?: number | null;
@@ -49,6 +52,8 @@ export interface VentaDto {
   fechaRegistroFacturacion?: string | null;
   /** Datos desnormalizados vía JOIN — no son columnas propias de la venta. */
   cajeroNombre?: string | null;
+  mozoId?: number | null;
+  mozoNombre?: string | null;
   mesaNumero?: number | null;
   nombreCliente?: string | null;
   /** Detalle opcional de pago (Yape/Plin/Tarjeta) — null si no se registró número de operación. */
@@ -100,6 +105,7 @@ export interface CreateVentaDto {
   pagos: PagoInputDto[];
   /** ticket, boleta, factura */
   tipoComprobante: string;
+  esPorConsumo?: boolean;
   tipoDoc?: string | null;
   numDoc?: string | null;
   razonSocial?: string | null;
@@ -119,13 +125,14 @@ export function getVentasBySesion(token: string, sesionMesaId: number) {
 
 export function getVentas(
   token: string,
-  params: { sucursalId?: number; fechaInicio?: string; fechaFin?: string; cajeroId?: number } = {}
+  params: { sucursalId?: number; fechaInicio?: string; fechaFin?: string; cajeroId?: number; mozoId?: number } = {}
 ) {
   const query = new URLSearchParams();
   if (params.sucursalId) query.set('sucursalId', String(params.sucursalId));
   if (params.fechaInicio) query.set('fechaInicio', params.fechaInicio);
   if (params.fechaFin) query.set('fechaFin', params.fechaFin);
   if (params.cajeroId) query.set('cajeroId', String(params.cajeroId));
+  if (params.mozoId) query.set('mozoId', String(params.mozoId));
   const qs = query.toString();
   return apiFetch<VentaDto[]>(`/api/ventas${qs ? `?${qs}` : ''}`, { token });
 }
@@ -133,6 +140,10 @@ export function getVentas(
 /** Pendiente de usar hasta que se conecte un proveedor OSE/SUNAT real (ver comprobantes). */
 export function setVentaComprobante(token: string, id: number, comprobanteId: string) {
   return apiFetch<void>(`/api/ventas/${id}/comprobante`, { token, method: 'PUT', body: comprobanteId });
+}
+
+export function anularVenta(token: string, id: number, motivo: string) {
+  return apiFetch<void>(`/api/ventas/${id}/anular`, { token, method: 'POST', body: { motivo } });
 }
 
 /** Cuánto de cada ítem del pedido (por pedidoItemId) ya se facturó en ventas previas de la sesión

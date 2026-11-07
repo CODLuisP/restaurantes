@@ -95,20 +95,23 @@ export default function ComprobantesTable({
                   const esTicket = !comp.tieneSunat;
                   const esNota = comp.tipo === 'NotaCredito' || comp.tipo === 'NotaDebito';
                   const nuncaEmitido = !esTicket && !comp.comprobanteIdExterno;
+                  const esAnulada = comp.estadoSunat === 'Anulada';
 
                   // Iconos de SUNAT según estado
                   const sunatBadgeColor = comp.estadoSunat ? ({
                     Aceptado: 'bg-emerald-50 text-emerald-700 border-emerald-200',
                     Pendiente: 'bg-amber-50 text-amber-700 border-amber-200',
                     Rechazado: 'bg-rose-50 text-rose-700 border-rose-200',
-                    'De Baja': 'bg-slate-100 text-slate-600 border-slate-200'
+                    'De Baja': 'bg-slate-100 text-slate-600 border-slate-200',
+                    Anulada: 'bg-red-50 text-red-600 border-red-200',
                   } as Record<string, string>)[comp.estadoSunat] : 'bg-slate-50 text-slate-400 border-slate-100';
 
                   const sunatIcon = comp.estadoSunat ? ({
                     Aceptado: <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />,
                     Pendiente: <Clock className="h-3 w-3 text-amber-600 shrink-0 animate-pulse" />,
                     Rechazado: <AlertTriangle className="h-3 w-3 text-rose-600 shrink-0" />,
-                    'De Baja': <X className="h-3 w-3 text-slate-500 shrink-0" />
+                    'De Baja': <X className="h-3 w-3 text-slate-500 shrink-0" />,
+                    Anulada: <X className="h-3 w-3 text-red-500 shrink-0" />,
                   } as Record<string, React.ReactNode>)[comp.estadoSunat] : null;
 
                   // Colores de correo y whatsapp
@@ -118,7 +121,7 @@ export default function ComprobantesTable({
                   return (
                     <tr
                       key={comp.numero}
-                      className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70 transition-colors"
+                      className={`border-b border-slate-100 last:border-0 hover:bg-slate-50/70 transition-colors ${esAnulada ? 'opacity-60' : ''}`}
                     >
                       {/* Fecha */}
                       <td className="px-4 py-3.5 whitespace-nowrap text-slate-600 font-medium">
@@ -128,10 +131,15 @@ export default function ComprobantesTable({
 
                       {/* Comprobante */}
                       <td className="px-4 py-3.5">
-                        <div className="font-bold text-slate-800">{comp.numero}</div>
+                        <div className={`font-bold text-slate-800 ${esAnulada ? 'line-through text-slate-400' : ''}`}>{comp.numero}</div>
                         <div className="text-[10px] text-slate-400">
                           {TIPO_COMPROBANTE_LABEL[comp.tipo]} - <span className="font-semibold text-slate-600">S/ {comp.monto.toFixed(2)}</span>
                         </div>
+                        {esAnulada && (
+                          <span className="inline-flex items-center gap-0.5 mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-red-50 text-red-600 border border-red-200">
+                            <X className="h-2.5 w-2.5" /> Anulada
+                          </span>
+                        )}
                       </td>
 
                       {/* Cliente */}
@@ -168,10 +176,10 @@ export default function ComprobantesTable({
                           const descargando = descargandoKey === `${comp.id}-PDF`;
                           return (
                             <button
-                              onClick={() => !descargando && onDownload(comp.id, 'PDF')}
-                              disabled={descargando}
-                              className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-100 transition-colors"
-                              title="Descargar PDF"
+                              onClick={() => !descargando && !esAnulada && onDownload(comp.id, 'PDF')}
+                              disabled={descargando || esAnulada}
+                              className={`p-1.5 rounded-lg border border-transparent transition-colors ${esAnulada ? 'text-slate-300 cursor-not-allowed' : 'text-rose-500 hover:bg-rose-50 hover:border-rose-100'}`}
+                              title={esAnulada ? 'Comprobante anulado' : 'Descargar PDF'}
                             >
                               {descargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                             </button>

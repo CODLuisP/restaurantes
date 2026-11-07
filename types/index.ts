@@ -183,6 +183,8 @@ export interface ChargeInput {
   closeAfter?: boolean;
   /** Ítems reales (id de pedido_item del backend + cantidad) que cubre este cobro — obligatorio para registrar la venta real. */
   chargeItems: { pedidoItemId: number; cantidad: number }[];
+  /** Si true, se envía un único ítem "CONSUMO" a SUNAT en lugar de los ítems individuales. Solo aplica para boleta y nota de venta. */
+  esPorConsumo?: boolean;
   /** Se llama apenas el backend registra la venta, ANTES de refrescar mesas/caja — la nota de
    *  venta se imprime ahí mismo con su correlativo real, sin esperar esos refrescos. */
   onVentaCreada?: (venta: import('@/lib/api/ventas').VentaDto) => void;

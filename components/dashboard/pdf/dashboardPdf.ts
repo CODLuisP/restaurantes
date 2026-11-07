@@ -5,7 +5,7 @@ import type { VentaDto } from '@/lib/api/ventas';
 import { formatMetodoPago } from '@/lib/config/metodos';
 import { toFechaParam } from '@/lib/api/reportes';
 import { codigoVenta } from '@/lib/ventas/codigoVenta';
-import { PDF_COLORS, PDF_FONT, PDF_LAYOUT, METODO_COLOR } from './pdfTheme';
+import { PDF_COLORS, PDF_FONT, PDF_LAYOUT, METODO_COLOR, type RGB } from './pdfTheme';
 import {
   PANEL_BAR_H, drawFooters, drawKpiTile, drawPanelBar, drawPanelFrame, fitText, panelTable,
   pdfMoney, setDraw, setFill, setFont, type PdfKpi,
@@ -426,37 +426,57 @@ function drawRevenueChart(doc: jsPDF, x: number, y: number, w: number, h: number
 
 /** Tabla de ventas: lista las que caben antes del pie y resume el resto en una fila. */
 function drawVentasPanel(doc: jsPDF, y: number, data: DashboardPdfData, periodo: string) {
-  const n = data.ventas.length;
-  const totalVentas = data.ventas.reduce((a, v) => a + v.total, 0);
-  const totalItems = data.ventas.reduce((a, v) => a + v.items.reduce((s, i) => s + i.cantidad, 0), 0);
-  const startY = drawPanelBar(doc, M, y, W, `Ventas registradas (POS) · ${n} venta${n === 1 ? '' : 's'} ${periodo}`, `Total ${pdfMoney(totalVentas)}`);
+  const activas = data.ventas.filter(v => !v.tiempoEliminacion);
+  const nActivas = activas.length;
+  const totalVentas = activas.reduce((a, v) => a + v.total, 0);
+  const totalItems = activas.reduce((a, v) => a + v.items.reduce((s, i) => s + i.cantidad, 0), 0);
+  const nAnuladas = data.ventas.length - nActivas;
+  const titulo = `Ventas registradas (POS) · ${nActivas} venta${nActivas === 1 ? '' : 's'} ${periodo}${nAnuladas > 0 ? ` · ${nAnuladas} anulada${nAnuladas === 1 ? '' : 's'}` : ''}`;
+  const startY = drawPanelBar(doc, M, y, W, titulo, `Total ${pdfMoney(totalVentas)}`);
 
   // Filas que caben antes del pie: se descuentan cabecera y total.
-  const filas = Math.max(1, Math.floor((BOTTOM - 2 - startY) / ROW_H) - 2);
-  const recortar = n > filas;
-  const visibles = recortar ? data.ventas.slice(0, filas - 1) : data.ventas;
+  const maxFilas = Math.max(1, Math.floor((BOTTOM - 2 - startY) / ROW_H) - 2);
+  const recortar = data.ventas.length > maxFilas;
+  const visibles = recortar ? data.ventas.slice(0, maxFilas - 1) : data.ventas;
 
-  const body: RowInput[] = visibles.map(v => [
-    codigoVenta(v),
-    new Date(v.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-    v.mesaNumero ? `Mesa ${v.mesaNumero}` : '—',
-    v.numeroComprobante ?? '—',
-    String(v.items.reduce((a, i) => a + i.cantidad, 0)),
-    formatMetodoPago(v.metodoPago),
-    pdfMoney(v.total),
-  ]);
+  const body: RowInput[] = visibles.map(v => {
+    const anulada = !!v.tiempoEliminacion;
+    // Anuladas: rojo ladrillo suave — distinguible pero no escandaloso.
+    const color: RGB | undefined = anulada ? [185, 90, 90] : undefined;
+    if (anulada) {
+      return [
+        { content: codigoVenta(v), styles: { textColor: color, fontStyle: 'italic' as const } },
+        { content: new Date(v.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }), styles: { textColor: color } },
+        { content: v.mesaNumero ? `Mesa ${v.mesaNumero}` : '—', styles: { textColor: color } },
+        { content: v.numeroComprobante ?? '—', styles: { textColor: color } },
+        { content: String(v.items.reduce((a, i) => a + i.cantidad, 0)), styles: { textColor: color, halign: 'center' as const } },
+        { content: formatMetodoPago(v.metodoPago), styles: { textColor: color } },
+        { content: `(${pdfMoney(v.total)})`, styles: { textColor: color, halign: 'right' as const, fontStyle: 'italic' as const } },
+      ];
+    }
+    return [
+      codigoVenta(v),
+      new Date(v.pagadoAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
+      v.mesaNumero ? `Mesa ${v.mesaNumero}` : '—',
+      v.numeroComprobante ?? '—',
+      String(v.items.reduce((a, i) => a + i.cantidad, 0)),
+      formatMetodoPago(v.metodoPago),
+      pdfMoney(v.total),
+    ];
+  });
+
   if (recortar) {
     body.push([{
-      content: `… y ${n - visibles.length} ventas más, incluidas en el total. Detalle completo en "Exportar (.XLSX)".`,
-      colSpan: 7, styles: { halign: 'center', fontStyle: 'italic', textColor: PDF_COLORS.textSecondary },
+      content: `… y ${data.ventas.length - visibles.length} ventas más. Detalle completo en "Exportar (.XLSX)".`,
+      colSpan: 7, styles: { halign: 'center' as const, fontStyle: 'italic' as const, textColor: PDF_COLORS.textSecondary },
     }]);
   }
 
   autoTable(doc, {
     ...tablaEnPanel(M, W, startY),
     head: [['Código', 'Hora', 'Mesa', 'Comprobante', 'Ítems', 'Método de pago', 'Monto']],
-    body: n ? body : vacio(`Todavía no hay ventas cobradas ${periodo}.`, 7),
-    foot: n
+    body: data.ventas.length ? body : vacio(`Todavía no hay ventas cobradas ${periodo}.`, 7),
+    foot: nActivas
       ? [[{ content: 'TOTAL', colSpan: 4 }, { content: String(totalItems), styles: { halign: 'center' } }, '', { content: pdfMoney(totalVentas), styles: { halign: 'right' } }]]
       : undefined,
     showFoot: 'lastPage',

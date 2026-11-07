@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { AlertTriangle, CheckCircle2, Clock, Download, Printer, XCircle } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Modal } from '@/components/ui';
@@ -39,13 +40,17 @@ export default function ComprobanteDetailModal({
 
   /* Ayuda visual del estado ante SUNAT — solo informativo, no forma parte del documento
      impreso (queda fuera de .comprobante-print-area). */
-  const estadoBanner = selectedComprobante?.tieneSunat && selectedComprobante.estadoSunat
-    ? ({
-        Aceptado:  { style: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: <CheckCircle2 className="h-4 w-4 shrink-0" />, texto: `La ${tipoLabel} ha sido aceptada por SUNAT.` },
-        Rechazado: { style: 'bg-rose-50 text-rose-700 border-rose-200',         icon: <XCircle className="h-4 w-4 shrink-0" />,      texto: `La ${tipoLabel} fue rechazada por SUNAT.` },
-        Pendiente: { style: 'bg-amber-50 text-amber-700 border-amber-200',      icon: <Clock className="h-4 w-4 shrink-0" />,         texto: `La ${tipoLabel} está pendiente de respuesta de SUNAT.` },
-        'De Baja': { style: 'bg-slate-100 text-slate-600 border-slate-200',     icon: <AlertTriangle className="h-4 w-4 shrink-0" />, texto: `La ${tipoLabel} fue dada de baja.` },
-      } as const)[selectedComprobante.estadoSunat]
+  const esAnulada = selectedComprobante?.estadoSunat === 'Anulada';
+
+  const estadoBannerMap: Record<string, { style: string; icon: ReactNode; texto: string }> = {
+    Aceptado:  { style: 'bg-emerald-50 text-emerald-700 border-emerald-200', icon: <CheckCircle2 className="h-4 w-4 shrink-0" />, texto: `La ${tipoLabel} ha sido aceptada por SUNAT.` },
+    Rechazado: { style: 'bg-rose-50 text-rose-700 border-rose-200',         icon: <XCircle className="h-4 w-4 shrink-0" />,      texto: `La ${tipoLabel} fue rechazada por SUNAT.` },
+    Pendiente: { style: 'bg-amber-50 text-amber-700 border-amber-200',      icon: <Clock className="h-4 w-4 shrink-0" />,         texto: `La ${tipoLabel} está pendiente de respuesta de SUNAT.` },
+    'De Baja': { style: 'bg-slate-100 text-slate-600 border-slate-200',     icon: <AlertTriangle className="h-4 w-4 shrink-0" />, texto: `La ${tipoLabel} fue dada de baja.` },
+    Anulada:   { style: 'bg-red-50 text-red-700 border-red-200',            icon: <XCircle className="h-4 w-4 shrink-0" />,      texto: `Esta ${tipoLabel} ha sido anulada.` },
+  };
+  const estadoBanner = selectedComprobante?.estadoSunat
+    ? (estadoBannerMap[selectedComprobante.estadoSunat] ?? null)
     : null;
 
   const fechaEnvioSunat = selectedComprobante?.fechaISO
@@ -70,14 +75,18 @@ export default function ComprobanteDetailModal({
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => window.print()}
-                className="btn-secondary py-1.5 px-3 flex items-center gap-1 text-[11px]"
+                onClick={() => !esAnulada && window.print()}
+                disabled={esAnulada}
+                className={`btn-secondary py-1.5 px-3 flex items-center gap-1 text-[11px] ${esAnulada ? 'opacity-40 cursor-not-allowed' : ''}`}
+                title={esAnulada ? 'Comprobante anulado' : undefined}
               >
                 <Printer className="h-3.5 w-3.5" /> Imprimir
               </button>
               <button
-                onClick={() => onDownload(selectedComprobante!.id, 'PDF')}
-                className="btn-primary py-1.5 px-3 flex items-center gap-1 text-[11px]"
+                onClick={() => !esAnulada && onDownload(selectedComprobante!.id, 'PDF')}
+                disabled={esAnulada}
+                className={`btn-primary py-1.5 px-3 flex items-center gap-1 text-[11px] ${esAnulada ? 'opacity-40 cursor-not-allowed' : ''}`}
+                title={esAnulada ? 'Comprobante anulado' : undefined}
               >
                 <Download className="h-3.5 w-3.5" /> Descargar PDF
               </button>
@@ -102,6 +111,12 @@ export default function ComprobanteDetailModal({
                 Fecha de envío SUNAT: {formatFechaHora(fechaEnvioSunat)}
               </div>
             )}
+          </div>
+        )}
+        {selectedComprobante?.esPorConsumo && (
+          <div className="rounded-lg px-4 py-2 mb-3 text-xs border bg-brand/5 text-brand border-brand/20 font-semibold flex items-center gap-2">
+            <span>Por consumo</span>
+            <span className="text-[10px] font-normal text-slate-500 font-sans">— emitido como un único ítem ante SUNAT</span>
           </div>
         )}
         {notasRelacionadas.length > 0 && (
