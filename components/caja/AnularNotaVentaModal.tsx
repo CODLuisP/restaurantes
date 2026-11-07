@@ -27,10 +27,6 @@ export function AnularNotaVentaModal({ open, venta, token, onClose, onAnulada, t
 
   const handleAnular = async () => {
     if (!token || !venta) return;
-    if (!motivo.trim()) {
-      triggerToast('Ingresa un motivo de anulación.', 'error');
-      return;
-    }
     setLoading(true);
     try {
       await anularVenta(token, venta.id, motivo.trim());
@@ -65,11 +61,11 @@ export function AnularNotaVentaModal({ open, venta, token, onClose, onAnulada, t
 
         <div>
           <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-            Motivo de anulación <span className="text-rose-500">*</span>
+            Motivo de anulación <span className="text-slate-400 font-normal">(opcional)</span>
           </label>
           <input
             type="text"
-            className="input w-full text-sm"
+            className="input w-full text-sm px-3 py-2.5"
             placeholder="Ej: Error en el pedido, cliente canceló..."
             value={motivo}
             onChange={e => setMotivo(e.target.value)}
@@ -92,7 +88,7 @@ export function AnularNotaVentaModal({ open, venta, token, onClose, onAnulada, t
           <button
             type="button"
             onClick={handleAnular}
-            disabled={loading || !motivo.trim()}
+            disabled={loading}
             className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold py-1.5 px-4 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Anular nota de venta'}
