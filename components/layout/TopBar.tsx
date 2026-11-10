@@ -121,6 +121,8 @@ export default function TopBar() {
   }, []);
 
   const roleLabel = currentUser ? ROLE_LABELS[currentUser.role] : '';
+  const nombreCompleto = currentUser?.name ?? currentUser?.email ?? 'Usuario';
+  const iniciales = nombreCompleto.split(' ').filter(Boolean).slice(0, 2).map(p => p[0].toUpperCase()).join('');
   const breadcrumbs = getBreadcrumbs(pathname, searchParams);
 
   return (
@@ -193,11 +195,11 @@ export default function TopBar() {
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <span className="font-semibold tracking-tight">WB</span>
+                <span className="font-semibold tracking-tight">{iniciales}</span>
               )}
             </div>
             <div className="text-left hidden lg:block select-none leading-tight">
-              <p className="text-xs font-semibold text-slate-800">WB</p>
+              <p className="text-xs font-semibold text-slate-800">{nombreCompleto}</p>
               <p className="text-[11px] text-brand font-sans font-medium tracking-normal capitalize">
                 {roleLabel ? (roleLabel.charAt(0).toUpperCase() + roleLabel.slice(1).toLowerCase()) : 'Administrador'}
               </p>
@@ -209,7 +211,7 @@ export default function TopBar() {
             <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-50">
               <div className="px-4 py-2 border-b border-slate-100">
                 <p className="text-xs text-slate-400">Usuario conectado</p>
-                <p className="text-xs font-bold text-slate-800 truncate">{currentUser?.email ?? '—'}</p>
+                <p className="text-xs font-bold text-slate-800 truncate">{nombreCompleto}</p>
                 <p className="text-[10px] text-brand font-medium mt-0.5">{roleLabel}</p>
               </div>
               <Link
