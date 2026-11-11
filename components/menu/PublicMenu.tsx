@@ -193,8 +193,8 @@ export default function PublicMenu({
     if (!q) return availableItems;
     return availableItems.filter(
       (i) =>
-        i.nombre.toLowerCase().includes(q) ||
-        i.descripcion.toLowerCase().includes(q),
+        i.nombre?.toLowerCase().includes(q) ||
+        i.descripcion?.toLowerCase().includes(q),
     );
   }, [search, availableItems]);
 
