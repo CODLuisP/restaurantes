@@ -884,7 +884,7 @@ export default function ProductFormModal({
                 className="input w-full px-3 pt-2 pb-4 resize-none"
                 maxLength={150}
               />
-              <span className={`absolute bottom-1.5 right-2.5 text-[10px] pointer-events-none ${form.descripcion.length >= 150 ? 'text-rose-500 font-semibold' : 'text-slate-400'}`}>
+              <span className="absolute bottom-1.5 right-2.5 text-[10px] pointer-events-none text-slate-400">
                 {form.descripcion.length} / 150
               </span>
             </div>
