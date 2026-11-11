@@ -73,6 +73,11 @@ export default function ProductCard({
             <h5 className="text-[11px] font-bold text-slate-800 leading-tight line-clamp-2">
               {product.name}
             </h5>
+            {product.description && (
+              <p className="text-[10px] text-slate-400 leading-tight line-clamp-2 mt-0.5">
+                {product.description}
+              </p>
+            )}
 
             {tieneVariantes ? (
               <div className="mt-1">

@@ -34,6 +34,7 @@ export function productoMenuToProduct(p: ProductoMenu): Product {
     stock: 99,
     sku: '',
     unit: 'unidades',
+    description: p.descripcion ?? '',
     variants: p.variantes?.map(v => ({ id: v.id, name: v.nombre, price: v.precio })),
     extras: p.extras?.map(e => ({ id: e.id, name: e.nombre, price: e.precio })),
   };

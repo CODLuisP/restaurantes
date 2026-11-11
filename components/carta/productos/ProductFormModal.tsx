@@ -873,15 +873,21 @@ export default function ProductFormModal({
             <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Descripción
             </label>
-            <textarea
-              value={form.descripcion}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, descripcion: e.target.value }))
-              }
-              rows={2}
-              placeholder="Ingredientes y preparación..."
-              className="input w-full px-3 py-2 resize-none"
-            />
+            <div className="relative">
+              <textarea
+                value={form.descripcion}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, descripcion: e.target.value.slice(0, 150) }))
+                }
+                rows={2}
+                placeholder="Ingredientes y preparación..."
+                className="input w-full px-3 pt-2 pb-4 resize-none"
+                maxLength={150}
+              />
+              <span className={`absolute bottom-1.5 right-2.5 text-[10px] pointer-events-none ${form.descripcion.length >= 150 ? 'text-rose-500 font-semibold' : 'text-slate-400'}`}>
+                {form.descripcion.length} / 150
+              </span>
+            </div>
           </div>
 
           <div className="rounded-xl divide-y divide-slate-100">
