@@ -8,6 +8,7 @@ export interface Product {
   stock: number;
   sku: string;
   unit: string;
+  description?: string;
   /** Variantes disponibles del producto en el catálogo (ej. "Helada"/"Al tiempo") — no aplica a un ítem ya en el carrito. */
   variants?: { id: number; name: string; price: number }[];
   /** Extras disponibles del producto en el catálogo (ej. "Crema huancaína +S/.2.00"), seleccionables
