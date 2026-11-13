@@ -73,6 +73,7 @@ const configSubItems: ConfigSubItem[] = [
   { href: '/configuracion/metodos-pago',         label: 'Métodos de pago' },
   { href: '/configuracion/metodos-entrega',      label: 'Métodos de entrega' },
   { href: '/configuracion/tickets',              label: 'Tickets', badge: 'NEW' },
+  { href: '/configuracion/impresoras',           label: 'Impresoras', badge: 'NEW' },
 ];
 
 const cajaSubItems: ConfigSubItem[] = [

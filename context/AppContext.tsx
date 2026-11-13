@@ -24,8 +24,6 @@ import type { TurnoCajaDto } from '@/lib/api/turnosCaja';
 import type { PedidoDto } from '@/lib/api/pedidos';
 import { crearVenta } from '@/lib/api/ventas';
 import { ApiError } from '@/lib/api/client';
-import { imprimirComanda, imprimirCancelacion } from '@/lib/print/comanda';
-import { itemsComandaDePedido, itemsComandaDeCarrito } from '@/lib/print/itemsComanda';
 
 /** Boleta/Factura/Nota de venta (UI) → ticket/boleta/factura (backend). */
 const DOC_TYPE_TO_BACKEND: Record<DocType, string> = {
@@ -225,11 +223,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     metodosPago, metodosEntrega, igvPorcentaje, impresoraCocina, sucursalSincronizada,
     empresa, usarFacturacionElectronica, sucursales, setSucursales,
     sucursalLogo,
-    ticketsConfig, cocinaBlocks, comprobanteBlocks, ticketPaperSize, negocioTicket,
+    ticketsConfig, comprobanteBlocks, ticketPaperSize, negocioTicket,
     negocioConfigLoading, negocioConfigErrores, refreshNegocioConfig,
   } = useNegocioConfig();
-  const ticketBusinessName = negocioTicket.businessName;
-  const ticketLogoUrl = negocioTicket.logoUrl;
   const {
     tables, setTables, mesasLoading, loadMesas, addTable, removeTable, setTableStatus,
     mergeTables: mergeTablesBackend, unmergeTable: unmergeTableBackend,
@@ -268,100 +264,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      if (impresoraCocina) {
-        // Pedido armado por el cliente (QR) sin confirmar: al agregarle platos el backend lo confirma,
-        // así que la comanda debe llevar también sus platos originales (ya están en pantalla).
-        const mesa = tables.find(t => t.name === tableName);
-        const eraPendienteConfirmacion = mesa?.pedidoEstado === 'pendiente_confirmacion';
-        const ahora = new Date();
-        imprimirComanda(cocinaBlocks, ticketPaperSize, {
-          businessName: ticketBusinessName,
-          logoUrl: ticketLogoUrl,
-          mesa: tableName,
-          mozo: authSession?.user?.name ?? undefined,
-          clienteName: nombreComensal || mesa?.nombreCliente || undefined,
-          fecha: ahora.toLocaleDateString('es-PE'),
-          hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-          items: eraPendienteConfirmacion
-            ? [...itemsComandaDeCarrito(mesa?.items ?? []), ...itemsComandaDeCarrito(items)]
-            : itemsComandaDeCarrito(items),
-        });
-      }
-
       encolarComanda(async () => {
-        const avisoImpresa = impresoraCocina ? ' La comanda ya salió impresa: avisa a cocina.' : '';
         if (!(await caja.verificarCajaAbierta())) {
-          triggerToast(`${CAJA_CERRADA_MSG} La comanda de Mesa ${tableName} no se registró.${avisoImpresa}`, 'error');
+          triggerToast(`${CAJA_CERRADA_MSG} La comanda de Mesa ${tableName} no se registró.`, 'error');
           return;
         }
         const { ok } = await sendOrderToKitchenBackend(tableName, nombreComensal, items);
-        if (!ok) triggerToast(`La comanda de Mesa ${tableName} no se registró. Vuelve a enviarla.${avisoImpresa}`, 'error');
+        if (!ok) triggerToast(`La comanda de Mesa ${tableName} no se registró. Vuelve a enviarla.`, 'error');
       });
       return true;
     },
-    [caja.sucursalCajaAbierta, caja.verificarCajaAbierta, triggerToast, sendOrderToKitchenBackend, encolarComanda, tables, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
+    [caja.sucursalCajaAbierta, caja.verificarCajaAbierta, triggerToast, sendOrderToKitchenBackend, encolarComanda]
   );
 
   /* El pedido que arma el cliente por QR (/menu) recién se manda a cocina cuando el mozo lo
-     confirma. Con "Impresora en cocina" activo, faltaba justo esta impresión — solo se imprimían
-     los platos que el mozo agregaba DESPUÉS, nunca los que trajo el pedido original del cliente. */
+     confirma. Con "Impresora en cocina" activo, el backend imprime esa comanda al confirmar. */
   const confirmarPedidoCliente = useCallback(
     async (tableName: string) => {
       if (!(await caja.verificarCajaAbierta())) {
         triggerToast(CAJA_CERRADA_MSG, 'error');
         return;
       }
-      const pedido = await confirmarPedidoClienteBackend(tableName);
-      if (pedido && impresoraCocina && pedido.items.length > 0) {
-        const ahora = new Date();
-        imprimirComanda(cocinaBlocks, ticketPaperSize, {
-          businessName: ticketBusinessName,
-          logoUrl: ticketLogoUrl,
-          mesa: tableName,
-          mozo: authSession?.user?.name ?? undefined,
-          clienteName: pedido.nombreCliente ?? undefined,
-          fecha: ahora.toLocaleDateString('es-PE'),
-          hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-          items: itemsComandaDePedido(pedido.items),
-        });
-      }
+      await confirmarPedidoClienteBackend(tableName);
     },
-    [caja.verificarCajaAbierta, triggerToast, confirmarPedidoClienteBackend, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
+    [caja.verificarCajaAbierta, triggerToast, confirmarPedidoClienteBackend]
   );
 
   /* Con "Impresora en cocina" activo, reducir o quitar un plato ya enviado imprime un ticket de
-     cancelación — sin KDS, cocina no tiene otra forma de enterarse. Con KDS, el plato ya
-     desaparece solo del tablero vía el mismo evento de SignalR que actualiza el pedido. */
+     cancelación — lo genera el backend (y lo imprime el agente del local); aquí solo se llama a la API. */
   const updateTableItemQty = useCallback(
-    async (tableName: string, pedidoItemId: string, delta: number) => {
-      const item = tables.find(t => t.name === tableName)?.items?.find(i => i.product.id === pedidoItemId);
-      await updateTableItemQtyBackend(tableName, pedidoItemId, delta);
-      if (impresoraCocina && item && delta < 0) {
-        imprimirCancelacion({
-          mesa: tableName,
-          mozo: authSession?.user?.name ?? undefined,
-          nombre: item.product.name,
-          cantidad: Math.min(-delta, item.quantity),
-        }, ticketPaperSize);
-      }
-    },
-    [tables, updateTableItemQtyBackend, impresoraCocina, ticketPaperSize, authSession?.user?.name]
+    (tableName: string, pedidoItemId: string, delta: number) =>
+      updateTableItemQtyBackend(tableName, pedidoItemId, delta),
+    [updateTableItemQtyBackend]
   );
 
   const removeTableItem = useCallback(
-    async (tableName: string, pedidoItemId: string) => {
-      const item = tables.find(t => t.name === tableName)?.items?.find(i => i.product.id === pedidoItemId);
-      await removeTableItemBackend(tableName, pedidoItemId);
-      if (impresoraCocina && item) {
-        imprimirCancelacion({
-          mesa: tableName,
-          mozo: authSession?.user?.name ?? undefined,
-          nombre: item.product.name,
-          cantidad: item.quantity,
-        }, ticketPaperSize);
-      }
-    },
-    [tables, removeTableItemBackend, impresoraCocina, ticketPaperSize, authSession?.user?.name]
+    (tableName: string, pedidoItemId: string) => removeTableItemBackend(tableName, pedidoItemId),
+    [removeTableItemBackend]
   );
 
   const {
@@ -372,26 +311,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     marcarItemActiveOrderEntregado,
   } = useActiveOrders(triggerToast);
 
-  /* Mismo caso que confirmarPedidoCliente (mesas): con "Impresora en cocina" activo, confirmar un
-     pedido de llevar/delivery armado por el cliente nunca imprimía sus platos originales. */
+  /* Mismo caso que confirmarPedidoCliente (mesas): el backend imprime la comanda al confirmar. */
   const confirmarActiveOrder = useCallback(
     async (orderId: string) => {
-      const pedido = await confirmarActiveOrderBackend(orderId);
-      if (pedido && impresoraCocina && pedido.items.length > 0) {
-        const ahora = new Date();
-        imprimirComanda(cocinaBlocks, ticketPaperSize, {
-          businessName: ticketBusinessName,
-          logoUrl: ticketLogoUrl,
-          orderNumber: orderId,
-          mozo: authSession?.user?.name ?? undefined,
-          clienteName: pedido.nombreCliente ?? undefined,
-          fecha: ahora.toLocaleDateString('es-PE'),
-          hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-          items: itemsComandaDePedido(pedido.items),
-        });
-      }
+      await confirmarActiveOrderBackend(orderId);
     },
-    [confirmarActiveOrderBackend, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
+    [confirmarActiveOrderBackend]
   );
 
   /* Aviso en vivo a todo mozo: cuando cocina marca un pedido como "listo", cualquiera puede recogerlo y servirlo. */
@@ -660,22 +585,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return null;
       }
       const order = await createActiveOrder(type, info, items);
-      if (order && impresoraCocina) {
-        const ahora = new Date();
-        imprimirComanda(cocinaBlocks, ticketPaperSize, {
-          businessName: ticketBusinessName,
-          logoUrl: ticketLogoUrl,
-          orderNumber: order.id,
-          mozo: authSession?.user?.name ?? undefined,
-          clienteName: info.customer,
-          fecha: ahora.toLocaleDateString('es-PE'),
-          hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-          items: itemsComandaDeCarrito(items),
-        });
-      }
       return order;
     },
-    [caja.verificarCajaAbierta, triggerToast, createActiveOrder, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
+    [caja.verificarCajaAbierta, triggerToast, createActiveOrder]
   );
 
   /* Igual que sendOrderToKitchen para mesas: agregar platos a un pedido de llevar/delivery YA
@@ -689,36 +601,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
 
-      if (impresoraCocina) {
-        const order = activeOrders.find(o => o.id === orderId);
-        const eraPendienteConfirmacion = order?.pedidoEstado === 'pendiente_confirmacion';
-        const ahora = new Date();
-        imprimirComanda(cocinaBlocks, ticketPaperSize, {
-          businessName: ticketBusinessName,
-          logoUrl: ticketLogoUrl,
-          orderNumber: orderId,
-          mozo: authSession?.user?.name ?? undefined,
-          clienteName: order?.customer || undefined,
-          fecha: ahora.toLocaleDateString('es-PE'),
-          hora: ahora.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
-          items: eraPendienteConfirmacion
-            ? [...itemsComandaDeCarrito(order?.items ?? []), ...itemsComandaDeCarrito(items)]
-            : itemsComandaDeCarrito(items),
-        });
-      }
-
       encolarComanda(async () => {
-        const avisoImpresa = impresoraCocina ? ' La comanda ya salió impresa: avisa a cocina.' : '';
         if (!(await caja.verificarCajaAbierta())) {
-          triggerToast(`${CAJA_CERRADA_MSG} La comanda del pedido #${orderId} no se registró.${avisoImpresa}`, 'error');
+          triggerToast(`${CAJA_CERRADA_MSG} La comanda del pedido #${orderId} no se registró.`, 'error');
           return;
         }
         const { ok } = await addItemsToActiveOrderBackend(orderId, items);
-        if (!ok) triggerToast(`La comanda del pedido #${orderId} no se registró. Vuelve a enviarla.${avisoImpresa}`, 'error');
+        if (!ok) triggerToast(`La comanda del pedido #${orderId} no se registró. Vuelve a enviarla.`, 'error');
       });
       return true;
     },
-    [caja.sucursalCajaAbierta, caja.verificarCajaAbierta, triggerToast, addItemsToActiveOrderBackend, encolarComanda, activeOrders, impresoraCocina, cocinaBlocks, ticketPaperSize, ticketBusinessName, ticketLogoUrl, authSession?.user?.name]
+    [caja.sucursalCajaAbierta, caja.verificarCajaAbierta, triggerToast, addItemsToActiveOrderBackend, encolarComanda]
   );
 
   /** Igual que chargeTable pero para pedidos llevar/delivery — misma venta real de backend,

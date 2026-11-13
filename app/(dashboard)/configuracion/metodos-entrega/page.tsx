@@ -177,9 +177,12 @@ export default function MetodosEntregaPage() {
             <div>
               <h4 className="text-sm font-bold text-slate-800">Impresora en cocina</h4>
               <p className="text-[11px] text-slate-500 max-w-md leading-snug">
-                Actívalo si cocina no usa pantalla: cada comanda de mesa se imprime directo en la impresora térmica
-                del local (el cocinero avisa al mozo de viva voz cuando está lista) y la mesa se puede cobrar en
-                caja sin esperar a que el pedido quede &quot;entregado&quot;.
+                Actívalo si cocina no usa pantalla: cada comanda se imprime en la impresora térmica de su área
+                (cocina, barra), aunque el mozo la envíe desde su celular. Requiere el agente de impresión
+                instalado en el local; configúralo en{' '}
+                <Link href="/configuracion/impresoras" className="font-semibold text-brand hover:underline">Impresoras</Link>.
+                El cocinero avisa al mozo de viva voz cuando está lista y la mesa se puede cobrar en caja sin
+                esperar a que el pedido quede &quot;entregado&quot;.
               </p>
             </div>
           </div>
