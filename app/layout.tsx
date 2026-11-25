@@ -1,21 +1,12 @@
 import type { Metadata } from 'next';
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import '@fontsource-variable/inter';
+import '@fontsource-variable/jetbrains-mono';
 import './globals.css';
 import SessionProviderWrapper from '@/components/auth/SessionProviderWrapper';
 import { AuthProvider } from '@/context/AuthContext';
 
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-sans',
-  display: 'swap',
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  variable: '--font-mono',
-  weight: ['400', '500', '600'],
-  display: 'swap',
-});
+/* Fuentes autoalojadas (paquetes @fontsource-variable): no dependen de descargar Google Fonts
+   durante el build, que fallaba en Vercel con `next/font/google`. */
 
 export const metadata: Metadata = {
   title: 'RestoFly — SaaS POS Perú',
@@ -29,7 +20,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+    <html lang="es">
       <body>
         <SessionProviderWrapper>
           <AuthProvider>{children}</AuthProvider>

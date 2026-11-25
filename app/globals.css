@@ -2,8 +2,8 @@
 @import "./design-tokens.css";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
 /* La app es solo tema claro: sin fondo explícito, navegadores/tablets en modo oscuro
