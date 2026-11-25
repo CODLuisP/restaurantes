@@ -103,7 +103,7 @@ export function useCajaTurno(triggerToast: (message: string, type?: Toast['type'
 
   useEffect(() => { loadActiveTurno(); }, [loadActiveTurno]);
 
-  /* ¿Hay caja abierta en el local (de cualquier cajero)? Distinto de "mi turno personal":
+  /* ¿Hay caja del día abierta en el local (de cualquier cajero)? Distinto de "mi turno personal":
      lo usa AuthGuard para habilitar a los mozos aunque ellos mismos no operen la caja. */
 
   /** Devuelve el estado real del backend (o null si no se pudo consultar, p. ej. sin red). */
@@ -111,9 +111,12 @@ export function useCajaTurno(triggerToast: (message: string, type?: Toast['type'
     if (!token) return null;
     try {
       const turno = await getTurnoActivoSucursal(token, sucursalId);
-      setSucursalCajaAbierta(true);
+      /* Una caja que quedó abierta de un día anterior NO habilita operar (pedidos ni cobros):
+         primero hay que cerrarla en Caja → Corte y abrir la del día. */
+      const vencida = new Date(turno.abiertoAt).toDateString() !== new Date().toDateString();
+      setSucursalCajaAbierta(!vencida);
       setSucursalTurnoActivo(turno);
-      return true;
+      return !vencida;
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         setSucursalCajaAbierta(false);

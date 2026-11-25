@@ -181,6 +181,7 @@ interface AppContextType {
 }
 
 const CAJA_CERRADA_MSG = 'La caja está cerrada. No se pueden tomar pedidos hasta que el cajero o el administrador la aperture.';
+const CAJA_VENCIDA_MSG = 'La caja quedó abierta desde un día anterior. No se pueden tomar pedidos hasta que el cajero o el administrador la cierre (Caja → Corte) y aperture la del día.';
 
 const AppContext = createContext<AppContextType | null>(null);
 
@@ -256,17 +257,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     turno.finally(() => setComandasEnCurso(n => n - 1));
   }, [triggerToast]);
 
+  const msgCajaNoDisponible = caja.sucursalTurnoStale ? CAJA_VENCIDA_MSG : CAJA_CERRADA_MSG;
+
   const sendOrderToKitchen = useCallback(
     async (tableName: string, nombreComensal: string | undefined, items: OrderItem[]) => {
       // Chequeo instantáneo con el estado ya cargado; la verificación contra la API va en segundo plano.
       if (!caja.sucursalCajaAbierta) {
-        triggerToast(CAJA_CERRADA_MSG, 'error');
+        triggerToast(msgCajaNoDisponible, 'error');
         return false;
       }
 
       encolarComanda(async () => {
         if (!(await caja.verificarCajaAbierta())) {
-          triggerToast(`${CAJA_CERRADA_MSG} La comanda de Mesa ${tableName} no se registró.`, 'error');
+          triggerToast(`${msgCajaNoDisponible} La comanda de Mesa ${tableName} no se registró.`, 'error');
           return;
         }
         const { ok } = await sendOrderToKitchenBackend(tableName, nombreComensal, items);
@@ -274,7 +277,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
       return true;
     },
-    [caja.sucursalCajaAbierta, caja.verificarCajaAbierta, triggerToast, sendOrderToKitchenBackend, encolarComanda]
+    [caja.sucursalCajaAbierta, caja.verificarCajaAbierta, msgCajaNoDisponible, triggerToast, sendOrderToKitchenBackend, encolarComanda]
   );
 
   /* El pedido que arma el cliente por QR (/menu) recién se manda a cocina cuando el mozo lo
@@ -282,12 +285,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const confirmarPedidoCliente = useCallback(
     async (tableName: string) => {
       if (!(await caja.verificarCajaAbierta())) {
-        triggerToast(CAJA_CERRADA_MSG, 'error');
+        triggerToast(msgCajaNoDisponible, 'error');
         return;
       }
       await confirmarPedidoClienteBackend(tableName);
     },
-    [caja.verificarCajaAbierta, triggerToast, confirmarPedidoClienteBackend]
+    [caja.verificarCajaAbierta, msgCajaNoDisponible, triggerToast, confirmarPedidoClienteBackend]
   );
 
   /* Con "Impresora en cocina" activo, reducir o quitar un plato ya enviado imprime un ticket de
@@ -581,13 +584,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // logueado — un mozo nunca abre su propia caja, pero sí puede tomar pedidos mientras
       // el cajero/admin la tenga abierta. Ver caja.sucursalCajaAbierta.
       if (!(await caja.verificarCajaAbierta())) {
-        triggerToast(CAJA_CERRADA_MSG, 'error');
+        triggerToast(msgCajaNoDisponible, 'error');
         return null;
       }
       const order = await createActiveOrder(type, info, items);
       return order;
     },
-    [caja.verificarCajaAbierta, triggerToast, createActiveOrder]
+    [caja.verificarCajaAbierta, msgCajaNoDisponible, triggerToast, createActiveOrder]
   );
 
   /* Igual que sendOrderToKitchen para mesas: agregar platos a un pedido de llevar/delivery YA
@@ -597,13 +600,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     async (orderId: string, items: OrderItem[]) => {
       // Igual que sendOrderToKitchen: imprime al instante y registra en la API en segundo plano.
       if (!caja.sucursalCajaAbierta) {
-        triggerToast(CAJA_CERRADA_MSG, 'error');
+        triggerToast(msgCajaNoDisponible, 'error');
         return false;
       }
 
       encolarComanda(async () => {
         if (!(await caja.verificarCajaAbierta())) {
-          triggerToast(`${CAJA_CERRADA_MSG} La comanda del pedido #${orderId} no se registró.`, 'error');
+          triggerToast(`${msgCajaNoDisponible} La comanda del pedido #${orderId} no se registró.`, 'error');
           return;
         }
         const { ok } = await addItemsToActiveOrderBackend(orderId, items);
@@ -611,7 +614,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
       return true;
     },
-    [caja.sucursalCajaAbierta, caja.verificarCajaAbierta, triggerToast, addItemsToActiveOrderBackend, encolarComanda]
+    [caja.sucursalCajaAbierta, caja.verificarCajaAbierta, msgCajaNoDisponible, triggerToast, addItemsToActiveOrderBackend, encolarComanda]
   );
 
   /** Igual que chargeTable pero para pedidos llevar/delivery — misma venta real de backend,

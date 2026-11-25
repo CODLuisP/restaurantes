@@ -427,7 +427,7 @@ export default function ImpresorasPage() {
         open={porEliminar !== null}
         onClose={() => setPorEliminar(null)}
         title="Eliminar impresora"
-        subtitle={`¿Eliminar "${porEliminar?.nombre ?? ''}"? Si ya imprimió comandas no se puede borrar; en ese caso desactívala.`}
+        subtitle={`¿Eliminar "${porEliminar?.nombre ?? ''}"? Se borrará también su historial de impresión y los trabajos pendientes. Esta acción no se puede deshacer.`}
         size="sm"
         footer={
           <div className="flex justify-end gap-2">
